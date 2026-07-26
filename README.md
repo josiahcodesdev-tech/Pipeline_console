@@ -1,0 +1,123 @@
+# Pipeline Console
+
+Lead generation and RFP tracking for the Corporate Department BDE function at
+Vantage Africa School of Leadership.
+
+Six views — Dashboard, Leads, RFPs, Progress, Tasks, Weekly report — over four
+tables in Supabase, with a Word export for the weekly report and an AI concept-note
+drafter.
+
+**Stack:** Vite · React 19 · TypeScript · Tailwind v4 · shadcn/ui (`base-nova`, on
+Base UI) · Supabase (Postgres + Auth) · Recharts · `docx`.
+
+---
+
+## Setup
+
+### 1. Install
+
+```bash
+npm install
+```
+
+### 2. Create the database
+
+In your Supabase project, open the **SQL Editor** and run
+[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+
+It creates `leads`, `rfps`, `tasks`, and `weekly_reports`, enables row-level
+security on all four, and adds policies so **each user can only ever read or write
+their own rows**.
+
+### 3. Point the app at the project
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in from **Project Settings → API**:
+
+```
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key
+```
+
+Both are safe to ship in a browser bundle — RLS is what protects the data, not the
+anon key. If these are missing the app shows setup instructions instead of a login
+form.
+
+### 4. Run
+
+```bash
+npm run dev
+```
+
+Create an account on first load. If your Supabase project has email confirmation
+enabled (**Authentication → Providers → Email**), confirm before signing in — or
+turn it off for a single-user internal tool.
+
+---
+
+## Concept-note drafting (optional)
+
+The "Draft concept note" button in the Lead and RFP dialogs calls a Supabase Edge
+Function. **The Anthropic API key lives only in that function's secrets** — the
+browser sends structured context (organisation, segment, notes) and never sees a
+key or a prompt.
+
+```bash
+supabase link --project-ref your-project-ref
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase functions deploy concept-note
+```
+
+Everything else works without this; only the drafting button needs it.
+
+The function uses `claude-opus-5` at low effort (a short, well-scoped writing task),
+and opts into server-side fallbacks so a safety-classifier decline is retried on
+another model rather than surfacing as an error.
+
+---
+
+## Notes on the implementation
+
+**Dates are calendar dates, not instants.** A lead created on the 3rd belongs to
+the week containing the 3rd regardless of clock time, so `src/lib/dates.ts` parses
+and formats at *local* midnight and never round-trips through `toISOString()`,
+which silently shifts the day for anyone east or west of Greenwich.
+
+**Every reported number comes from `src/lib/metrics.ts`**, so the dashboard, the
+progress charts, and the weekly report can't disagree about what "qualified this
+week" means.
+
+**`statusUpdatedOn` only moves on an actual status change**, not on incidental
+edits — the weekly "leads qualified" count depends on it.
+
+**Charts are single-hue by design.** The segment and RFP-status charts plot one
+measure across nominal categories, so identity is carried by the category axis and
+every bar shares one colour; colouring them individually would double-encode bar
+length as hue. A five-colour status ramp was tried and rejected — `Preparing` and
+`Submitted` sit at OKLab ΔE 3.8, indistinguishable even with full colour vision.
+
+**Row types in `database.types.ts` are `type` aliases, not `interface`s.**
+PostgREST constrains rows to `Record<string, unknown>`; an interface has no
+implicit index signature and fails that constraint *silently*, degrading every
+insert payload to `never`.
+
+---
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with HMR |
+| `npm run build` | Typecheck, then production build to `dist/` |
+| `npm run typecheck` | Typecheck only |
+| `npm run lint` | Oxlint |
+| `npm run preview` | Serve the production build locally |
+
+`docx` and Recharts are loaded on demand (Word export and the Progress view
+respectively), keeping the initial bundle at ~147 kB gzipped.
+
+Only the shadcn components in use are vendored in `src/components/ui/`. Add more
+with `npx shadcn@latest add <name>`.
