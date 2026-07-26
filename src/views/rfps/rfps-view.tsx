@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,13 +33,20 @@ function deadlineClass(days: number | null): string {
 }
 
 export function RfpsView() {
-  const { rfps, saveRfp, removeRfp, importRfps } = usePipeline()
+  const { rfps, saveRfp, removeRfp, importRfps, syncOpportunities } = usePipeline()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<RfpStatus | 'all'>('all')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSync, setLastSync] = useState<string | null>(null)
   const [editing, setEditing] = useState<Rfp | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  const syncedCount = useMemo(
+    () => rfps.filter((rfp) => rfp.externalId).length,
+    [rfps],
+  )
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -85,6 +92,40 @@ export function RfpsView() {
     }
   }
 
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const outcome = await syncOpportunities()
+      if (outcome.fetched === 0) {
+        toast.info('The CareerCraft feed returned no RFPs right now.')
+      } else if (outcome.added === 0) {
+        toast.info(
+          `Already up to date — all ${outcome.fetched} RFPs in the feed are in your tracker.`,
+        )
+      } else {
+        toast.success(
+          `${outcome.added} new RFP${outcome.added === 1 ? '' : 's'} added` +
+            (outcome.alreadyHave ? ` · ${outcome.alreadyHave} already tracked` : ''),
+        )
+      }
+      if (outcome.skipped.length) {
+        toast.warning(
+          `${outcome.skipped.length} feed row${outcome.skipped.length === 1 ? '' : 's'} skipped (${outcome.skipped[0]})`,
+        )
+      }
+      setLastSync(
+        new Date().toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      )
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   function open(rfp: Rfp | null) {
     setEditing(rfp)
     setDialogOpen(true)
@@ -102,10 +143,40 @@ export function RfpsView() {
         }
       />
 
-      <Panel title="Import sourced RFPs">
-        <p className="mb-2.5 text-[11.5px] text-muted-foreground">
-          Ask Claude in chat to search tender/NGO/government portals for you, then
-          paste the JSON list it gives you here.
+      <Panel
+        title="Scraped opportunities"
+        action={
+          lastSync ? (
+            <span className="text-[11px] text-faint">Last synced {lastSync}</span>
+          ) : null
+        }
+      >
+        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+          Pulls RFPs and tenders from the CareerCraft scraper — the same feed
+          behind{' '}
+          <span className="text-foreground">mycareercraft.site/admin/opportunities</span>
+          . Jobs are excluded. Re-running is safe: anything already in your
+          tracker is left untouched, so status changes and notes survive.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={() => void handleSync()} disabled={syncing}>
+            <RefreshCwIcon className={syncing ? 'animate-spin' : undefined} />
+            {syncing ? 'Syncing…' : 'Sync from CareerCraft'}
+          </Button>
+          {syncedCount > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              {syncedCount} RFP{syncedCount === 1 ? '' : 's'} in your tracker came
+              from the scraper
+            </span>
+          )}
+        </div>
+      </Panel>
+
+      <Panel title="Paste sourced RFPs">
+        <p className="mb-2.5 text-xs leading-relaxed text-muted-foreground">
+          For anything the scraper does not cover: ask Claude in chat to search
+          tender/NGO/government portals, then paste the JSON list it gives you
+          here.
         </p>
         <Textarea
           value={json}

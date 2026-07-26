@@ -44,6 +44,8 @@ export type RfpRow = {
   notes: string
   source: string
   sourced: boolean
+  /** Opportunity id from the CareerCraft feed; null for manual entries. */
+  external_id: string | null
   created_on: string
   status_updated_on: string | null
   created_at: string
@@ -92,7 +94,8 @@ export type Database = {
       }
       rfps: {
         Row: RfpRow
-        Insert: Insertable<RfpRow, Generated | 'created_on'>
+        // `external_id` is nullable with no default, so omitting it is valid.
+        Insert: Insertable<RfpRow, Generated | 'created_on' | 'external_id'>
         Update: Partial<RfpRow>
         Relationships: []
       }

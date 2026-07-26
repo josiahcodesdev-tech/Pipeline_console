@@ -22,12 +22,18 @@ npm install
 
 ### 2. Create the database
 
-In your Supabase project, open the **SQL Editor** and run
-[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+In your Supabase project, open the **SQL Editor** and run the migrations in
+order:
 
-It creates `leads`, `rfps`, `tasks`, and `weekly_reports`, enables row-level
-security on all four, and adds policies so **each user can only ever read or write
-their own rows**.
+1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) —
+   creates `leads`, `rfps`, `tasks`, and `weekly_reports`, enables row-level
+   security on all four, and adds policies so **each user can only ever read or
+   write their own rows**.
+2. [`supabase/migrations/0002_external_opportunities.sql`](supabase/migrations/0002_external_opportunities.sql)
+   — adds `rfps.external_id` plus a unique index, which is what makes the
+   CareerCraft sync idempotent.
+
+Both are safe to re-run.
 
 ### 3. Point the app at the project
 
@@ -78,6 +84,28 @@ and opts into server-side fallbacks so a safety-classifier decline is retried on
 another model rather than surfacing as an error.
 
 ---
+
+## Scraped RFPs from CareerCraft
+
+The RFPs view has a **Sync from CareerCraft** button that pulls scraped tenders
+from `mycareercraft.site/api/public/opportunities` — the same rows behind that
+project's `/admin/opportunities` page. It filters to `category=rfp`, so job
+postings never arrive.
+
+No configuration is needed: that endpoint sends
+`Access-Control-Allow-Origin: *`, so the browser calls it directly with no proxy
+or server route in between.
+
+**Re-syncing is safe.** Each synced RFP stores the feed's opportunity id in
+`external_id`, and a unique index on `(user_id, external_id)` means a second sync
+adds only what is new. Existing rows are left untouched rather than overwritten,
+so a status you moved to *Preparing* and notes you added survive.
+
+Buyer segment is inferred from the organisation name
+(`classifySegment` in [src/lib/opportunities.ts](src/lib/opportunities.ts)) —
+UN bodies and donors map to Development Partner, ministries to Government, and
+so on. It is a guess, and editable in the RFP dialog. Feed titles arrive with
+HTML entities intact (`Rwanda&apos;s`), so they are decoded on the way in.
 
 ## Notes on the implementation
 

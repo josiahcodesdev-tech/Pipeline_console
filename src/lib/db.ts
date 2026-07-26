@@ -25,7 +25,12 @@ import type {
  */
 
 export type LeadDraft = Omit<Lead, 'id' | 'createdOn' | 'statusUpdatedOn'>
-export type RfpDraft = Omit<Rfp, 'id' | 'createdOn' | 'statusUpdatedOn' | 'sourced'>
+export type RfpDraft = Omit<
+  Rfp,
+  'id' | 'createdOn' | 'statusUpdatedOn' | 'sourced' | 'externalId'
+>
+/** An RFP arriving from the CareerCraft feed, keyed for idempotent re-sync. */
+export type SyncedRfpDraft = RfpDraft & { externalId: string }
 export type TaskDraft = Omit<Task, 'id' | 'done' | 'completedOn' | 'createdOn'>
 export type WeeklyReportDraft = Omit<WeeklyReport, 'id'>
 
@@ -83,6 +88,7 @@ function toRfp(row: RfpRow): Rfp {
     notes: row.notes ?? '',
     source: row.source || 'Manual',
     sourced: row.sourced,
+    externalId: row.external_id,
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
   }
@@ -276,9 +282,43 @@ export async function importRfps(drafts: RfpDraft[]): Promise<Rfp[]> {
           ...rfpFields(draft),
           user_id: userId,
           sourced: true,
+          external_id: null,
           created_on: stamp,
           status_updated_on: stamp,
         })),
+      )
+      .select(),
+  )
+  return rows.map(toRfp)
+}
+
+/**
+ * Inserts RFPs synced from the CareerCraft feed, skipping any whose
+ * `external_id` this user already holds.
+ *
+ * `ignoreDuplicates` makes the call idempotent at the database level via the
+ * `rfps_user_external_id_key` index, so a second sync — or two devices syncing
+ * at once — cannot create duplicates even though the caller also filters
+ * client-side. Rows already present are left untouched rather than overwritten,
+ * so local edits (status moved to Preparing, notes added) survive re-syncing.
+ */
+export async function syncRfps(drafts: SyncedRfpDraft[]): Promise<Rfp[]> {
+  if (drafts.length === 0) return []
+  const stamp = today()
+  const userId = await currentUserId()
+  const rows = unwrap(
+    await supabase
+      .from('rfps')
+      .upsert(
+        drafts.map((draft) => ({
+          ...rfpFields(draft),
+          user_id: userId,
+          sourced: true,
+          external_id: draft.externalId,
+          created_on: stamp,
+          status_updated_on: stamp,
+        })),
+        { onConflict: 'user_id,external_id', ignoreDuplicates: true },
       )
       .select(),
   )

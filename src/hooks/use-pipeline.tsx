@@ -9,8 +9,21 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 import * as db from '@/lib/db'
+import { fetchOpportunities } from '@/lib/opportunities'
 import type { Lead, Rfp, Task, WeeklyReport } from '@/lib/types'
 import { useAuth } from './use-auth'
+
+/** Result of a CareerCraft sync, for reporting back to the user. */
+export interface SyncOutcome {
+  /** Rows the feed returned. */
+  fetched: number
+  /** Rows actually added to the tracker this run. */
+  added: number
+  /** Rows already held, left untouched so local edits survive. */
+  alreadyHave: number
+  /** Rows the feed returned that could not be mapped. */
+  skipped: string[]
+}
 
 /**
  * Holds the whole dataset in memory. The console is single-user and the volumes
@@ -36,6 +49,7 @@ interface PipelineValue {
   saveRfp: (draft: db.RfpDraft, existing: Rfp | null) => Promise<void>
   removeRfp: (id: string) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
+  syncOpportunities: () => Promise<SyncOutcome>
 
   addTask: (draft: db.TaskDraft) => Promise<void>
   toggleTask: (id: string, done: boolean) => Promise<void>
@@ -144,6 +158,28 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     return created.length
   }, [])
 
+  const syncOpportunities = useCallback(async (): Promise<SyncOutcome> => {
+    const { drafts, skipped } = await fetchOpportunities()
+
+    // Filter against what is already held so the user gets an accurate
+    // "n new" count. The unique index on (user_id, external_id) is the real
+    // guarantee — this is just for the message.
+    const held = new Set(
+      rfps.map((rfp) => rfp.externalId).filter((id): id is string => Boolean(id)),
+    )
+    const fresh = drafts.filter((draft) => !held.has(draft.externalId))
+
+    const created = fresh.length ? await db.syncRfps(fresh) : []
+    if (created.length) setRfps((current) => [...created, ...current])
+
+    return {
+      fetched: drafts.length,
+      added: created.length,
+      alreadyHave: drafts.length - created.length,
+      skipped,
+    }
+  }, [rfps])
+
   const addTask = useCallback(async (draft: db.TaskDraft) => {
     const saved = await db.createTask(draft)
     setTasks((current) => [saved, ...current])
@@ -194,6 +230,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveRfp,
       removeRfp,
       importRfps,
+      syncOpportunities,
       addTask,
       toggleTask,
       removeTask,
@@ -212,6 +249,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveRfp,
       removeRfp,
       importRfps,
+      syncOpportunities,
       addTask,
       toggleTask,
       removeTask,

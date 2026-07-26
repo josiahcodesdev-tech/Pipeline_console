@@ -83,6 +83,11 @@ export interface Rfp {
   notes: string
   source: string
   sourced: boolean
+  /**
+   * Opportunity id from the CareerCraft public feed. `null` for anything added
+   * by hand or pasted in as JSON — it is what makes re-syncing idempotent.
+   */
+  externalId: string | null
   createdOn: IsoDate
   statusUpdatedOn: IsoDate
 }
