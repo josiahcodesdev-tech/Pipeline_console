@@ -1,12 +1,22 @@
 import { useMemo } from 'react'
+import { ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { KpiCard, type KpiTone } from '@/components/kpi-card'
 import { PipelineBar } from '@/components/pipeline-bar'
+import { RfpStatusBadge } from '@/components/status-badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { TaskRow } from '@/views/tasks/task-row'
 import {
   daysUntil,
-  formatDate,
+  formatDateWithYear,
   formatToday,
   today,
   weekEnd,
@@ -28,6 +38,43 @@ function disciplineTone(pct: number): KpiTone {
   return 'bad'
 }
 
+/**
+ * Deadline with how long is left, or how long it has been missed.
+ *
+ * "24 Jul (-2d)" was ambiguous — a negative day count reads as a typo rather
+ * than a warning — so overdue is spelled out.
+ */
+function DeadlineCell({ deadline }: { deadline: string }) {
+  const left = daysUntil(deadline)
+
+  if (left === null) return <span className="text-muted-foreground">—</span>
+
+  const overdue = left < 0
+  const label = overdue
+    ? `${Math.abs(left)}d overdue`
+    : left === 0
+      ? 'due today'
+      : `in ${left}d`
+
+  return (
+    <span
+      className={cn(
+        'flex flex-col gap-0.5',
+        overdue || left <= 2
+          ? 'text-danger'
+          : left <= 5
+            ? 'text-warning'
+            : 'text-foreground',
+      )}
+    >
+      <span className="font-medium">{formatDateWithYear(deadline)}</span>
+      <span className={cn('text-[11px]', (overdue || left === 0) && 'font-semibold')}>
+        {label}
+      </span>
+    </span>
+  )
+}
+
 export function DashboardView() {
   const { leads, rfps, tasks, toggleTask } = usePipeline()
 
@@ -43,6 +90,10 @@ export function DashboardView() {
   const activeRfps = activeRfpCount(rfps)
   const dueTasks = dueOrOverdueTasks(tasks)
   const soonRfps = upcomingRfpDeadlines(rfps, 7)
+  const overdueCount = soonRfps.filter((rfp) => {
+    const left = daysUntil(rfp.deadline)
+    return left !== null && left < 0
+  }).length
 
   return (
     <>
@@ -84,34 +135,65 @@ export function DashboardView() {
         )}
       </Panel>
 
-      <Panel title="RFP deadlines this week">
+      <Panel
+        title="RFP deadlines"
+        action={
+          overdueCount > 0 ? (
+            <span className="text-[11px] font-semibold text-danger">
+              {overdueCount} overdue
+            </span>
+          ) : (
+            <span className="text-[11px] text-faint">Next 7 days</span>
+          )
+        }
+        bodyClassName="overflow-x-auto"
+      >
         {soonRfps.length === 0 ? (
-          <EmptyState>No RFP deadlines in the next 7 days.</EmptyState>
+          <EmptyState>
+            Nothing closing in the next 7 days, and nothing overdue.
+          </EmptyState>
         ) : (
-          soonRfps.map((rfp) => {
-            const left = daysUntil(rfp.deadline)
-            return (
-              <div
-                key={rfp.id}
-                className="flex items-center gap-2.5 border-b border-border-soft px-1 py-2 last:border-b-0"
-              >
-                <span className="flex-1 text-[12.5px]">
-                  {rfp.title}
-                  {rfp.org && <span className="text-faint"> — {rfp.org}</span>}
-                </span>
-                <span
-                  className={cn(
-                    'text-[11px] text-muted-foreground',
-                    left !== null && left <= 2 && 'font-semibold text-danger',
-                    left !== null && left > 2 && left <= 5 && 'text-warning',
-                  )}
-                >
-                  {formatDate(rfp.deadline)}
-                  {left !== null && ` (${left}d)`}
-                </span>
-              </div>
-            )
-          })
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Deadline</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {soonRfps.map((rfp) => (
+                <TableRow key={rfp.id}>
+                  <TableCell className="max-w-[420px] font-medium">
+                    {rfp.link ? (
+                      <a
+                        href={rfp.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group inline-flex items-start gap-1 text-primary hover:underline"
+                        title="Open the original notice in a new tab"
+                      >
+                        <span>{rfp.title}</span>
+                        <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                      </a>
+                    ) : (
+                      rfp.title
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rfp.org || '—'}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <DeadlineCell deadline={rfp.deadline} />
+                  </TableCell>
+                  <TableCell>
+                    <RfpStatusBadge status={rfp.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Panel>
     </>

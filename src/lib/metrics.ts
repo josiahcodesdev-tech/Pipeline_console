@@ -76,7 +76,15 @@ export function dueOrOverdueTasks(tasks: Task[], asOf: IsoDate = today()): Task[
     .sort((a, b) => a.due.localeCompare(b.due))
 }
 
-/** Open RFPs with a deadline inside the next `days` days, soonest first. */
+/**
+ * Open RFPs whose deadline falls on or before `days` from now, soonest first.
+ *
+ * Deliberately has no lower bound: an RFP still sitting in Watching or
+ * Preparing after its deadline has passed is the most urgent thing on the
+ * board, not the least, so it stays in the list and the UI marks it overdue.
+ * Anything already Submitted, Won, or Lost drops out — the deadline no longer
+ * matters once it has been acted on.
+ */
 export function upcomingRfpDeadlines(
   rfps: Rfp[],
   days: number,

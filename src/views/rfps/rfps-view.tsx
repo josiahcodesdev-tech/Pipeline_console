@@ -135,6 +135,8 @@ export function RfpsView() {
           `${outcome.skipped.length} feed row${outcome.skipped.length === 1 ? '' : 's'} skipped (${outcome.skipped[0]})`,
         )
       }
+      // The "Updated …" stamp is set inside syncOpportunities, so both this
+      // manual check and the automatic run refresh it.
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -189,20 +191,9 @@ export function RfpsView() {
         }
       >
         <p className="text-xs leading-relaxed text-muted-foreground">
-          RFPs and tenders sync automatically from the CareerCraft scraper — the
-          same feed behind{' '}
-          <span className="text-foreground">mycareercraft.site/admin/opportunities</span>
-          . Jobs are excluded, and anything already in your tracker keeps its
-          status and notes.
-          {syncedCount > 0 && (
-            <>
-              {' '}
-              <span className="text-foreground">
-                {syncedCount} of your RFP{syncedCount === 1 ? '' : 's'} came from
-                the scraper.
-              </span>
-            </>
-          )}
+          {syncedCount > 0
+            ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from the scraper.`
+            : 'Nothing synced from the scraper yet.'}
         </p>
       </Panel>
 
