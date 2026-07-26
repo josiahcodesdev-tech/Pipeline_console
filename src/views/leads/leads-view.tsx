@@ -14,7 +14,7 @@ import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
 import { LeadStatusBadge } from '@/components/status-badge'
 import { usePipeline } from '@/hooks/use-pipeline'
-import { formatDate } from '@/lib/dates'
+import { formatDateWithYear } from '@/lib/dates'
 import {
   LEAD_STATUSES,
   SEGMENTS,
@@ -108,20 +108,28 @@ export function LeadsView() {
                 onClick={() => open(lead)}
                 className="cursor-pointer"
               >
-                <TableCell className="font-medium">{lead.org}</TableCell>
-                <TableCell>{lead.segment}</TableCell>
-                <TableCell>{lead.country || '—'}</TableCell>
-                <TableCell>{lead.contactName || '—'}</TableCell>
+                <TableCell className="max-w-[280px] font-medium">{lead.org}</TableCell>
+                <TableCell>
+                  <span className="inline-block whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {lead.segment}
+                  </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {lead.country || '—'}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {lead.contactName || '—'}
+                </TableCell>
                 <TableCell>
                   <LeadStatusBadge status={lead.status} />
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   {lead.nextActionDate ? (
-                    formatDate(lead.nextActionDate)
+                    formatDateWithYear(lead.nextActionDate)
                   ) : (
                     // A worked lead with no next step is the thing this console
                     // exists to catch, so it is called out rather than left blank.
-                    <span className="text-danger">none set</span>
+                    <span className="font-medium text-danger">none set</span>
                   )}
                 </TableCell>
               </TableRow>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PlusIcon, RefreshCwIcon } from 'lucide-react'
+import { ExternalLinkIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
 import { RfpStatusBadge } from '@/components/status-badge'
 import { usePipeline } from '@/hooks/use-pipeline'
-import { daysUntil, formatDate, formatKes } from '@/lib/dates'
+import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/lib/types'
 import { RfpDialog } from './rfp-dialog'
@@ -32,16 +32,38 @@ function deadlineClass(days: number | null): string {
   return ''
 }
 
+/** "just now" / "14 minutes ago" / "3 hours ago" — enough for a status line. */
+function relativeTime(epochMs: number): string {
+  const seconds = Math.round((Date.now() - epochMs) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.round(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
 export function RfpsView() {
-  const { rfps, saveRfp, removeRfp, importRfps, syncOpportunities } = usePipeline()
+  const {
+    rfps,
+    saveRfp,
+    removeRfp,
+    importRfps,
+    syncOpportunities,
+    autoSync,
+    syncedAt,
+  } = usePipeline()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<RfpStatus | 'all'>('all')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [lastSync, setLastSync] = useState<string | null>(null)
   const [editing, setEditing] = useState<Rfp | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  /** Either the automatic sync or a manual "Check now" is in flight. */
+  const busy = syncing || autoSync === 'syncing'
 
   const syncedCount = useMemo(
     () => rfps.filter((rfp) => rfp.externalId).length,
@@ -113,12 +135,6 @@ export function RfpsView() {
           `${outcome.skipped.length} feed row${outcome.skipped.length === 1 ? '' : 's'} skipped (${outcome.skipped[0]})`,
         )
       }
-      setLastSync(
-        new Date().toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      )
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -146,30 +162,48 @@ export function RfpsView() {
       <Panel
         title="Scraped opportunities"
         action={
-          lastSync ? (
-            <span className="text-[11px] text-faint">Last synced {lastSync}</span>
-          ) : null
+          <div className="flex items-center gap-2 text-[11px]">
+            {busy ? (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <RefreshCwIcon className="size-3 animate-spin" />
+                Checking CareerCraft…
+              </span>
+            ) : autoSync === 'failed' ? (
+              <span className="text-warning">
+                Could not reach CareerCraft — showing what you already have
+              </span>
+            ) : syncedAt ? (
+              <span className="text-faint">Updated {relativeTime(syncedAt)}</span>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleSync()}
+              disabled={busy}
+              title="Check CareerCraft for new RFPs now"
+            >
+              <RefreshCwIcon />
+              Check now
+            </Button>
+          </div>
         }
       >
-        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-          Pulls RFPs and tenders from the CareerCraft scraper — the same feed
-          behind{' '}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          RFPs and tenders sync automatically from the CareerCraft scraper — the
+          same feed behind{' '}
           <span className="text-foreground">mycareercraft.site/admin/opportunities</span>
-          . Jobs are excluded. Re-running is safe: anything already in your
-          tracker is left untouched, so status changes and notes survive.
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => void handleSync()} disabled={syncing}>
-            <RefreshCwIcon className={syncing ? 'animate-spin' : undefined} />
-            {syncing ? 'Syncing…' : 'Sync from CareerCraft'}
-          </Button>
+          . Jobs are excluded, and anything already in your tracker keeps its
+          status and notes.
           {syncedCount > 0 && (
-            <span className="text-[11px] text-muted-foreground">
-              {syncedCount} RFP{syncedCount === 1 ? '' : 's'} in your tracker came
-              from the scraper
-            </span>
+            <>
+              {' '}
+              <span className="text-foreground">
+                {syncedCount} of your RFP{syncedCount === 1 ? '' : 's'} came from
+                the scraper.
+              </span>
+            </>
           )}
-        </div>
+        </p>
       </Panel>
 
       <Panel title="Paste sourced RFPs">
@@ -227,17 +261,49 @@ export function RfpsView() {
                 onClick={() => open(rfp)}
                 className="cursor-pointer"
               >
-                <TableCell className="font-medium">{rfp.title}</TableCell>
-                <TableCell>{rfp.org || '—'}</TableCell>
-                <TableCell>{rfp.segment}</TableCell>
-                <TableCell className={cn(deadlineClass(daysUntil(rfp.deadline)))}>
-                  {formatDate(rfp.deadline)}
+                <TableCell className="max-w-[380px] font-medium">
+                  {rfp.link ? (
+                    // Opens the source notice. `stopPropagation` keeps the row
+                    // click (which opens the edit dialog) working everywhere
+                    // else in the row.
+                    <a
+                      href={rfp.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                      className="group inline-flex items-start gap-1 text-primary hover:underline"
+                      title="Open the original notice in a new tab"
+                    >
+                      <span>{rfp.title}</span>
+                      <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                    </a>
+                  ) : (
+                    rfp.title
+                  )}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
+                <TableCell className="max-w-[200px] text-muted-foreground">
+                  {rfp.org || '—'}
+                </TableCell>
+                <TableCell>
+                  <span className="inline-block whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {rfp.segment}
+                  </span>
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    'whitespace-nowrap',
+                    deadlineClass(daysUntil(rfp.deadline)),
+                  )}
+                >
+                  {formatDateWithYear(rfp.deadline)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {formatKes(rfp.value)}
                 </TableCell>
-                <TableCell className="text-[11px] text-faint">
-                  {rfp.source || 'Manual'}
+                <TableCell>
+                  <span className="inline-block whitespace-nowrap rounded-full bg-gold-soft px-2 py-0.5 text-[11px] font-medium text-warning">
+                    {rfp.source || 'Manual'}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <RfpStatusBadge status={rfp.status} />

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -12,6 +13,36 @@ import * as db from '@/lib/db'
 import { fetchOpportunities } from '@/lib/opportunities'
 import type { Lead, Rfp, Task, WeeklyReport } from '@/lib/types'
 import { useAuth } from './use-auth'
+
+/**
+ * How long to leave between automatic syncs. The CareerCraft scraper runs on a
+ * daily cron, so anything tighter than this is just traffic — the manual button
+ * is always there for an immediate check.
+ */
+const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000
+
+const LAST_SYNC_KEY = 'pipeline-console:last-sync'
+
+/** Persisted across reloads so opening a second tab doesn't re-sync. */
+function lastSyncedAt(): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_SYNC_KEY)
+    const value = raw ? Number(raw) : NaN
+    return Number.isFinite(value) ? value : null
+  } catch {
+    return null // private mode / storage disabled — just sync every time
+  }
+}
+
+function markSynced() {
+  try {
+    localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
+  } catch {
+    /* non-fatal */
+  }
+}
+
+export type AutoSyncStatus = 'idle' | 'syncing' | 'done' | 'failed'
 
 /** Result of a CareerCraft sync, for reporting back to the user. */
 export interface SyncOutcome {
@@ -50,6 +81,10 @@ interface PipelineValue {
   removeRfp: (id: string) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
   syncOpportunities: () => Promise<SyncOutcome>
+  /** State of the background sync, for status text in the RFPs view. */
+  autoSync: AutoSyncStatus
+  /** Epoch ms of the last successful sync, or null if never. */
+  syncedAt: number | null
 
   addTask: (draft: db.TaskDraft) => Promise<void>
   toggleTask: (id: string, done: boolean) => Promise<void>
@@ -81,6 +116,11 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [autoSync, setAutoSync] = useState<AutoSyncStatus>('idle')
+  const [syncedAt, setSyncedAt] = useState<number | null>(() => lastSyncedAt())
+  // Guards against StrictMode's double-invoke and against re-running when the
+  // provider re-renders — one automatic attempt per mount is the intent.
+  const autoSyncStarted = useRef(false)
 
   const refresh = useCallback(async () => {
     if (!session) {
@@ -161,16 +201,17 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const syncOpportunities = useCallback(async (): Promise<SyncOutcome> => {
     const { drafts, skipped } = await fetchOpportunities()
 
-    // Filter against what is already held so the user gets an accurate
-    // "n new" count. The unique index on (user_id, external_id) is the real
-    // guarantee — this is just for the message.
-    const held = new Set(
-      rfps.map((rfp) => rfp.externalId).filter((id): id is string => Boolean(id)),
-    )
-    const fresh = drafts.filter((draft) => !held.has(draft.externalId))
-
-    const created = fresh.length ? await db.syncRfps(fresh) : []
+    // `ON CONFLICT DO NOTHING ... RETURNING *` returns only the rows actually
+    // inserted, so the database itself tells us what was new — no need to diff
+    // against local state first. That keeps this callback free of a `rfps`
+    // dependency, which is what makes it safe to fire from an effect.
+    const created = drafts.length ? await db.syncRfps(drafts) : []
     if (created.length) setRfps((current) => [...created, ...current])
+
+    // Stamped here rather than in the caller so the manual "Check now" button
+    // and the automatic run both refresh the "Updated …" status.
+    markSynced()
+    setSyncedAt(Date.now())
 
     return {
       fetched: drafts.length,
@@ -178,7 +219,50 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       alreadyHave: drafts.length - created.length,
       skipped,
     }
-  }, [rfps])
+  }, [])
+
+  /**
+   * Pull new RFPs from CareerCraft on load, without the user asking.
+   *
+   * Runs once the initial fetch has settled (so the tracker is populated
+   * first), at most once per mount, and only if the throttle window has
+   * elapsed. Failures are deliberately quiet: this is background work the user
+   * did not initiate, and a feed outage should not greet them with an error
+   * toast. A new arrival IS worth interrupting for, so that still toasts.
+   */
+  useEffect(() => {
+    if (!session || loading || autoSyncStarted.current) return
+
+    const previous = lastSyncedAt()
+    if (previous && Date.now() - previous < AUTO_SYNC_INTERVAL_MS) {
+      setSyncedAt(previous)
+      return
+    }
+
+    autoSyncStarted.current = true
+    let active = true
+
+    setAutoSync('syncing')
+    syncOpportunities()
+      .then((outcome) => {
+        if (!active) return
+        setAutoSync('done')
+        if (outcome.added > 0) {
+          toast.success(
+            `${outcome.added} new RFP${outcome.added === 1 ? '' : 's'} from CareerCraft`,
+          )
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        // Silent by design — surfaced as status text in the RFPs view instead.
+        setAutoSync('failed')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [session, loading, syncOpportunities])
 
   const addTask = useCallback(async (draft: db.TaskDraft) => {
     const saved = await db.createTask(draft)
@@ -231,6 +315,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeRfp,
       importRfps,
       syncOpportunities,
+      autoSync,
+      syncedAt,
       addTask,
       toggleTask,
       removeTask,
@@ -250,6 +336,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeRfp,
       importRfps,
       syncOpportunities,
+      autoSync,
+      syncedAt,
       addTask,
       toggleTask,
       removeTask,

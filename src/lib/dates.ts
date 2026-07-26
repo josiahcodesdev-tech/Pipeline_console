@@ -77,6 +77,20 @@ export function formatDate(iso: IsoDate | null | undefined): string {
   })
 }
 
+/**
+ * Display form carrying the year, e.g. `29 Jul 2026`. Used for deadlines,
+ * which routinely sit in a different year to the one being viewed — the bare
+ * `04 Aug` form is ambiguous there.
+ */
+export function formatDateWithYear(iso: IsoDate | null | undefined): string {
+  if (!iso) return '—'
+  return fromIsoDate(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 /** Long display form, e.g. `4 August 2026`. */
 export function formatDateLong(iso: IsoDate | null | undefined): string {
   if (!iso) return '—'
