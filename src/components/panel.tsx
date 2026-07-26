@@ -95,7 +95,15 @@ export function ViewHeader({
   action?: ReactNode
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-b border-border pb-4">
+    // Sticks to the top of the viewport while the page scrolls, so the current
+    // view and its primary action stay reachable.
+    //
+    // The negative margins cancel `main`'s horizontal padding so the bar and
+    // its rule span the full column — they must stay in step with the padding
+    // set in App.tsx. Translucent with a blur rather than opaque, so content
+    // passing underneath reads as *behind* it rather than abruptly clipped;
+    // the page's background wash is `fixed`, so it lines up either way.
+    <div className="sticky top-0 z-20 -mx-6 mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-b border-border bg-background/85 px-6 pb-4 pt-8 backdrop-blur-md lg:-mx-10 lg:px-10">
       <div className="min-w-0">
         {eyebrow && <div className="eyebrow mb-1.5 text-clay">{eyebrow}</div>}
         <h2 className="font-display text-[26px] leading-none text-foreground">

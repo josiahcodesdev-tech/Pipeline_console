@@ -28,9 +28,13 @@ function Console() {
   return (
     <div className="flex min-h-screen">
       <AppSidebar current={view} onNavigate={setView} />
-      <main className="w-full max-w-[1240px] flex-1 px-6 py-8 lg:px-10">
+      {/* No top padding: the sticky ViewHeader supplies its own, so it can sit
+          flush against the viewport top once the page scrolls. */}
+      <main className="w-full max-w-[1240px] flex-1 px-6 pb-10 lg:px-10">
+        {/* Sits above the sticky header, so it needs the top spacing the header
+            would otherwise have provided. */}
         {error && (
-          <div className="mb-5 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-xs text-danger">
+          <div className="mt-8 rounded-xl border border-danger/40 bg-danger-soft px-4 py-3 text-xs text-danger">
             {error}
           </div>
         )}
