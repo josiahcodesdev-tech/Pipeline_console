@@ -64,24 +64,44 @@ turn it off for a single-user internal tool.
 
 ---
 
-## Concept-note drafting (optional)
+## AI drafting (optional)
 
-The "Draft concept note" button in the Lead and RFP dialogs calls a Supabase Edge
-Function. **The Anthropic API key lives only in that function's secrets** — the
-browser sends structured context (organisation, segment, notes) and never sees a
-key or a prompt.
+Two buttons, one Edge Function:
+
+- **Leads → "Draft concept note"** — unsolicited outreach, 350–450 words, has to
+  argue its own relevance.
+- **RFPs → "Draft proposal"** — a response to a published brief, 500–700 words,
+  structured for an evaluation panel: understanding of the requirement, approach
+  and methodology, deliverables and timeline, capability, close.
+
+**The OpenAI API key lives only in that function's secrets.** The browser sends
+structured context (organisation, segment, notes, RFP title, deadline) and never
+sees a key or a prompt.
 
 ```bash
-supabase link --project-ref your-project-ref
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-supabase functions deploy concept-note
+npx supabase login
+npx supabase link --project-ref your-project-ref
+npx supabase secrets set OPENAI_API_KEY=sk-proj-...
+npx supabase functions deploy concept-note
 ```
 
-Everything else works without this; only the drafting button needs it.
+Everything else in the console works without this; only the two drafting buttons
+need it.
 
-The function uses `claude-opus-5` at low effort (a short, well-scoped writing task),
-and opts into server-side fallbacks so a safety-classifier decline is retried on
-another model rather than surfacing as an error.
+Uses `gpt-4o-mini`, matching careercraft-pro. Proposals go into live bids, so if
+they need more depth, `MODEL` in
+[the function](supabase/functions/concept-note/index.ts) is a one-word change to
+`gpt-4o` — at roughly 15× the cost per call.
+
+Both prompts refuse to invent client names, figures, or credentials. Where a
+detail is missing the model marks it as a `[square-bracket]` placeholder for the
+author rather than writing around it silently — on a live bid an invented
+methodology detail is worse than an obvious gap. A draft that hits the token
+ceiling is flagged as truncated rather than being passed off as complete.
+
+> **Do not put `OPENAI_API_KEY` in `.env.local`.** Vite only exposes
+> `VITE_`-prefixed variables, so it would do nothing there — and prefixing it
+> `VITE_` would publish it in the browser bundle.
 
 ---
 

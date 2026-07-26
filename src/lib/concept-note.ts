@@ -43,27 +43,34 @@ export const DRAFT_LABELS: Record<
   },
 }
 
+export interface DraftResult {
+  text: string
+  /** True when the model hit the token ceiling and the draft is cut short. */
+  truncated: boolean
+}
+
 /**
- * Calls the `concept-note` Edge Function. The Anthropic key lives only in that
+ * Calls the `concept-note` Edge Function. The OpenAI key lives only in that
  * function's secrets — the browser never sees it and never talks to
- * api.anthropic.com directly.
+ * api.openai.com directly.
  */
 export async function draftConceptNote(
   context: ConceptNoteContext,
-): Promise<string> {
-  const { data, error } = await supabase.functions.invoke<{ text?: string; error?: string }>(
-    'concept-note',
-    { body: context },
-  )
+): Promise<DraftResult> {
+  const { data, error } = await supabase.functions.invoke<{
+    text?: string
+    truncated?: boolean
+    error?: string
+  }>('concept-note', { body: context })
 
   if (error) {
     const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
     throw new Error(
-      `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and ANTHROPIC_API_KEY is set.`,
+      `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and OPENAI_API_KEY is set.`,
     )
   }
   if (data?.error) throw new Error(data.error)
   if (!data?.text) throw new Error('The drafting service returned an empty response.')
 
-  return data.text
+  return { text: data.text, truncated: Boolean(data.truncated) }
 }

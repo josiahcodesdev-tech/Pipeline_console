@@ -35,10 +35,15 @@ export function ConceptNoteDialog({
     setDraft('')
 
     draftConceptNote(context)
-      .then((text) => {
+      .then((result) => {
         if (!active) return
-        setDraft(text)
+        setDraft(result.text)
         setStatus('idle')
+        if (result.truncated) {
+          toast.warning(
+            'The draft hit the length limit and may stop mid-sentence — check the ending before sending.',
+          )
+        }
       })
       .catch((cause: unknown) => {
         if (!active) return

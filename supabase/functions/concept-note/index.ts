@@ -1,21 +1,28 @@
 /**
  * Edge Function: concept-note
  *
- * Drafts a concept note for a lead or an RFP. This exists so the Anthropic API
- * key stays server-side — the browser sends structured context, never a prompt
- * and never a key.
+ * Drafts either a concept note (for a lead) or a proposal (for an RFP). This
+ * exists so the OpenAI API key stays server-side — the browser sends
+ * structured context, never a prompt and never a key.
  *
  * Deploy:
- *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+ *   supabase secrets set OPENAI_API_KEY=sk-proj-...
  *   supabase functions deploy concept-note
  *
  * JWT verification is left ON (the Supabase default), so only signed-in users
  * of this project can spend tokens here.
  */
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.115.0'
+import OpenAI from 'npm:openai@6.45.0'
 
-interface ConceptNoteContext {
+/**
+ * Matches careercraft-pro's convention. Proposals go into live bids, so if
+ * they need more depth, `gpt-4o` is a one-word change here — at roughly 15x
+ * the cost per call.
+ */
+const MODEL = 'gpt-4o-mini'
+
+interface DraftContext {
   kind?: unknown
   org?: unknown
   segment?: unknown
@@ -92,15 +99,12 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Method not allowed' }, 405)
   }
 
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
+  const apiKey = Deno.env.get('OPENAI_API_KEY')
   if (!apiKey) {
-    return json(
-      { error: 'ANTHROPIC_API_KEY is not set on this function.' },
-      500,
-    )
+    return json({ error: 'OPENAI_API_KEY is not set on this function.' }, 500)
   }
 
-  let context: ConceptNoteContext
+  let context: DraftContext
   try {
     context = await request.json()
   } catch {
@@ -113,6 +117,8 @@ Deno.serve(async (request: Request) => {
   }
 
   const isProposal = text(context.kind) === 'proposal'
+  const what = isProposal ? 'proposal' : 'concept note'
+
   const segment = text(context.segment) || 'Government'
   const country = text(context.country)
   const contactRole = text(context.contactRole)
@@ -132,49 +138,43 @@ Deno.serve(async (request: Request) => {
     .filter(Boolean)
     .join('\n')
 
-  const client = new Anthropic({ apiKey })
+  const client = new OpenAI({ apiKey })
 
   try {
-    const message = await client.beta.messages.create({
-      model: 'claude-opus-5',
-      max_tokens: 8000,
-      // A short, well-scoped writing task — low effort keeps it fast and cheap.
-      output_config: { effort: 'low' },
-      // Recover automatically if a safety classifier declines the request.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system: isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
+    const completion = await client.chat.completions.create({
+      model: MODEL,
       messages: [
-        {
-          role: 'user',
-          content: `Draft a ${isProposal ? 'proposal' : 'concept note'} using this context:\n\n${details}`,
-        },
+        { role: 'system', content: isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT },
+        { role: 'user', content: `Draft a ${what} using this context:\n\n${details}` },
       ],
+      temperature: 0.7,
+      // A 700-word proposal is roughly 1,000 tokens; the headroom keeps a long
+      // one from being cut mid-sentence.
+      max_tokens: 2000,
     })
 
-    // Check the stop reason before touching content — a refusal leaves it
-    // empty (or partial), so indexing straight into content[0] would throw.
-    if (message.stop_reason === 'refusal') {
+    const choice = completion.choices[0]
+
+    if (choice?.finish_reason === 'content_filter') {
       return json(
         {
-          error:
-            'The drafting service declined this request. Try rephrasing the notes for this record.',
+          error: `The drafting service declined this request. Try rephrasing the notes on this record.`,
         },
         422,
       )
     }
 
-    const draft = message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n\n')
-      .trim()
-
+    const draft = choice?.message?.content?.trim() ?? ''
     if (!draft) {
-      return json({ error: 'The drafting service returned an empty note.' }, 502)
+      return json({ error: `The drafting service returned an empty ${what}.` }, 502)
     }
 
-    return json({ text: draft }, 200)
+    // Truncation is reported rather than hidden — a proposal that stops
+    // mid-sentence should be visibly incomplete, not quietly wrong.
+    return json(
+      { text: draft, truncated: choice?.finish_reason === 'length' },
+      200,
+    )
   } catch (cause) {
     console.error('concept-note failed', cause)
     const detail = cause instanceof Error ? cause.message : String(cause)
