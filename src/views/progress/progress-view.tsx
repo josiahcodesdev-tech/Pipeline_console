@@ -73,7 +73,11 @@ export function ProgressView() {
 
   return (
     <>
-      <ViewHeader title="Progress" />
+      <ViewHeader
+        eyebrow="Trend"
+        title="Progress"
+        description="How the pipeline has moved over time, and where the work is concentrated."
+      />
 
       <Panel
         title={`Qualified leads — last ${TREND_WEEKS} weeks`}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PlusIcon } from 'lucide-react'
+import { Building2Icon, PlusIcon, SearchXIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -56,7 +56,14 @@ export function LeadsView() {
   return (
     <>
       <ViewHeader
+        eyebrow="Lead generation"
         title="Institutional database"
+        description="Every organisation in play, and whose court the ball is in. A worked lead with no next action is the thing this page exists to surface."
+        meta={
+          <span className="text-[11px] text-muted-foreground">
+            {leads.length} {leads.length === 1 ? 'organisation' : 'organisations'}
+          </span>
+        }
         action={
           <Button onClick={() => open(null)}>
             <PlusIcon />
@@ -140,13 +147,22 @@ export function LeadsView() {
           </TableBody>
         </Table>
 
-        {filtered.length === 0 && (
-          <EmptyState>
-            {leads.length === 0
-              ? 'No leads yet. Add your first institutional lead to start the pipeline.'
-              : 'No leads match these filters.'}
-          </EmptyState>
-        )}
+        {filtered.length === 0 &&
+          (leads.length === 0 ? (
+            <EmptyState
+              icon={<Building2Icon className="size-5" />}
+              hint="Add the first ministry, NGO or corporate you are working and the pipeline bar on the dashboard starts filling."
+            >
+              No leads yet
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon={<SearchXIcon className="size-5" />}
+              hint="Try a broader search, or reset the segment and status filters above."
+            >
+              No leads match these filters
+            </EmptyState>
+          ))}
       </Panel>
 
       <LeadDialog

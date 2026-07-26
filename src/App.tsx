@@ -28,7 +28,7 @@ function Console() {
   return (
     <div className="flex min-h-screen">
       <AppSidebar current={view} onNavigate={setView} />
-      <main className="max-w-[1180px] flex-1 px-9 py-7">
+      <main className="w-full max-w-[1240px] flex-1 px-6 py-8 lg:px-10">
         {error && (
           <div className="mb-5 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-xs text-danger">
             {error}

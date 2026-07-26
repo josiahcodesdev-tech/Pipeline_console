@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from 'lucide-react'
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DownloadIcon,
+  FileTextIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -96,7 +101,9 @@ export function ReportView() {
   return (
     <>
       <ViewHeader
+        eyebrow="Reporting"
         title="Weekly portfolio report"
+        description="Figures are counted from the pipeline automatically; revenue and lessons are yours to add. Export as Word when it is ready to send."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -194,8 +201,11 @@ export function ReportView() {
 
       <Panel title="Past reports">
         {pastReports.length === 0 ? (
-          <EmptyState>
-            No past reports saved yet — save this week to start building history.
+          <EmptyState
+            icon={<FileTextIcon className="size-5" />}
+            hint="Save this week and it appears here, so you can reopen or re-export any week later."
+          >
+            No saved reports yet
           </EmptyState>
         ) : (
           pastReports.map((report) => (

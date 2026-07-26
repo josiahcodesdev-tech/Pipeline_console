@@ -84,9 +84,17 @@
   --app-info-soft: #e8f0f3;
   --app-neutral: #5f5243;
 
-  /* Site shadow scale, tinted with the brand brown rather than black. */
-  --app-shadow-sm: 0 2px 4px rgba(139, 69, 19, 0.1);
-  --app-shadow-md: 0 4px 12px rgba(139, 69, 19, 0.15);
+  /*
+    Shadows are tinted with the brand brown, never black — a grey shadow on a
+    cream ground reads as dirt. Layered (a tight contact shadow plus a wider
+    ambient one) so cards feel like paper on a desk rather than stickers.
+  */
+  --app-shadow-sm:
+    0 1px 2px rgba(101, 67, 33, 0.05), 0 2px 6px rgba(139, 69, 19, 0.06);
+  --app-shadow-md:
+    0 1px 2px rgba(101, 67, 33, 0.06), 0 6px 16px -4px rgba(139, 69, 19, 0.12);
+  --app-shadow-lg:
+    0 2px 4px rgba(101, 67, 33, 0.06), 0 14px 32px -8px rgba(139, 69, 19, 0.18);
 
   /* Single-hue chart ramp — see src/lib/charts.ts */
   --chart-1: #8b4513;
@@ -157,6 +165,7 @@
 
   --shadow-brand-sm: var(--app-shadow-sm);
   --shadow-brand-md: var(--app-shadow-md);
+  --shadow-brand-lg: var(--app-shadow-lg);
 
   /* The site runs Inter for everything; so does the console. */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -173,7 +182,6 @@
 
   body {
     margin: 0;
-    background: var(--background);
     color: var(--foreground);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       sans-serif;
@@ -182,6 +190,31 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    /*
+      A flat cream fill reads as "unstyled beige". Two very faint warm washes
+      bled in from the top corners give the page depth, so cards sit *on*
+      something. Deliberately below the threshold of being noticed as a
+      gradient — it should feel like paper stock, not decoration.
+    */
+    background-color: var(--background);
+    background-image:
+      radial-gradient(
+        900px circle at 12% -8%,
+        rgba(218, 165, 32, 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        800px circle at 100% 0%,
+        rgba(139, 69, 19, 0.05),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+
+  /* Inter's default figures are proportional; tables need them to line up. */
+  table {
+    font-variant-numeric: tabular-nums;
   }
 
   ::selection {
@@ -213,6 +246,38 @@
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+/**
+ * Small-caps label used for eyebrows, table headers and KPI labels.
+ * Inter needs the extra tracking at this size or the caps crowd.
+ */
+@utility eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/** Cards that respond to the pointer — a couple of pixels, not a jump. */
+@utility lift {
+  transition:
+    box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 180ms ease;
+
+  &:hover {
+    box-shadow: var(--app-shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* Motion here is decorative, so it goes when the OS asks for less of it. */
+  @media (prefers-reduced-motion: reduce) {
+    transition: box-shadow 180ms ease;
+    &:hover {
+      transform: none;
+    }
+  }
 }
 
 /* The site's signature gold rule along the top edge of a card. */

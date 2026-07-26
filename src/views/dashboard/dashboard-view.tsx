@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ExternalLinkIcon } from 'lucide-react'
+import { CalendarCheckIcon, CheckCheckIcon, ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { KpiCard, type KpiTone } from '@/components/kpi-card'
 import { PipelineBar } from '@/components/pipeline-bar'
@@ -98,30 +98,51 @@ export function DashboardView() {
   return (
     <>
       <ViewHeader
+        eyebrow="Today"
         title="Dashboard"
-        meta={<div className="text-[11px] text-muted-foreground">{formatToday()}</div>}
+        description="Where the pipeline stands, and what needs you before the day is out."
+        meta={
+          <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground shadow-brand-sm">
+            {formatToday()}
+          </div>
+        }
       />
 
       <PipelineBar leads={leads} />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Qualified this week" value={qualified} />
+        <KpiCard
+          label="Qualified this week"
+          value={qualified}
+          hint="Leads reaching Qualified or beyond"
+        />
         <KpiCard
           label="Follow-up discipline"
           value={`${discipline}%`}
+          hint="Active leads with a next action booked"
           tone={disciplineTone(discipline)}
         />
-        <KpiCard label="Active RFPs" value={activeRfps} />
+        <KpiCard
+          label="Active RFPs"
+          value={activeRfps}
+          hint="Watching, Preparing or Submitted"
+        />
         <KpiCard
           label="Tasks due / overdue"
           value={dueTasks.length}
+          hint={dueTasks.length > 0 ? 'Needs clearing today' : 'Nothing outstanding'}
           tone={dueTasks.length > 0 ? 'warn' : 'good'}
         />
       </div>
 
       <Panel title="Due today & overdue">
         {dueTasks.length === 0 ? (
-          <EmptyState>Nothing overdue — you&rsquo;re current.</EmptyState>
+          <EmptyState
+            icon={<CheckCheckIcon className="size-5" />}
+            hint="Nothing is waiting on you. New follow-ups appear here on their due date."
+          >
+            You&rsquo;re all caught up
+          </EmptyState>
         ) : (
           dueTasks.map((task) => (
             <TaskRow
@@ -149,8 +170,11 @@ export function DashboardView() {
         bodyClassName="overflow-x-auto"
       >
         {soonRfps.length === 0 ? (
-          <EmptyState>
-            Nothing closing in the next 7 days, and nothing overdue.
+          <EmptyState
+            icon={<CalendarCheckIcon className="size-5" />}
+            hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
+          >
+            No deadlines in the next 7 days
           </EmptyState>
         ) : (
           <Table>

@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react'
-import { ExternalLinkIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
+import {
+  ClipboardListIcon,
+  ExternalLinkIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SearchXIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -153,7 +159,14 @@ export function RfpsView() {
   return (
     <>
       <ViewHeader
+        eyebrow="Bid pipeline"
         title="RFP & tender tracker"
+        description="Open opportunities sorted by deadline. Scraped tenders arrive on their own; click a title to open the original notice."
+        meta={
+          <span className="text-[11px] text-muted-foreground">
+            {rfps.length} {rfps.length === 1 ? 'opportunity' : 'opportunities'}
+          </span>
+        }
         action={
           <Button onClick={() => open(null)}>
             <PlusIcon />
@@ -308,13 +321,22 @@ export function RfpsView() {
           </TableBody>
         </Table>
 
-        {filtered.length === 0 && (
-          <EmptyState>
-            {rfps.length === 0
-              ? 'No RFPs logged yet. Add one as soon as you spot it.'
-              : 'No RFPs match these filters.'}
-          </EmptyState>
-        )}
+        {filtered.length === 0 &&
+          (rfps.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardListIcon className="size-5" />}
+              hint="Scraped tenders sync in on their own. Add anything you spot elsewhere with the button above."
+            >
+              No RFPs tracked yet
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon={<SearchXIcon className="size-5" />}
+              hint="Try a broader search, or set the status filter back to all."
+            >
+              No RFPs match these filters
+            </EmptyState>
+          ))}
       </Panel>
 
       <RfpDialog

@@ -4,11 +4,19 @@ import { cn } from '@/lib/utils'
 
 export type KpiTone = 'neutral' | 'good' | 'warn' | 'bad'
 
-const TONE_TEXT: Record<KpiTone, string> = {
+const TONE_VALUE: Record<KpiTone, string> = {
   neutral: 'text-foreground',
   good: 'text-success',
   warn: 'text-warning',
   bad: 'text-danger',
+}
+
+/** A hairline of tone along the card's top edge — legible at a glance across a row. */
+const TONE_RULE: Record<KpiTone, string> = {
+  neutral: 'bg-border',
+  good: 'bg-success',
+  warn: 'bg-warning',
+  bad: 'bg-danger',
 }
 
 /**
@@ -18,9 +26,9 @@ const TONE_TEXT: Record<KpiTone, string> = {
  */
 const TONE_ICON: Record<KpiTone, ReactNode> = {
   neutral: null,
-  good: <CircleCheckIcon className="size-3.5" aria-hidden />,
-  warn: <TriangleAlertIcon className="size-3.5" aria-hidden />,
-  bad: <OctagonAlertIcon className="size-3.5" aria-hidden />,
+  good: <CircleCheckIcon className="size-4" aria-hidden />,
+  warn: <TriangleAlertIcon className="size-4" aria-hidden />,
+  bad: <OctagonAlertIcon className="size-4" aria-hidden />,
 }
 
 const TONE_LABEL: Record<KpiTone, string> = {
@@ -33,35 +41,50 @@ const TONE_LABEL: Record<KpiTone, string> = {
 export function KpiCard({
   label,
   value,
+  hint,
   tone = 'neutral',
   className,
 }: {
   label: string
   value: ReactNode
+  /** Optional line under the figure — what it counts, or over what period. */
+  hint?: string
   tone?: KpiTone
   className?: string
 }) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card px-4 py-3.5 shadow-brand-sm',
+        'lift relative overflow-hidden rounded-xl border border-border bg-card px-4 pb-4 pt-4.5 shadow-brand-sm',
         className,
       )}
     >
-      <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div
-        className={cn(
-          'mt-1.5 flex items-center gap-1.5 font-display text-[26px]',
-          TONE_TEXT[tone],
-        )}
-      >
+      <span
+        aria-hidden
+        className={cn('absolute inset-x-0 top-0 h-[3px]', TONE_RULE[tone])}
+      />
+
+      <div className="eyebrow text-muted-foreground">{label}</div>
+
+      <div className="mt-2 flex items-baseline gap-2">
         {/* Proportional figures: tabular-nums makes display sizes look loose. */}
-        <span>{value}</span>
-        {TONE_ICON[tone]}
-        {tone !== 'neutral' && <span className="sr-only">{TONE_LABEL[tone]}</span>}
+        <span
+          className={cn(
+            'font-display text-[30px] leading-none',
+            TONE_VALUE[tone],
+          )}
+        >
+          {value}
+        </span>
+        {tone !== 'neutral' && (
+          <span className={cn('shrink-0', TONE_VALUE[tone])}>
+            {TONE_ICON[tone]}
+            <span className="sr-only">{TONE_LABEL[tone]}</span>
+          </span>
+        )}
       </div>
+
+      {hint && <p className="mt-1.5 text-[11px] text-faint">{hint}</p>}
     </div>
   )
 }

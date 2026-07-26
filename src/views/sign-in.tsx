@@ -35,15 +35,19 @@ export function SignInView() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-[380px]">
-        <div className="mb-6 text-center">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
-            Corporate Dept · BDE
-          </div>
-          <h1 className="font-display text-[28px] leading-tight text-primary">
+        <div className="mb-7 flex flex-col items-center text-center">
+          <span
+            aria-hidden
+            className="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-clay to-primary font-display text-[15px] text-white shadow-brand-md"
+          >
+            VA
+          </span>
+          <div className="eyebrow mb-2 text-clay">Corporate Dept · BDE</div>
+          <h1 className="font-display text-[30px] leading-tight text-foreground">
             Pipeline Console
           </h1>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Lead generation &amp; RFP tracking
+          <p className="mt-2 text-xs text-muted-foreground">
+            Lead generation &amp; RFP tracking for Vantage Africa
           </p>
         </div>
 

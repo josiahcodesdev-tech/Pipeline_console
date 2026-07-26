@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PlusIcon } from 'lucide-react'
+import { ListChecksIcon, PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
@@ -73,7 +73,9 @@ export function TasksView() {
   return (
     <>
       <ViewHeader
+        eyebrow="Follow-through"
         title="Daily tasks & follow-ups"
+        description="The commitments behind the pipeline. Completing these is what the weekly report counts as follow-up discipline."
         action={
           <Button onClick={() => setDialogOpen(true)}>
             <PlusIcon />
@@ -84,7 +86,12 @@ export function TasksView() {
 
       <Panel>
         {groups.length === 0 ? (
-          <EmptyState>No tasks yet — add your first follow-up.</EmptyState>
+          <EmptyState
+            icon={<ListChecksIcon className="size-5" />}
+            hint="Add a follow-up and it lands here, grouped by whether it is overdue, due today, or still ahead."
+          >
+            No tasks yet
+          </EmptyState>
         ) : (
           groups.map((group) => (
             <div key={group.label} className="mb-4 last:mb-0">
