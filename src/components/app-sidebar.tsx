@@ -25,14 +25,14 @@ export function AppSidebar({
           aria-hidden
           className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-clay to-primary font-display text-[13px] text-white shadow-brand-sm"
         >
-          VA
+          JM
         </span>
         <div className="min-w-0">
           <h1 className="font-display text-[17px] leading-tight text-foreground">
             Pipeline Console
           </h1>
           <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            Vantage Africa
+            Josiah Mwangi
             <br />
             Corporate Dept · BDE
           </div>
