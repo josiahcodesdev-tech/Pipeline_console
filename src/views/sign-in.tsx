@@ -35,11 +35,11 @@ export function SignInView() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-[380px]">
-        <div className="mb-6">
-          <div className="mb-1.5 text-[10px] uppercase tracking-[0.12em] text-faint">
+        <div className="mb-6 text-center">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
             Corporate Dept · BDE
           </div>
-          <h1 className="font-display text-[26px] font-semibold leading-tight tracking-tight">
+          <h1 className="font-display text-[28px] leading-tight text-primary">
             Pipeline Console
           </h1>
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -49,7 +49,7 @@ export function SignInView() {
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-lg border border-border bg-card p-5"
+          className="gold-edge rounded-lg border border-border bg-card p-6 pt-7 shadow-brand-md"
         >
           <div className="mb-3">
             <Label htmlFor="email" className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted-foreground">

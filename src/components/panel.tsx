@@ -18,14 +18,14 @@ export function Panel({
   return (
     <section
       className={cn(
-        'mb-5 rounded-lg border border-border bg-card px-5 py-4',
+        'mb-5 rounded-lg border border-border bg-card px-5 py-4 shadow-brand-sm',
         className,
       )}
     >
       {(title || action) && (
         <header className="mb-3.5 flex items-center justify-between gap-3">
           {title ? (
-            <h3 className="font-display text-sm font-semibold">{title}</h3>
+            <h3 className="font-display text-[15px] text-foreground">{title}</h3>
           ) : (
             <span />
           )}
@@ -38,7 +38,9 @@ export function Panel({
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="py-5 text-center text-xs text-faint">{children}</div>
+  return (
+    <div className="py-6 text-center text-xs text-muted-foreground">{children}</div>
+  )
 }
 
 export function ViewHeader({
@@ -52,9 +54,7 @@ export function ViewHeader({
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <h2 className="font-display text-[22px] font-semibold tracking-tight">
-        {title}
-      </h2>
+      <h2 className="font-display text-[23px] text-primary">{title}</h2>
       {meta}
       {action}
     </div>

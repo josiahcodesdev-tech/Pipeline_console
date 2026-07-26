@@ -10,16 +10,18 @@ export function PipelineBar({ leads }: { leads: Lead[] }) {
   const stages = pipelineCounts(leads)
 
   return (
-    <div className="mb-5 flex overflow-hidden rounded-lg border border-border bg-card">
+    // `gold-edge` draws the site's gold-to-clay rule along the top, the one
+    // piece of brand decoration the console borrows. Used once, here.
+    <div className="gold-edge mb-5 flex rounded-lg border border-border bg-card shadow-brand-sm">
       {stages.map(({ stage, count }, index) => (
         <div
           key={stage}
-          className="relative flex-1 border-r border-border px-4 py-3.5 last:border-r-0"
+          className="relative flex-1 border-r border-border px-4 pb-3.5 pt-4 last:border-r-0"
         >
-          <div className="text-[10px] uppercase tracking-wider text-faint">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">
             {stage}
           </div>
-          <div className="mt-1 font-display text-[26px] font-semibold leading-none">
+          <div className="mt-1 font-display text-[28px] leading-none text-primary">
             {count}
           </div>
           {index < stages.length - 1 && (

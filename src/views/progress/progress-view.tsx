@@ -25,7 +25,9 @@ import { usePipeline } from '@/hooks/use-pipeline'
 import { formatDate, recentWeekStarts, weekEnd } from '@/lib/dates'
 import { qualifiedInWeek } from '@/lib/metrics'
 import {
+  AXIS_TEXT,
   AXIS_TICK,
+  BAR_HOVER,
   BAR_RADIUS,
   GRID,
   MARK,
@@ -192,10 +194,7 @@ function CategoryBars({
           axisLine={{ stroke: GRID }}
           width={124}
         />
-        <Tooltip
-          cursor={{ fill: 'rgba(201, 154, 62, 0.06)' }}
-          content={<ChartTooltip />}
-        />
+        <Tooltip cursor={{ fill: BAR_HOVER }} content={<ChartTooltip />} />
         <Bar
           dataKey="value"
           name="Count"
@@ -210,9 +209,10 @@ function CategoryBars({
             position="right"
             offset={6}
             style={{
-              fill: '#948f7e',
+              fill: AXIS_TEXT,
               fontSize: 10,
-              fontFamily: "'IBM Plex Mono', monospace",
+              fontWeight: 600,
+              fontFamily: "'Inter', system-ui, sans-serif",
             }}
           />
         </Bar>

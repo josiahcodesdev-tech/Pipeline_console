@@ -8,12 +8,12 @@ import {
   Loader2Icon,
 } from 'lucide-react'
 
-// The console is dark-only, so the theme is pinned rather than read from a
+// The console is light-only, so the theme is pinned rather than read from a
 // provider (the stock shadcn file uses next-themes, which has no place here).
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
-      theme="dark"
+      theme="light"
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -24,7 +24,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--app-surface-2)',
+          '--normal-bg': 'var(--card)',
           '--normal-text': 'var(--foreground)',
           '--normal-border': 'var(--border)',
           '--border-radius': 'var(--radius)',
@@ -32,7 +32,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast font-mono text-xs',
+          toast: 'cn-toast text-xs shadow-brand-md',
         },
       }}
       {...props}

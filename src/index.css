@@ -2,77 +2,98 @@
 @import 'tw-animate-css';
 
 /*
-  Pipeline Console runs dark-only by design — the palette is a warm olive ground
-  with a single gold accent. The tokens below are the shadcn contract; the
-  `--app-*` block adds the few semantics shadcn has no slot for.
+  Palette taken from vantageafricaleaders.com (`css/style.css` `:root`) so the
+  console matches the public site: warm off-white ground, chocolate-brown
+  primary, gold accent.
+
+  Two deliberate departures from the site's tokens, both for legibility at the
+  small type sizes a data console uses:
+
+  1. `--app-faint` is #7a6a58, not the site's #8a7966. The site value scores
+     3.86:1 on the page background — under the 4.5:1 WCAG floor for small text,
+     and this UI sets 10px uppercase labels in it.
+  2. Chart marks use the primary brown, not the accent gold. Gold scores
+     2.24:1 on a white card, which is unreadable as a data mark. See
+     src/lib/charts.ts.
 */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --radius: 0.5rem;
+  /* Site radius convention: 12px cards, pill-shaped chips. */
+  --radius: 0.75rem;
 
-  --background: #12140f;
-  --foreground: #ede8da;
+  --background: #f8f5f0;
+  --foreground: #2c1810;
 
-  --card: #1b1e17;
-  --card-foreground: #ede8da;
+  --card: #ffffff;
+  --card-foreground: #2c1810;
 
-  --popover: #1b1e17;
-  --popover-foreground: #ede8da;
+  --popover: #ffffff;
+  --popover-foreground: #2c1810;
 
-  /* Gold — the one brand accent. Reserved for emphasis, never decoration. */
-  --primary: #c99a3e;
-  --primary-foreground: #12140f;
+  /* Vantage primary brown. */
+  --primary: #8b4513;
+  --primary-foreground: #ffffff;
 
-  --secondary: #242820;
-  --secondary-foreground: #ede8da;
+  --secondary: #f3f0eb;
+  --secondary-foreground: #2c1810;
 
-  --muted: #242820;
-  --muted-foreground: #948f7e;
+  --muted: #f3f0eb;
+  --muted-foreground: #6b5b47;
 
   /* shadcn's `accent` is the hover/active surface, not the brand colour. */
-  --accent: #242820;
-  --accent-foreground: #ede8da;
+  --accent: #f3f0eb;
+  --accent-foreground: #2c1810;
 
-  --destructive: #c25b4a;
-  --destructive-foreground: #ede8da;
+  --destructive: #a32b1e;
+  --destructive-foreground: #ffffff;
 
-  --border: #33372c;
-  --input: #33372c;
-  --ring: #c99a3e;
+  --border: #e8e1d9;
+  --input: #e8e1d9;
+  --ring: #8b4513;
 
-  --sidebar: #1b1e17;
-  --sidebar-foreground: #ede8da;
-  --sidebar-primary: #c99a3e;
-  --sidebar-primary-foreground: #12140f;
-  --sidebar-accent: #242820;
-  --sidebar-accent-foreground: #ede8da;
-  --sidebar-border: #33372c;
-  --sidebar-ring: #c99a3e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2c1810;
+  --sidebar-primary: #8b4513;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f0eb;
+  --sidebar-accent-foreground: #2c1810;
+  --sidebar-border: #e8e1d9;
+  --sidebar-ring: #8b4513;
 
-  /* App-specific semantics */
-  --app-surface-2: #242820;
-  --app-border-soft: #282c22;
-  --app-faint: #5f5d53;
-  --app-brand-soft: rgba(201, 154, 62, 0.14);
-  --app-brand-dim: #8a7239;
-  --app-clay: #8b4a3c;
-  --app-clay-soft: rgba(139, 74, 60, 0.16);
-  --app-success: #6e9b6b;
-  --app-success-soft: rgba(110, 155, 107, 0.14);
-  --app-warning: #d9a441;
-  --app-warning-soft: rgba(217, 164, 65, 0.14);
-  --app-danger: #c25b4a;
-  --app-danger-soft: rgba(194, 91, 74, 0.14);
-  --app-info: #7d9bd4;
-  --app-info-soft: rgba(58, 74, 110, 0.32);
+  /* --- Brand extensions ------------------------------------------------ */
+  --app-surface-2: #f3f0eb;
+  --app-border-soft: #f0ebe3;
+  --app-faint: #7a6a58;
+  --app-brand-soft: #f7ece2;
+  --app-brand-dim: #a0522d;
+  --app-gold: #daa520;
+  --app-gold-soft: #fbf0dd;
+  --app-clay: #a0522d;
+  --app-dark-brown: #654321;
 
-  /* Categorical chart ramp — see src/lib/charts.ts */
-  --chart-1: #c99a3e;
-  --chart-2: #6e9b6b;
-  --chart-3: #8b4a3c;
-  --chart-4: #7d9bd4;
-  --chart-5: #948f7e;
+  /* Status palette. The site defines none, so these are derived to sit in the
+     warm brown/gold world; every pair clears 4.5:1 for small text. */
+  --app-success: #2f6b45;
+  --app-success-soft: #e6f2ea;
+  --app-warning: #8a5a12;
+  --app-warning-soft: #fbf0dd;
+  --app-danger: #a32b1e;
+  --app-danger-soft: #fbeae7;
+  --app-info: #2f5d70;
+  --app-info-soft: #e8f0f3;
+  --app-neutral: #5f5243;
+
+  /* Site shadow scale, tinted with the brand brown rather than black. */
+  --app-shadow-sm: 0 2px 4px rgba(139, 69, 19, 0.1);
+  --app-shadow-md: 0 4px 12px rgba(139, 69, 19, 0.15);
+
+  /* Single-hue chart ramp — see src/lib/charts.ts */
+  --chart-1: #8b4513;
+  --chart-2: #a0522d;
+  --chart-3: #cd853f;
+  --chart-4: #daa520;
+  --chart-5: #6b5b47;
 }
 
 @theme inline {
@@ -115,8 +136,9 @@
   --color-faint: var(--app-faint);
   --color-brand-soft: var(--app-brand-soft);
   --color-brand-dim: var(--app-brand-dim);
+  --color-gold: var(--app-gold);
+  --color-gold-soft: var(--app-gold-soft);
   --color-clay: var(--app-clay);
-  --color-clay-soft: var(--app-clay-soft);
   --color-success: var(--app-success);
   --color-success-soft: var(--app-success-soft);
   --color-warning: var(--app-warning);
@@ -125,6 +147,7 @@
   --color-danger-soft: var(--app-danger-soft);
   --color-info: var(--app-info);
   --color-info-soft: var(--app-info-soft);
+  --color-neutral: var(--app-neutral);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -132,9 +155,15 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --font-sans: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --shadow-brand-sm: var(--app-shadow-sm);
+  --shadow-brand-md: var(--app-shadow-md);
+
+  /* The site runs Inter for everything; so does the console. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -146,9 +175,10 @@
     margin: 0;
     background: var(--background);
     color: var(--foreground);
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 13px;
-    line-height: 1.5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      sans-serif;
+    font-size: 13.5px;
+    line-height: 1.55;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -160,19 +190,42 @@
   }
 
   ::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: #ded5c9;
     border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #cdc1b1;
   }
 }
 
-/* Space Grotesk is the display face — headings, KPI numerals, stage counts. */
+/*
+  Headings and figures. One family now, so this carries weight and tracking
+  rather than a second typeface — Inter tightens well at display sizes.
+*/
 @utility font-display {
   font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* The site's signature gold rule along the top edge of a card. */
+@utility gold-edge {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--app-gold), var(--app-clay));
+  }
 }
