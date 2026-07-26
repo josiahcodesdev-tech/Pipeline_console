@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
-import { RfpStatusBadge } from '@/components/status-badge'
+import { RfpStatusSelect } from '@/components/status-select'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
@@ -49,6 +49,7 @@ export function RfpsView() {
     rfps,
     saveRfp,
     removeRfp,
+    setRfpStatus,
     importRfps,
     syncOpportunities,
     autoSync,
@@ -297,7 +298,10 @@ export function RfpsView() {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <RfpStatusBadge status={rfp.status} />
+                  <RfpStatusSelect
+                    value={rfp.status}
+                    onChange={(next) => setRfpStatus(rfp.id, next)}
+                  />
                 </TableCell>
               </TableRow>
             ))}

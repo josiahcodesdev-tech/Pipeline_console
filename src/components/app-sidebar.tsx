@@ -14,7 +14,11 @@ export function AppSidebar({
   const { session, signOut } = useAuth()
 
   return (
-    <aside className="flex w-[228px] shrink-0 flex-col gap-7 border-r border-border bg-card px-4 py-6">
+    // Sticky rather than fixed: it stays put while the page scrolls without
+    // taking the sidebar out of the flex flow, so `main` still sizes itself.
+    // `h-screen` pins it to the viewport, and it scrolls internally if the nav
+    // ever outgrows a short window.
+    <aside className="sticky top-0 flex h-screen w-[228px] shrink-0 flex-col gap-7 overflow-y-auto border-r border-border bg-card px-4 py-6">
       <div className="px-1">
         <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
           Corporate Dept · BDE

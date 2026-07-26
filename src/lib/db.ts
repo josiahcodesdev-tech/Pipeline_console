@@ -6,7 +6,9 @@ import {
   isRfpStatus,
   isSegment,
   type Lead,
+  type LeadStatus,
   type Rfp,
+  type RfpStatus,
   type Task,
   type TaskPriority,
   type WeeklyReport,
@@ -220,6 +222,26 @@ export async function updateLead(
   return toLead(row)
 }
 
+/**
+ * Moves a lead's status without touching anything else — the inline dropdown
+ * in the table. Stamps `status_updated_on`, which is what the weekly
+ * "leads qualified" figure counts.
+ */
+export async function updateLeadStatus(
+  id: string,
+  status: LeadStatus,
+): Promise<Lead> {
+  const row = unwrap(
+    await supabase
+      .from('leads')
+      .update({ status, status_updated_on: today() })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toLead(row)
+}
+
 export async function deleteLead(id: string): Promise<void> {
   const { error } = await supabase.from('leads').delete().eq('id', id)
   if (error) throw new Error(error.message)
@@ -257,6 +279,22 @@ export async function updateRfp(
         ...rfpFields(draft),
         ...(statusChanged ? { status_updated_on: today() } : {}),
       })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toRfp(row)
+}
+
+/** Moves an RFP's status without touching anything else. */
+export async function updateRfpStatus(
+  id: string,
+  status: RfpStatus,
+): Promise<Rfp> {
+  const row = unwrap(
+    await supabase
+      .from('rfps')
+      .update({ status, status_updated_on: today() })
       .eq('id', id)
       .select()
       .single(),

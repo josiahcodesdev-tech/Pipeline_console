@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
-import { LeadStatusBadge } from '@/components/status-badge'
+import { LeadStatusSelect } from '@/components/status-select'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { formatDateWithYear } from '@/lib/dates'
 import {
@@ -25,7 +25,7 @@ import {
 import { LeadDialog } from './lead-dialog'
 
 export function LeadsView() {
-  const { leads, saveLead, removeLead } = usePipeline()
+  const { leads, saveLead, removeLead, setLeadStatus } = usePipeline()
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment | 'all'>('all')
   const [status, setStatus] = useState<LeadStatus | 'all'>('all')
@@ -121,7 +121,10 @@ export function LeadsView() {
                   {lead.contactName || '—'}
                 </TableCell>
                 <TableCell>
-                  <LeadStatusBadge status={lead.status} />
+                  <LeadStatusSelect
+                    value={lead.status}
+                    onChange={(next) => setLeadStatus(lead.id, next)}
+                  />
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   {lead.nextActionDate ? (

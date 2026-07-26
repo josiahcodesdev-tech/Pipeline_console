@@ -11,7 +11,14 @@ import {
 import { toast } from 'sonner'
 import * as db from '@/lib/db'
 import { fetchOpportunities } from '@/lib/opportunities'
-import type { Lead, Rfp, Task, WeeklyReport } from '@/lib/types'
+import type {
+  Lead,
+  LeadStatus,
+  Rfp,
+  RfpStatus,
+  Task,
+  WeeklyReport,
+} from '@/lib/types'
 import { useAuth } from './use-auth'
 
 /**
@@ -76,9 +83,11 @@ interface PipelineValue {
     existing: Lead | null,
   ) => Promise<void>
   removeLead: (id: string) => Promise<void>
+  setLeadStatus: (id: string, status: LeadStatus) => Promise<void>
 
   saveRfp: (draft: db.RfpDraft, existing: Rfp | null) => Promise<void>
   removeRfp: (id: string) => Promise<void>
+  setRfpStatus: (id: string, status: RfpStatus) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
   syncOpportunities: () => Promise<SyncOutcome>
   /** State of the background sync, for status text in the RFPs view. */
@@ -175,6 +184,59 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     )
     toast.success('Lead deleted')
   }, [])
+
+  /**
+   * Inline status change from the table dropdown.
+   *
+   * Optimistic, because the pill is the feedback — a dropdown that snaps back
+   * for half a second before settling reads as broken. On failure the previous
+   * value is restored and the error surfaces, since this one the user did
+   * initiate. No success toast: the pill visibly changing is confirmation
+   * enough, and these get changed in runs.
+   */
+  const setLeadStatus = useCallback(
+    async (id: string, status: LeadStatus) => {
+      const previous = leads.find((lead) => lead.id === id)
+      setLeads((current) =>
+        current.map((lead) => (lead.id === id ? { ...lead, status } : lead)),
+      )
+      try {
+        const saved = await db.updateLeadStatus(id, status)
+        setLeads((current) =>
+          current.map((lead) => (lead.id === id ? saved : lead)),
+        )
+      } catch (cause) {
+        if (previous) {
+          setLeads((current) =>
+            current.map((lead) => (lead.id === id ? previous : lead)),
+          )
+        }
+        toast.error(message(cause))
+      }
+    },
+    [leads],
+  )
+
+  const setRfpStatus = useCallback(
+    async (id: string, status: RfpStatus) => {
+      const previous = rfps.find((rfp) => rfp.id === id)
+      setRfps((current) =>
+        current.map((rfp) => (rfp.id === id ? { ...rfp, status } : rfp)),
+      )
+      try {
+        const saved = await db.updateRfpStatus(id, status)
+        setRfps((current) => current.map((rfp) => (rfp.id === id ? saved : rfp)))
+      } catch (cause) {
+        if (previous) {
+          setRfps((current) =>
+            current.map((rfp) => (rfp.id === id ? previous : rfp)),
+          )
+        }
+        toast.error(message(cause))
+      }
+    },
+    [rfps],
+  )
 
   const saveRfp = useCallback(async (draft: db.RfpDraft, existing: Rfp | null) => {
     const saved = existing
@@ -311,8 +373,10 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       refresh,
       saveLead,
       removeLead,
+      setLeadStatus,
       saveRfp,
       removeRfp,
+      setRfpStatus,
       importRfps,
       syncOpportunities,
       autoSync,
@@ -332,8 +396,10 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       refresh,
       saveLead,
       removeLead,
+      setLeadStatus,
       saveRfp,
       removeRfp,
+      setRfpStatus,
       importRfps,
       syncOpportunities,
       autoSync,

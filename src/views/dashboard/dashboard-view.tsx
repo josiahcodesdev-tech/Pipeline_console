@@ -3,7 +3,7 @@ import { ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { KpiCard, type KpiTone } from '@/components/kpi-card'
 import { PipelineBar } from '@/components/pipeline-bar'
-import { RfpStatusBadge } from '@/components/status-badge'
+import { RfpStatusSelect } from '@/components/status-select'
 import {
   Table,
   TableBody,
@@ -76,7 +76,7 @@ function DeadlineCell({ deadline }: { deadline: string }) {
 }
 
 export function DashboardView() {
-  const { leads, rfps, tasks, toggleTask } = usePipeline()
+  const { leads, rfps, tasks, toggleTask, setRfpStatus } = usePipeline()
 
   const leadsById = useMemo(() => {
     const map = new Map<string, Lead>()
@@ -188,7 +188,13 @@ export function DashboardView() {
                     <DeadlineCell deadline={rfp.deadline} />
                   </TableCell>
                   <TableCell>
-                    <RfpStatusBadge status={rfp.status} />
+                    {/* Editable here too: this panel is where the urgent ones
+                        surface, so acting on them shouldn't need a detour via
+                        the RFPs view. */}
+                    <RfpStatusSelect
+                      value={rfp.status}
+                      onChange={(next) => setRfpStatus(rfp.id, next)}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
