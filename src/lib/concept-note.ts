@@ -6,13 +6,41 @@ import { supabase } from './supabase'
  * server so it can be tuned without shipping a new bundle, and so a browser
  * cannot rewrite it.
  */
+/**
+ * Which document to draft.
+ *
+ * A lead gets a *concept note* — unsolicited outreach that has to justify its
+ * own relevance. An RFP gets a *proposal*, which answers a brief that already
+ * exists, so it leads with the response rather than the introduction.
+ */
+export type DraftKind = 'concept-note' | 'proposal'
+
 export interface ConceptNoteContext {
+  kind: DraftKind
   org: string
   segment: string
   country?: string
   contactRole?: string
   notes?: string
   rfpTitle?: string
+  deadline?: string
+}
+
+/** UI labels, so the dialog and the buttons never disagree. */
+export const DRAFT_LABELS: Record<
+  DraftKind,
+  { title: string; action: string; loading: string }
+> = {
+  'concept-note': {
+    title: 'Concept note draft',
+    action: 'Draft concept note',
+    loading: 'Drafting concept note…',
+  },
+  proposal: {
+    title: 'Proposal draft',
+    action: 'Draft proposal',
+    loading: 'Drafting proposal…',
+  },
 }
 
 /**
@@ -29,8 +57,9 @@ export async function draftConceptNote(
   )
 
   if (error) {
+    const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
     throw new Error(
-      `Draft failed: ${error.message}. Check that the concept-note function is deployed and ANTHROPIC_API_KEY is set.`,
+      `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and ANTHROPIC_API_KEY is set.`,
     )
   }
   if (data?.error) throw new Error(data.error)

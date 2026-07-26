@@ -16,12 +16,14 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.115.0'
 
 interface ConceptNoteContext {
+  kind?: unknown
   org?: unknown
   segment?: unknown
   country?: unknown
   contactRole?: unknown
   notes?: unknown
   rfpTitle?: unknown
+  deadline?: unknown
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -31,7 +33,14 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const SYSTEM_PROMPT = `You draft business development concept notes for Vantage Africa School of Leadership, a Pan-African institution offering leadership training, Monitoring & Evaluation (M&E), project management, data analysis, and proposal writing training and consultancy to governments, NGOs, corporates, state-owned enterprises, universities and development partners across Africa.
+const ORGANISATION = `Vantage Africa School of Leadership is a Pan-African institution offering leadership training, Monitoring & Evaluation (M&E), project management, data analysis, and proposal writing training and consultancy to governments, NGOs, corporates, state-owned enterprises, universities and development partners across Africa.`
+
+const HONESTY = `Never invent specific past client names, figures, dates, team members, or credentials that were not supplied to you. Where a detail would strengthen the document but you were not given it, write around it — or mark it clearly as a placeholder in [square brackets] for the author to complete. Do not present a placeholder as fact.
+
+Return only the document itself — no preamble, no commentary, no markdown code fences.`
+
+/** Unsolicited outreach: has to earn attention and justify its own relevance. */
+const CONCEPT_NOTE_PROMPT = `You draft business development concept notes for ${ORGANISATION}
 
 Write 350-450 words in a professional, consultative tone — never salesy.
 
@@ -41,9 +50,28 @@ Structure the note as:
 3. What Vantage Africa brings (accredited programmes, pan-African delivery footprint, and the Eval360 M&E platform where relevant).
 4. A suggested next step, such as a short scoping call.
 
-Never invent specific past client names, figures, dates, or credentials that were not supplied to you. If a detail would strengthen the note but you were not given it, write around it rather than fabricating it.
+${HONESTY}`
 
-Return only the concept note itself — no preamble, no commentary, no markdown code fences.`
+/**
+ * Response to a tender that already exists. Unlike a concept note it does not
+ * need to argue for its own relevance — the buyer has already stated the need,
+ * so it leads with the response and is structured for evaluators scoring it
+ * against criteria.
+ */
+const PROPOSAL_PROMPT = `You draft proposals responding to RFPs and tenders on behalf of ${ORGANISATION}
+
+Write 500-700 words as a proposal outline the bid team can build on. The buyer has already published a requirement, so do not spend paragraphs justifying why they might need this — respond to what was asked.
+
+Structure it as:
+1. Understanding of the requirement — restate what the assignment calls for, in your own words, showing you have read it.
+2. Proposed approach and methodology — the phases or workstreams, and what each produces.
+3. Deliverables and indicative timeline, keyed to the submission deadline where one is given.
+4. Relevant capability — what Vantage Africa brings (accredited programmes, pan-African delivery footprint, the Eval360 M&E platform where relevant).
+5. Why Vantage Africa — a short, specific closing tied to this assignment.
+
+Write for an evaluation panel scoring against criteria, not for a general reader. Be concrete about method. Where the RFP title implies a technical requirement you have not been given detail on, flag it in [square brackets] as something the bid team must confirm rather than guessing at it.
+
+${HONESTY}`
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -84,18 +112,21 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'An organization name is required.' }, 400)
   }
 
+  const isProposal = text(context.kind) === 'proposal'
   const segment = text(context.segment) || 'Government'
   const country = text(context.country)
   const contactRole = text(context.contactRole)
   const notes = text(context.notes)
   const rfpTitle = text(context.rfpTitle)
+  const deadline = text(context.deadline)
 
   const details = [
-    `Recipient organization: ${org}`,
+    `${isProposal ? 'Issuing organization' : 'Recipient organization'}: ${org}`,
     `Sector / segment: ${segment}`,
     country ? `Country: ${country}` : null,
     contactRole ? `Likely recipient role: ${contactRole}` : null,
-    rfpTitle ? `Related RFP or tender: ${rfpTitle}` : null,
+    rfpTitle ? `RFP / tender title: ${rfpTitle}` : null,
+    deadline ? `Submission deadline: ${deadline}` : null,
     `Context notes: ${notes || 'None provided.'}`,
   ]
     .filter(Boolean)
@@ -112,11 +143,11 @@ Deno.serve(async (request: Request) => {
       // Recover automatically if a safety classifier declines the request.
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      system: SYSTEM_PROMPT,
+      system: isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
       messages: [
         {
           role: 'user',
-          content: `Draft a concept note using this context:\n\n${details}`,
+          content: `Draft a ${isProposal ? 'proposal' : 'concept note'} using this context:\n\n${details}`,
         },
       ],
     })

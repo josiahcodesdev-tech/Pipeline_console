@@ -13,7 +13,7 @@ import { Field, FieldRow, SelectField } from '@/components/field'
 import { ConceptNoteDialog } from '@/components/concept-note-dialog'
 import type { RfpDraft } from '@/lib/db'
 import { RFP_STATUSES, SEGMENTS, type Rfp } from '@/lib/types'
-import type { ConceptNoteContext } from '@/lib/concept-note'
+import { DRAFT_LABELS, type ConceptNoteContext } from '@/lib/concept-note'
 
 const EMPTY: RfpDraft = {
   title: '',
@@ -93,12 +93,16 @@ export function RfpDialog({
   }
 
   const org = draft.org.trim()
+  // An RFP is an existing brief, so the draft is a proposal responding to it —
+  // not a concept note introducing an idea.
   const conceptContext: ConceptNoteContext | null = org
     ? {
+        kind: 'proposal',
         org,
         segment: draft.segment,
         notes: draft.notes,
         rfpTitle: draft.title.trim(),
+        deadline: draft.deadline,
       }
     : null
 
@@ -208,8 +212,13 @@ export function RfpDialog({
               variant="outline"
               onClick={() => setConceptOpen(true)}
               disabled={!conceptContext}
+              title={
+                conceptContext
+                  ? undefined
+                  : 'Add an organization name first'
+              }
             >
-              Draft concept note
+              {DRAFT_LABELS.proposal.action}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

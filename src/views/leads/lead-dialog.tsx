@@ -13,7 +13,7 @@ import { Field, FieldRow, SelectField } from '@/components/field'
 import { ConceptNoteDialog } from '@/components/concept-note-dialog'
 import type { LeadDraft } from '@/lib/db'
 import { LEAD_STATUSES, SEGMENTS, type Lead } from '@/lib/types'
-import type { ConceptNoteContext } from '@/lib/concept-note'
+import { DRAFT_LABELS, type ConceptNoteContext } from '@/lib/concept-note'
 
 const EMPTY: LeadDraft = {
   org: '',
@@ -91,8 +91,11 @@ export function LeadDialog({
     }
   }
 
+  // A lead is unsolicited outreach, so it gets a concept note rather than a
+  // proposal — there is no brief to respond to yet.
   const conceptContext: ConceptNoteContext | null = draft.org.trim()
     ? {
+        kind: 'concept-note',
         org: draft.org.trim(),
         segment: draft.segment,
         country: draft.country,
@@ -230,8 +233,9 @@ export function LeadDialog({
               variant="outline"
               onClick={() => setConceptOpen(true)}
               disabled={!conceptContext}
+              title={conceptContext ? undefined : 'Add an organization name first'}
             >
-              Draft concept note
+              {DRAFT_LABELS['concept-note'].action}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

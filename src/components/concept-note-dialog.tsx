@@ -9,7 +9,11 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { draftConceptNote, type ConceptNoteContext } from '@/lib/concept-note'
+import {
+  draftConceptNote,
+  DRAFT_LABELS,
+  type ConceptNoteContext,
+} from '@/lib/concept-note'
 
 export function ConceptNoteDialog({
   context,
@@ -50,16 +54,18 @@ export function ConceptNoteDialog({
     // the dialog. One draft per opening is the intent.
   }, [open])
 
+  const labels = DRAFT_LABELS[context?.kind ?? 'concept-note']
+
   async function copy() {
     await navigator.clipboard.writeText(draft)
-    toast.success('Copied concept note')
+    toast.success(`Copied ${labels.title.toLowerCase()}`)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle className="font-display">Concept note draft</DialogTitle>
+          <DialogTitle className="font-display">{labels.title}</DialogTitle>
           <DialogDescription>
             {context
               ? `Addressed to ${context.org}. Review before sending — it is a starting point, not a final document.`
@@ -69,14 +75,14 @@ export function ConceptNoteDialog({
 
         {status === 'loading' ? (
           <div className="flex min-h-[320px] items-center justify-center text-xs text-muted-foreground">
-            Drafting concept note…
+            {labels.loading}
           </div>
         ) : (
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             className="min-h-[320px] text-xs leading-relaxed"
-            aria-label="Concept note draft"
+            aria-label={labels.title}
           />
         )}
 
