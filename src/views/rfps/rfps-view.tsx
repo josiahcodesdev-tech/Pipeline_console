@@ -286,6 +286,7 @@ export function RfpsView() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Type</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Segment</TableHead>
@@ -293,6 +294,7 @@ export function RfpsView() {
               <TableHead className="text-right">Value (KES)</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Pipeline</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
