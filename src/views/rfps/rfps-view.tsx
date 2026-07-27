@@ -286,7 +286,6 @@ export function RfpsView() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Type</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Segment</TableHead>
@@ -304,25 +303,6 @@ export function RfpsView() {
                 onClick={() => open(rfp)}
                 className="cursor-pointer"
               >
-                <TableCell className="w-[90px]">
-                  <span
-                    className={cn(
-                      'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
-                      rfp.opportunityType === 'rfp'
-                        ? 'bg-brand-soft text-primary'
-                        : rfp.opportunityType === 'job'
-                          ? 'bg-info-soft text-info'
-                          : 'bg-surface-2 text-neutral',
-                    )}
-                    title={
-                      rfp.opportunityType === 'job'
-                        ? 'The feed calls this a job — but ReliefWeb files consultancy and training assignments here too, so it is worth a look'
-                        : undefined
-                    }
-                  >
-                    {rfp.opportunityType ? rfp.opportunityType.toUpperCase() : '—'}
-                  </span>
-                </TableCell>
                 <TableCell className="max-w-[380px] font-medium">
                   {rfp.link ? (
                     // Opens the source notice. `stopPropagation` keeps the row
