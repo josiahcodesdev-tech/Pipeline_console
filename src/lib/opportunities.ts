@@ -257,7 +257,10 @@ export async function fetchOpportunities(
       status: 'Watching',
       link: text(item.url),
       notes: location ? `Location: ${location}` : '',
-      source: feedSource ? `CareerCraft · ${feedSource}` : 'CareerCraft',
+      // The scraper's own source name, unprefixed — "reliefweb", "undp".
+      // CareerCraft is how it reaches us, not where it came from, and putting
+      // it on every row made the column say the same thing 30 times.
+      source: feedSource || 'CareerCraft',
       opportunityType,
       kenya: item.kenya === true,
       serviceAreas,
