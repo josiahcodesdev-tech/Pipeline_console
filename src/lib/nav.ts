@@ -3,6 +3,7 @@ import {
   FileTextIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  MessageSquareIcon,
   TrendingUpIcon,
   UsersIcon,
   type LucideIcon,
@@ -12,9 +13,10 @@ export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboardIcon },
   { id: 'leads', label: 'Leads', icon: UsersIcon },
   { id: 'rfps', label: 'RFPs', icon: ClipboardListIcon },
-  { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
+  { id: 'activity', label: 'Activity', icon: MessageSquareIcon },
   { id: 'tasks', label: 'Tasks', icon: ListChecksIcon },
-  { id: 'report', label: 'Weekly report', icon: FileTextIcon },
+  { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
+  { id: 'report', label: 'Reports', icon: FileTextIcon },
 ] as const satisfies readonly {
   id: string
   label: string

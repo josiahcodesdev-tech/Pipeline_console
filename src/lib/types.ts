@@ -26,6 +26,43 @@ export const RFP_STATUSES = [
 
 export const TASK_PRIORITIES = ['Normal', 'High'] as const
 
+export const LEAD_PRIORITIES = ['High', 'Medium', 'Low'] as const
+
+/**
+ * Kinds of logged activity. The first four are the outreach channels the job
+ * description names; the next four are the conversion events it counts
+ * ("paying clients, registrations, demos or proposals"); `Note` is the
+ * catch-all for market intelligence that isn't an interaction.
+ */
+export const ACTIVITY_TYPES = [
+  'Call',
+  'Email',
+  'LinkedIn',
+  'Meeting request',
+  'Meeting held',
+  'Proposal sent',
+  'Demo',
+  'Registration',
+  'Note',
+] as const
+
+/** Activity types that count toward the monthly Conversion KPI. */
+export const CONVERSION_ACTIVITY_TYPES = [
+  'Meeting held',
+  'Proposal sent',
+  'Demo',
+  'Registration',
+] as const
+
+/** Activity types that count as client communication (the daily KPI). */
+export const COMMUNICATION_ACTIVITY_TYPES = [
+  'Call',
+  'Email',
+  'LinkedIn',
+  'Meeting request',
+  'Meeting held',
+] as const
+
 /** The stages shown in the dashboard's pipeline bar, in order. `Lost` is
  *  deliberately excluded — it is an exit, not a stage. */
 export const PIPELINE_STAGES = [
@@ -49,6 +86,8 @@ export type Segment = (typeof SEGMENTS)[number]
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 export type RfpStatus = (typeof RFP_STATUSES)[number]
 export type TaskPriority = (typeof TASK_PRIORITIES)[number]
+export type LeadPriority = (typeof LEAD_PRIORITIES)[number]
+export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 
 /** An ISO `YYYY-MM-DD` calendar date. Empty string means "not set". */
 export type IsoDate = string
@@ -66,8 +105,41 @@ export interface Lead {
   nextActionDate: IsoDate
   source: string
   notes: string
+
+  // Qualification — "need, timing, decision process, budget potential and fit".
+  priority: LeadPriority
+  needs: string
+  budgetBand: string
+  decisionTimeline: string
+  decisionProcess: string
+
   createdOn: IsoDate
   statusUpdatedOn: IsoDate
+}
+
+/**
+ * A logged interaction. Distinct from a Task: a task is what you intend to do,
+ * an activity is what actually happened — which is what the communication-log
+ * KPI asks you to evidence.
+ */
+export interface Activity {
+  id: string
+  /** Parent lead, if any. */
+  leadId: string | null
+  /** Parent RFP, if any. */
+  rfpId: string | null
+  type: ActivityType
+  occurredOn: IsoDate
+  summary: string
+  outcome: string
+}
+
+export function isActivityType(value: unknown): value is ActivityType {
+  return ACTIVITY_TYPES.includes(value as ActivityType)
+}
+
+export function isLeadPriority(value: unknown): value is LeadPriority {
+  return LEAD_PRIORITIES.includes(value as LeadPriority)
 }
 
 export interface Rfp {
@@ -103,12 +175,28 @@ export interface Task {
   createdOn: IsoDate
 }
 
+/** Reporting cadences the JD asks for: weekly portfolio, monthly, quarterly. */
+export const REPORT_PERIODS = ['week', 'month', 'quarter'] as const
+export type ReportPeriod = (typeof REPORT_PERIODS)[number]
+
+export const REPORT_PERIOD_LABEL: Record<ReportPeriod, string> = {
+  week: 'Weekly',
+  month: 'Monthly',
+  quarter: 'Quarterly',
+}
+
 export interface WeeklyReport {
   id: string
+  /** First day of the period covered — read together with `period`. */
   weekStart: IsoDate
+  period: ReportPeriod
   revenue: number | null
   notes: string
   submitted: boolean
+}
+
+export function isReportPeriod(value: unknown): value is ReportPeriod {
+  return REPORT_PERIODS.includes(value as ReportPeriod)
 }
 
 /** Payload accepted by the RFP JSON importer. Everything but `title` optional. */

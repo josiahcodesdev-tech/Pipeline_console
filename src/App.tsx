@@ -11,6 +11,7 @@ import { DashboardView } from '@/views/dashboard/dashboard-view'
 import { LeadsView } from '@/views/leads/leads-view'
 import { RfpsView } from '@/views/rfps/rfps-view'
 import { TasksView } from '@/views/tasks/tasks-view'
+import { ActivityView } from '@/views/activity/activity-view'
 import { ReportView } from '@/views/report/report-view'
 
 // Recharts is a large dependency used by this view alone — keep it out of the
@@ -54,6 +55,7 @@ function Console() {
               <ProgressView />
             </Suspense>
           )}
+          {view === 'activity' && <ActivityView />}
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
         </div>

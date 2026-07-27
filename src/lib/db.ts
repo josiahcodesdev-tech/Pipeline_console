@@ -2,9 +2,13 @@ import type { PostgrestSingleResponse } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { today } from './dates'
 import {
+  isActivityType,
+  isLeadPriority,
   isLeadStatus,
+  isReportPeriod,
   isRfpStatus,
   isSegment,
+  type Activity,
   type Lead,
   type LeadStatus,
   type Rfp,
@@ -14,6 +18,7 @@ import {
   type WeeklyReport,
 } from './types'
 import type {
+  ActivityRow,
   LeadRow,
   RfpRow,
   TaskRow,
@@ -72,8 +77,25 @@ function toLead(row: LeadRow): Lead {
     nextActionDate: row.next_action_date ?? '',
     source: row.source ?? '',
     notes: row.notes ?? '',
+    priority: isLeadPriority(row.priority) ? row.priority : 'Medium',
+    needs: row.needs ?? '',
+    budgetBand: row.budget_band ?? '',
+    decisionTimeline: row.decision_timeline ?? '',
+    decisionProcess: row.decision_process ?? '',
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
+  }
+}
+
+function toActivity(row: ActivityRow): Activity {
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    rfpId: row.rfp_id,
+    type: isActivityType(row.type) ? row.type : 'Note',
+    occurredOn: row.occurred_on,
+    summary: row.summary,
+    outcome: row.outcome ?? '',
   }
 }
 
@@ -113,6 +135,7 @@ function toWeeklyReport(row: WeeklyReportRow): WeeklyReport {
   return {
     id: row.id,
     weekStart: row.week_start,
+    period: isReportPeriod(row.period) ? row.period : 'week',
     revenue: row.revenue === null ? null : Number(row.revenue),
     notes: row.notes ?? '',
     submitted: row.submitted,
@@ -137,6 +160,11 @@ function leadFields(draft: LeadDraft) {
     next_action_date: dateOrNull(draft.nextActionDate),
     source: draft.source,
     notes: draft.notes,
+    priority: draft.priority,
+    needs: draft.needs,
+    budget_band: draft.budgetBand,
+    decision_timeline: draft.decisionTimeline,
+    decision_process: draft.decisionProcess,
   }
 }
 
@@ -161,10 +189,11 @@ export interface PipelineSnapshot {
   rfps: Rfp[]
   tasks: Task[]
   reports: WeeklyReport[]
+  activities: Activity[]
 }
 
 export async function fetchAll(): Promise<PipelineSnapshot> {
-  const [leads, rfps, tasks, reports] = await Promise.all([
+  const [leads, rfps, tasks, reports, activities] = await Promise.all([
     supabase.from('leads').select('*').order('created_at', { ascending: false }),
     supabase
       .from('rfps')
@@ -172,6 +201,11 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       .order('deadline', { ascending: true, nullsFirst: false }),
     supabase.from('tasks').select('*').order('due', { ascending: true, nullsFirst: false }),
     supabase.from('weekly_reports').select('*').order('week_start', { ascending: false }),
+    supabase
+      .from('activities')
+      .select('*')
+      .order('occurred_on', { ascending: false })
+      .order('created_at', { ascending: false }),
   ])
 
   return {
@@ -179,7 +213,36 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
     rfps: unwrap(rfps).map(toRfp),
     tasks: unwrap(tasks).map(toTask),
     reports: unwrap(reports).map(toWeeklyReport),
+    activities: unwrap(activities).map(toActivity),
   }
+}
+
+// ---------------------------------------------------------- activities -----
+
+export type ActivityDraft = Omit<Activity, 'id'>
+
+export async function createActivity(draft: ActivityDraft): Promise<Activity> {
+  const row = unwrap(
+    await supabase
+      .from('activities')
+      .insert({
+        user_id: await currentUserId(),
+        lead_id: draft.leadId,
+        rfp_id: draft.rfpId,
+        type: draft.type,
+        occurred_on: draft.occurredOn || today(),
+        summary: draft.summary,
+        outcome: draft.outcome,
+      })
+      .select()
+      .single(),
+  )
+  return toActivity(row)
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  const { error } = await supabase.from('activities').delete().eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 // --------------------------------------------------------------- leads -----
@@ -414,11 +477,12 @@ export async function saveWeeklyReport(
         {
           user_id: await currentUserId(),
           week_start: draft.weekStart,
+          period: draft.period,
           revenue: draft.revenue,
           notes: draft.notes,
           submitted: draft.submitted,
         },
-        { onConflict: 'user_id,week_start' },
+        { onConflict: 'user_id,period,week_start' },
       )
       .select()
       .single(),

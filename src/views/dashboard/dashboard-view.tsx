@@ -24,6 +24,7 @@ import {
 } from '@/lib/dates'
 import {
   activeRfpCount,
+  communicationsInRange,
   dueOrOverdueTasks,
   followUpDiscipline,
   qualifiedInWeek,
@@ -76,7 +77,7 @@ function DeadlineCell({ deadline }: { deadline: string }) {
 }
 
 export function DashboardView() {
-  const { leads, rfps, tasks, toggleTask, setRfpStatus } = usePipeline()
+  const { leads, rfps, tasks, activities, toggleTask, setRfpStatus } = usePipeline()
 
   const leadsById = useMemo(() => {
     const map = new Map<string, Lead>()
@@ -89,6 +90,7 @@ export function DashboardView() {
   const discipline = followUpDiscipline(leads)
   const activeRfps = activeRfpCount(rfps)
   const dueTasks = dueOrOverdueTasks(tasks)
+  const loggedToday = communicationsInRange(activities, today(), today())
   const soonRfps = upcomingRfpDeadlines(rfps, 7)
   const overdueCount = soonRfps.filter((rfp) => {
     const left = daysUntil(rfp.deadline)
@@ -110,7 +112,7 @@ export function DashboardView() {
 
       <PipelineBar leads={leads} />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Qualified this week"
           value={qualified}
@@ -126,6 +128,12 @@ export function DashboardView() {
           label="Active RFPs"
           value={activeRfps}
           hint="Watching, Preparing or Submitted"
+        />
+        <KpiCard
+          label="Logged today"
+          value={loggedToday}
+          hint="Calls, emails, messages, meetings"
+          tone={loggedToday > 0 ? 'good' : 'warn'}
         />
         <KpiCard
           label="Tasks due / overdue"

@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import * as db from '@/lib/db'
 import { fetchOpportunities } from '@/lib/opportunities'
 import type {
+  Activity,
   Lead,
   LeadStatus,
   Rfp,
@@ -74,6 +75,7 @@ interface PipelineValue {
   rfps: Rfp[]
   tasks: Task[]
   reports: WeeklyReport[]
+  activities: Activity[]
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
@@ -100,6 +102,9 @@ interface PipelineValue {
   removeTask: (id: string) => Promise<void>
 
   saveReport: (draft: db.WeeklyReportDraft) => Promise<void>
+
+  logActivity: (draft: db.ActivityDraft) => Promise<void>
+  removeActivity: (id: string) => Promise<void>
 }
 
 const PipelineContext = createContext<PipelineValue | null>(null)
@@ -123,6 +128,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [rfps, setRfps] = useState<Rfp[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [reports, setReports] = useState<WeeklyReport[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [autoSync, setAutoSync] = useState<AutoSyncStatus>('idle')
@@ -137,6 +143,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setRfps([])
       setTasks([])
       setReports([])
+      setActivities([])
       setLoading(false)
       return
     }
@@ -147,6 +154,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setRfps(snapshot.rfps)
       setTasks(snapshot.tasks)
       setReports(snapshot.reports)
+      setActivities(snapshot.activities)
       setError(null)
     } catch (cause) {
       setError(message(cause))
@@ -357,6 +365,18 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setTasks((current) => current.filter((task) => task.id !== id))
   }, [])
 
+  const logActivity = useCallback(async (draft: db.ActivityDraft) => {
+    const saved = await db.createActivity(draft)
+    // Newest first, matching the order fetchAll returns.
+    setActivities((current) => [saved, ...current])
+    toast.success(`${saved.type} logged`)
+  }, [])
+
+  const removeActivity = useCallback(async (id: string) => {
+    await db.deleteActivity(id)
+    setActivities((current) => current.filter((activity) => activity.id !== id))
+  }, [])
+
   const saveReport = useCallback(async (draft: db.WeeklyReportDraft) => {
     const saved = await db.saveWeeklyReport(draft)
     setReports((current) => upsertInto(current, saved))
@@ -368,6 +388,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       rfps,
       tasks,
       reports,
+      activities,
       loading,
       error,
       refresh,
@@ -385,12 +406,15 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       toggleTask,
       removeTask,
       saveReport,
+      logActivity,
+      removeActivity,
     }),
     [
       leads,
       rfps,
       tasks,
       reports,
+      activities,
       loading,
       error,
       refresh,
@@ -408,6 +432,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       toggleTask,
       removeTask,
       saveReport,
+      logActivity,
+      removeActivity,
     ],
   )
 

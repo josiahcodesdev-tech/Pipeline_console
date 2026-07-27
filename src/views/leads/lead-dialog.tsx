@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -12,7 +12,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldRow, SelectField } from '@/components/field'
 import { ConceptNoteDialog } from '@/components/concept-note-dialog'
 import type { LeadDraft } from '@/lib/db'
-import { LEAD_STATUSES, SEGMENTS, type Lead } from '@/lib/types'
+import { ActivityComposer, ActivityRow } from '@/components/activity-log'
+import { usePipeline } from '@/hooks/use-pipeline'
+import {
+  LEAD_PRIORITIES,
+  LEAD_STATUSES,
+  SEGMENTS,
+  type Lead,
+} from '@/lib/types'
 import { DRAFT_LABELS, type ConceptNoteContext } from '@/lib/concept-note'
 
 const EMPTY: LeadDraft = {
@@ -27,6 +34,11 @@ const EMPTY: LeadDraft = {
   nextActionDate: '',
   source: '',
   notes: '',
+  priority: 'Medium',
+  needs: '',
+  budgetBand: '',
+  decisionTimeline: '',
+  decisionProcess: '',
 }
 
 function toDraft(lead: Lead): LeadDraft {
@@ -48,9 +60,15 @@ export function LeadDialog({
   onSave: (draft: LeadDraft, existing: Lead | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { activities, logActivity, removeActivity } = usePipeline()
   const [draft, setDraft] = useState<LeadDraft>(EMPTY)
   const [busy, setBusy] = useState(false)
   const [conceptOpen, setConceptOpen] = useState(false)
+
+  const leadActivities = useMemo(
+    () => (lead ? activities.filter((entry) => entry.leadId === lead.id) : []),
+    [activities, lead],
+  )
 
   // Reset the form each time the dialog opens so a cancelled edit never leaks
   // into the next one.
@@ -216,6 +234,85 @@ export function LeadDialog({
                 className="min-h-[60px] w-full"
               />
             </Field>
+
+            {/* Qualification — "need, timing, decision process, budget
+                potential and fit before handover". Kept in its own section so
+                the top of the form stays a quick capture form. */}
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="eyebrow mb-3 text-clay">Qualification</div>
+
+              <FieldRow>
+                <SelectField
+                  label="Priority"
+                  value={draft.priority}
+                  options={LEAD_PRIORITIES}
+                  onChange={(value) => set('priority', value)}
+                />
+                <Field label="Budget potential" htmlFor="lead-budget">
+                  <Input
+                    id="lead-budget"
+                    placeholder="e.g. KES 2–5M, or unfunded"
+                    value={draft.budgetBand}
+                    onChange={(event) => set('budgetBand', event.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+              </FieldRow>
+
+              <Field label="Need" htmlFor="lead-needs">
+                <Textarea
+                  id="lead-needs"
+                  placeholder="What are they actually trying to solve?"
+                  value={draft.needs}
+                  onChange={(event) => set('needs', event.target.value)}
+                  className="min-h-[54px] w-full"
+                />
+              </Field>
+
+              <FieldRow>
+                <Field label="Timing / training calendar" htmlFor="lead-timing">
+                  <Input
+                    id="lead-timing"
+                    placeholder="e.g. budgets in Q3, trains in Jan"
+                    value={draft.decisionTimeline}
+                    onChange={(event) => set('decisionTimeline', event.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+                <Field label="Decision process" htmlFor="lead-decision">
+                  <Input
+                    id="lead-decision"
+                    placeholder="Who signs off, and how"
+                    value={draft.decisionProcess}
+                    onChange={(event) => set('decisionProcess', event.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+              </FieldRow>
+            </div>
+
+            {/* Only on an existing lead: activities need something to hang off. */}
+            {lead && (
+              <div className="mt-5 border-t border-border pt-4">
+                <div className="eyebrow mb-3 text-clay">Activity</div>
+                <ActivityComposer leadId={lead.id} onLog={logActivity} />
+                <div className="mt-2 max-h-[220px] overflow-y-auto">
+                  {leadActivities.length === 0 ? (
+                    <p className="py-3 text-center text-[11.5px] text-faint">
+                      Nothing logged against this lead yet.
+                    </p>
+                  ) : (
+                    leadActivities.map((activity) => (
+                      <ActivityRow
+                        key={activity.id}
+                        activity={activity}
+                        onDelete={(id) => void removeActivity(id)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap justify-end gap-2">

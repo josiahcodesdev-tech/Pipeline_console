@@ -121,6 +121,77 @@ export function recentWeekStarts(count: number, from: IsoDate = today()): IsoDat
   return weeks
 }
 
+/**
+ * Start and end of the reporting period containing `iso`.
+ *
+ * Weeks run Monday–Sunday; months and quarters are calendar. `shift` moves
+ * whole periods, so the report view can page back and forward without knowing
+ * how long a month is.
+ */
+export function periodRange(
+  period: 'week' | 'month' | 'quarter',
+  iso: IsoDate,
+  shift = 0,
+): { start: IsoDate; end: IsoDate } {
+  if (period === 'week') {
+    const start = addDays(weekStart(iso), shift * 7)
+    return { start, end: weekEnd(start) }
+  }
+
+  const date = fromIsoDate(iso)
+
+  if (period === 'month') {
+    const start = new Date(date.getFullYear(), date.getMonth() + shift, 1)
+    // Day 0 of the next month is the last day of this one — no length table.
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+    return { start: toIsoDate(start), end: toIsoDate(end) }
+  }
+
+  const quarterIndex = Math.floor(date.getMonth() / 3) + shift
+  const start = new Date(date.getFullYear(), quarterIndex * 3, 1)
+  const end = new Date(start.getFullYear(), start.getMonth() + 3, 0)
+  return { start: toIsoDate(start), end: toIsoDate(end) }
+}
+
+/**
+ * Inverse of `periodRange`'s `shift`: how many whole periods `start` sits from
+ * the one containing today. Lets a saved report be reopened by offset.
+ */
+export function periodOffset(
+  period: 'week' | 'month' | 'quarter',
+  start: IsoDate,
+): number {
+  const now = fromIsoDate(today())
+  const target = fromIsoDate(start)
+
+  if (period === 'week') {
+    const currentStart = fromIsoDate(weekStart(today()))
+    return Math.round(
+      (fromIsoDate(weekStart(start)).getTime() - currentStart.getTime()) /
+        (7 * 86_400_000),
+    )
+  }
+
+  const months =
+    (target.getFullYear() - now.getFullYear()) * 12 +
+    (target.getMonth() - now.getMonth())
+
+  return period === 'month' ? months : Math.round(months / 3)
+}
+
+/** Human label for a period, e.g. `Week of 20 Jul`, `July 2026`, `Q3 2026`. */
+export function formatPeriod(
+  period: 'week' | 'month' | 'quarter',
+  start: IsoDate,
+): string {
+  const date = fromIsoDate(start)
+  if (period === 'week') return `Week of ${formatDate(start)}`
+  if (period === 'month') {
+    return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+  }
+  return `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`
+}
+
 export function formatKes(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return value.toLocaleString('en-KE', { maximumFractionDigits: 0 })

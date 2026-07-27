@@ -25,8 +25,26 @@ export type LeadRow = {
   next_action_date: string | null
   source: string
   notes: string
+  priority: string
+  needs: string
+  budget_band: string
+  decision_timeline: string
+  decision_process: string
   created_on: string
   status_updated_on: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ActivityRow = {
+  id: string
+  user_id: string
+  lead_id: string | null
+  rfp_id: string | null
+  type: string
+  occurred_on: string
+  summary: string
+  outcome: string
   created_at: string
   updated_at: string
 }
@@ -70,6 +88,7 @@ export type WeeklyReportRow = {
   id: string
   user_id: string
   week_start: string
+  period: string
   revenue: number | null
   notes: string
   submitted: boolean
@@ -109,6 +128,12 @@ export type Database = {
         Row: WeeklyReportRow
         Insert: Insertable<WeeklyReportRow, Generated>
         Update: Partial<WeeklyReportRow>
+        Relationships: []
+      }
+      activities: {
+        Row: ActivityRow
+        Insert: Insertable<ActivityRow, Generated | 'occurred_on'>
+        Update: Partial<ActivityRow>
         Relationships: []
       }
     }

@@ -11,18 +11,27 @@ export interface ReportPayload {
   metrics: WeekMetrics
   revenue: number | null
   notes: string
+  /** e.g. `Week of 20 Jul`, `July 2026`, `Q3 2026`. Defaults to the week form. */
+  label?: string
 }
 
 /** The plain-text summary shown on screen and copied to the clipboard. */
-export function buildReportText({ metrics, revenue, notes }: ReportPayload): string {
-  return `WEEKLY LEAD GENERATION REPORT
-Week of ${formatDate(metrics.weekStart)} – ${formatDate(metrics.weekEnd)}
+export function buildReportText({
+  metrics,
+  revenue,
+  notes,
+  label,
+}: ReportPayload): string {
+  return `LEAD GENERATION REPORT — ${label ?? `Week of ${formatDate(metrics.weekStart)}`}
+${formatDate(metrics.weekStart)} – ${formatDate(metrics.weekEnd)}
 
 New leads added: ${metrics.newLeads}
 Leads qualified: ${metrics.qualified}
-Conversions/wins: ${metrics.leadWins}
+Conversions: ${metrics.conversions}
 Revenue closed/supported: KES ${revenue ? formatKes(revenue) : '0'}
 Active RFPs in pipeline: ${metrics.activeRfps}
+Communications logged: ${metrics.communications}
+Meeting requests: ${metrics.meetingRequests}
 Follow-ups completed: ${metrics.tasksCompleted}
 Follow-up discipline: ${metrics.followUpPct}%
 
@@ -32,7 +41,7 @@ ${notes || '(none recorded)'}`
 
 /** Builds and downloads the week's report as a .docx file. */
 export async function downloadReportDocx(payload: ReportPayload): Promise<void> {
-  const { metrics, revenue, notes } = payload
+  const { metrics, revenue, notes, label } = payload
 
   const [
     {
@@ -70,20 +79,22 @@ export async function downloadReportDocx(payload: ReportPayload): Promise<void> 
 
   const document = new Document({
     creator: 'Pipeline Console',
-    title: `Weekly Lead Generation Report — week of ${formatDateLong(metrics.weekStart)}`,
+    title: `Lead Generation Report — ${label ?? formatDateLong(metrics.weekStart)}`,
     sections: [
       {
         children: [
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.LEFT,
-            children: [new TextRun('Weekly Lead Generation Report')],
+            children: [new TextRun('Lead Generation Report')],
           }),
           new Paragraph({
             spacing: { after: 240 },
             children: [
               new TextRun({
-                text: `Week of ${formatDateLong(metrics.weekStart)} – ${formatDateLong(metrics.weekEnd)}`,
+                text: label
+                  ? `${label}  ·  ${formatDateLong(metrics.weekStart)} – ${formatDateLong(metrics.weekEnd)}`
+                  : `Week of ${formatDateLong(metrics.weekStart)} – ${formatDateLong(metrics.weekEnd)}`,
                 italics: true,
               }),
             ],
@@ -98,12 +109,14 @@ export async function downloadReportDocx(payload: ReportPayload): Promise<void> 
             rows: [
               metricRow('New leads added', String(metrics.newLeads)),
               metricRow('Leads qualified', String(metrics.qualified)),
-              metricRow('Conversions / wins', String(metrics.wins)),
+              metricRow('Conversions', String(metrics.conversions)),
               metricRow(
                 'Revenue closed / supported',
                 `KES ${revenue ? formatKes(revenue) : '0'}`,
               ),
               metricRow('Active RFPs in pipeline', String(metrics.activeRfps)),
+              metricRow('Communications logged', String(metrics.communications)),
+              metricRow('Meeting requests', String(metrics.meetingRequests)),
               metricRow('Follow-ups completed', String(metrics.tasksCompleted)),
               metricRow('Follow-up discipline', `${metrics.followUpPct}%`),
             ],
@@ -126,5 +139,5 @@ export async function downloadReportDocx(payload: ReportPayload): Promise<void> 
   })
 
   const blob = await Packer.toBlob(document)
-  saveAs(blob, `weekly-report-${metrics.weekStart}.docx`)
+  saveAs(blob, `report-${metrics.weekStart}.docx`)
 }

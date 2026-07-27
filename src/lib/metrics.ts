@@ -2,8 +2,11 @@ import { addDays, inRange, today, weekEnd } from './dates'
 import {
   ACTIVE_LEAD_STATUSES,
   ACTIVE_RFP_STATUSES,
+  COMMUNICATION_ACTIVITY_TYPES,
+  CONVERSION_ACTIVITY_TYPES,
   PIPELINE_STAGES,
   QUALIFIED_STATUSES,
+  type Activity,
   type IsoDate,
   type Lead,
   type LeadStatus,
@@ -101,27 +104,101 @@ export function upcomingRfpDeadlines(
     .sort((a, b) => a.deadline.localeCompare(b.deadline))
 }
 
+/** Outreach logged in a date range — evidence for the Client communication KPI. */
+export function communicationsInRange(
+  activities: Activity[],
+  start: IsoDate,
+  end: IsoDate,
+): number {
+  return activities.filter(
+    (activity) =>
+      (COMMUNICATION_ACTIVITY_TYPES as readonly string[]).includes(activity.type) &&
+      inRange(activity.occurredOn, start, end),
+  ).length
+}
+
+/**
+ * Conversions in a date range.
+ *
+ * The job description counts "leads converted into paying clients,
+ * registrations, demos or proposals" — broader than a lead reaching Won, so a
+ * booked demo or a submitted proposal counts even when the lead is still open.
+ * Leads and RFPs marked Won are counted too, and the two sources are summed
+ * rather than deduplicated: they are different events on the same account.
+ */
+export function conversionsInRange(
+  activities: Activity[],
+  leads: Lead[],
+  rfps: Rfp[],
+  start: IsoDate,
+  end: IsoDate,
+): number {
+  const fromActivities = activities.filter(
+    (activity) =>
+      (CONVERSION_ACTIVITY_TYPES as readonly string[]).includes(activity.type) &&
+      inRange(activity.occurredOn, start, end),
+  ).length
+
+  const wonLeads = leads.filter(
+    (lead) => lead.status === 'Won' && inRange(lead.statusUpdatedOn, start, end),
+  ).length
+
+  const wonRfps = rfps.filter(
+    (rfp) => rfp.status === 'Won' && inRange(rfp.statusUpdatedOn, start, end),
+  ).length
+
+  return fromActivities + wonLeads + wonRfps
+}
+
+/** Leads with no logged activity at all — the ones quietly going cold. */
+export function untouchedLeads(leads: Lead[], activities: Activity[]): Lead[] {
+  const touched = new Set(
+    activities.map((activity) => activity.leadId).filter(Boolean) as string[],
+  )
+  return leads.filter(
+    (lead) => !touched.has(lead.id) && lead.status !== 'Lost' && lead.status !== 'Won',
+  )
+}
+
 export interface WeekMetrics {
   weekStart: IsoDate
   weekEnd: IsoDate
   newLeads: number
   qualified: number
-  /** Leads *and* RFPs marked Won during the week. */
+  /** Leads *and* RFPs marked Won during the period. */
   wins: number
-  /** Leads won during the week, excluding RFPs — used in the copy-ready text. */
+  /** Leads won during the period, excluding RFPs — used in the copy-ready text. */
   leadWins: number
+  /** The JD's broader Conversion KPI: wins plus demos, proposals, registrations. */
+  conversions: number
+  /** Logged calls, emails, LinkedIn messages and meetings. */
+  communications: number
+  /** Meeting requests sent — a named weekly deliverable. */
+  meetingRequests: number
   tasksCompleted: number
   followUpPct: number
   activeRfps: number
 }
 
-export function weekMetrics(
+export interface MetricsInput {
+  leads: Lead[]
+  rfps: Rfp[]
+  tasks: Task[]
+  activities: Activity[]
+}
+
+/**
+ * Every figure the reports quote, for an arbitrary date range.
+ *
+ * Ranges are inclusive on both ends, so a week, a month and a quarter all go
+ * through here — the reporting cadence is a choice of `start`/`end`, not a
+ * different set of calculations.
+ */
+export function periodMetrics(
   start: IsoDate,
-  leads: Lead[],
-  rfps: Rfp[],
-  tasks: Task[],
+  end: IsoDate,
+  { leads, rfps, tasks, activities }: MetricsInput,
 ): WeekMetrics {
-  const end = weekEnd(start)
   const leadWins = leads.filter(
     (lead) => lead.status === 'Won' && inRange(lead.statusUpdatedOn, start, end),
   ).length
@@ -136,10 +213,22 @@ export function weekMetrics(
     qualified: qualifiedInWeek(leads, start, end),
     wins: leadWins + rfpWins,
     leadWins,
+    conversions: conversionsInRange(activities, leads, rfps, start, end),
+    communications: communicationsInRange(activities, start, end),
+    meetingRequests: activities.filter(
+      (activity) =>
+        activity.type === 'Meeting request' &&
+        inRange(activity.occurredOn, start, end),
+    ).length,
     tasksCompleted: tasks.filter(
       (task) => task.done && inRange(task.completedOn, start, end),
     ).length,
     followUpPct: followUpDiscipline(leads),
     activeRfps: activeRfpCount(rfps),
   }
+}
+
+/** Convenience wrapper for the Monday-to-Sunday case. */
+export function weekMetrics(start: IsoDate, input: MetricsInput): WeekMetrics {
+  return periodMetrics(start, weekEnd(start), input)
 }

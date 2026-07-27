@@ -1,33 +1,54 @@
 <!--
-  Pipeline Console mark.
+  Pipeline Console mark — a lion's head.
 
-  A chevron that doubles as the V of Vantage — the same shape the pipeline bar
-  uses between stages, so the tab icon and the app's signature element are the
-  same idea.
+  Built from geometry rather than illustration so it survives being scaled to
+  16px in a browser tab: a 13-point star reads as a mane at any size, and the
+  face is a handful of simple shapes on top of it. No <text>, because a favicon
+  cannot depend on a font being installed.
 
-  Drawn as a stroked path rather than SVG <text>: a favicon cannot depend on a
-  font being available, and letterforms rendered by the browser vary. The
-  gradient runs gold to brown so the mark keeps contrast against both light and
-  dark browser chrome.
+  Palette is the app's own: gold mane, cream face, deep brown ground.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <defs>
-    <linearGradient id="va" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#DAA520"/>
-      <stop offset="0.55" stop-color="#A0522D"/>
-      <stop offset="1" stop-color="#8B4513"/>
+    <linearGradient id="ground" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B4513"/>
+      <stop offset="1" stop-color="#5A3A12"/>
+    </linearGradient>
+    <linearGradient id="mane" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F4D03F"/>
+      <stop offset="1" stop-color="#C8860D"/>
     </linearGradient>
   </defs>
 
-  <rect width="32" height="32" rx="7" fill="url(#va)"/>
+  <rect width="32" height="32" rx="7" fill="url(#ground)"/>
 
-  <!-- Heavy stroke and generous padding so it still reads at 16px. -->
+  <!-- Mane -->
   <path
-    d="M9.5 10.5 L16 21.5 L22.5 10.5"
-    fill="none"
-    stroke="#FFFFFF"
-    stroke-width="4.25"
-    stroke-linecap="round"
+    d="M16.00 3.70 L18.06 7.25 L21.53 5.06 L21.70 9.16 L25.79 8.84 L24.04 12.55 L27.81 14.17 L24.54 16.64 L27.13 19.82 L23.08 20.49 L23.89 24.51 L20.00 23.21 L18.85 27.15 L16.00 24.20 L13.15 27.15 L12.00 23.21 L8.11 24.51 L8.92 20.49 L4.87 19.82 L7.46 16.64 L4.19 14.17 L7.96 12.55 L6.21 8.84 L10.30 9.16 L10.47 5.06 L13.94 7.25 Z"
+    fill="url(#mane)"
+    stroke="url(#mane)"
+    stroke-width="1.6"
     stroke-linejoin="round"
+  />
+
+  <!-- Ears, tucked behind the face -->
+  <circle cx="10.6" cy="10.8" r="2.5" fill="#F8F5F0"/>
+  <circle cx="21.4" cy="10.8" r="2.5" fill="#F8F5F0"/>
+
+  <!-- Face -->
+  <circle cx="16" cy="15.9" r="7.5" fill="#F8F5F0"/>
+
+  <!-- Eyes -->
+  <circle cx="13.1" cy="14.6" r="1.15" fill="#5A3A12"/>
+  <circle cx="18.9" cy="14.6" r="1.15" fill="#5A3A12"/>
+
+  <!-- Muzzle: nose over a shallow mouth -->
+  <path d="M14.5 18.1 L17.5 18.1 L16 19.8 Z" fill="#5A3A12"/>
+  <path
+    d="M16 19.8 L16 20.7 M16 20.7 C 14.9 21.9 13.6 21.4 13.3 20.3 M16 20.7 C 17.1 21.9 18.4 21.4 18.7 20.3"
+    fill="none"
+    stroke="#5A3A12"
+    stroke-width="1.05"
+    stroke-linecap="round"
   />
 </svg>
