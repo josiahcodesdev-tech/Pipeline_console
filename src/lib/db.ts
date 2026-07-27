@@ -116,6 +116,9 @@ function toRfp(row: RfpRow): Rfp {
     source: row.source || 'Manual',
     sourced: row.sourced,
     inPipeline: row.in_pipeline,
+    opportunityType: row.opportunity_type ?? '',
+    kenya: row.kenya ?? false,
+    serviceAreas: row.service_areas ?? '',
     externalId: row.external_id,
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
@@ -183,6 +186,9 @@ function rfpFields(draft: RfpDraft) {
     link: draft.link,
     notes: draft.notes,
     source: draft.source,
+    opportunity_type: draft.opportunityType,
+    kenya: draft.kenya,
+    service_areas: draft.serviceAreas,
   }
 }
 

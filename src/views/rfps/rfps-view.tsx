@@ -68,6 +68,7 @@ export function RfpsView() {
   // The tracker is a firehose; hiding what is already taken on makes triage
   // of the remainder much easier.
   const [hideInPipeline, setHideInPipeline] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -88,6 +89,7 @@ export function RfpsView() {
       .filter((rfp) => {
         if (status !== 'all' && rfp.status !== status) return false
         if (hideInPipeline && rfp.inPipeline) return false
+        if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
         if (
           term &&
           !rfp.title.toLowerCase().includes(term) &&
@@ -99,7 +101,7 @@ export function RfpsView() {
       })
       // Undated RFPs sort last rather than first — they are not urgent.
       .sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999'))
-  }, [rfps, search, status, hideInPipeline])
+  }, [rfps, search, status, hideInPipeline, typeFilter])
 
   async function handleImport() {
     setImporting(true)
@@ -132,14 +134,14 @@ export function RfpsView() {
     try {
       const outcome = await syncOpportunities()
       if (outcome.fetched === 0) {
-        toast.info('The CareerCraft feed returned no RFPs right now.')
+        toast.info('The CareerCraft feed returned nothing right now.')
       } else if (outcome.added === 0) {
         toast.info(
-          `Already up to date — all ${outcome.fetched} RFPs in the feed are in your tracker.`,
+          `Already up to date — all ${outcome.fetched} opportunities in the feed are in your tracker.`,
         )
       } else {
         toast.success(
-          `${outcome.added} new RFP${outcome.added === 1 ? '' : 's'} added` +
+          `${outcome.added} new opportunit${outcome.added === 1 ? 'y' : 'ies'} added` +
             (outcome.alreadyHave ? ` · ${outcome.alreadyHave} already tracked` : ''),
         )
       }
@@ -166,8 +168,8 @@ export function RfpsView() {
     <>
       <ViewHeader
         eyebrow="Bid pipeline"
-        title="RFP & tender tracker"
-        description="Open opportunities sorted by deadline. Scraped tenders arrive on their own; click a title to open the original notice."
+        title="Opportunity tracker"
+        description="Everything the scraper finds, sorted by deadline — tenders and consultancy assignments alike. Click a title to open the original notice, and Add the ones worth bidding."
         meta={
           <span className="text-[11px] text-muted-foreground">
             {rfps.length} {rfps.length === 1 ? 'opportunity' : 'opportunities'}
@@ -250,6 +252,25 @@ export function RfpsView() {
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
+        {/* The feed's own label. ReliefWeb files consultancy work under "job",
+            so this narrows the list without being trusted as ground truth. */}
+        <div className="flex rounded-lg border border-border bg-card p-0.5">
+          {(['all', 'rfp', 'job'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setTypeFilter(option)}
+              className={cn(
+                'cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase transition-colors',
+                typeFilter === option
+                  ? 'bg-brand-soft text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {option === 'all' ? 'All' : option}
+            </button>
+          ))}
+        </div>
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-[11.5px] text-muted-foreground">
           <input
             type="checkbox"
@@ -281,6 +302,25 @@ export function RfpsView() {
                 onClick={() => open(rfp)}
                 className="cursor-pointer"
               >
+                <TableCell className="w-[90px]">
+                  <span
+                    className={cn(
+                      'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+                      rfp.opportunityType === 'rfp'
+                        ? 'bg-brand-soft text-primary'
+                        : rfp.opportunityType === 'job'
+                          ? 'bg-info-soft text-info'
+                          : 'bg-surface-2 text-neutral',
+                    )}
+                    title={
+                      rfp.opportunityType === 'job'
+                        ? 'The feed calls this a job — but ReliefWeb files consultancy and training assignments here too, so it is worth a look'
+                        : undefined
+                    }
+                  >
+                    {rfp.opportunityType ? rfp.opportunityType.toUpperCase() : '—'}
+                  </span>
+                </TableCell>
                 <TableCell className="max-w-[380px] font-medium">
                   {rfp.link ? (
                     // Opens the source notice. `stopPropagation` keeps the row
@@ -302,7 +342,19 @@ export function RfpsView() {
                   )}
                 </TableCell>
                 <TableCell className="max-w-[200px] text-muted-foreground">
-                  {rfp.org || '—'}
+                  <span>{rfp.org || '—'}</span>
+                  {(rfp.kenya || rfp.serviceAreas) && (
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      {rfp.kenya && (
+                        <span className="rounded-full bg-success-soft px-1.5 py-px text-[10px] font-semibold text-success">
+                          Kenya
+                        </span>
+                      )}
+                      {rfp.serviceAreas && (
+                        <span className="text-[10.5px] text-faint">{rfp.serviceAreas}</span>
+                      )}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <span className="inline-block whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">

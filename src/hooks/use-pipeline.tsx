@@ -344,7 +344,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         setAutoSync('done')
         if (outcome.added > 0) {
           toast.success(
-            `${outcome.added} new RFP${outcome.added === 1 ? '' : 's'} from CareerCraft`,
+            `${outcome.added} new opportunit${outcome.added === 1 ? 'y' : 'ies'} from CareerCraft`,
           )
         }
       })

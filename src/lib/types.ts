@@ -162,6 +162,16 @@ export interface Rfp {
    */
   inPipeline: boolean
   /**
+   * The feed's `type`: "rfp", "job", or "" when it did not say. Worth keeping
+   * because ReliefWeb files consultancy assignments under "job", so the label
+   * is a hint to triage by, not a filter to trust.
+   */
+  opportunityType: string
+  /** The feed's `kenya` flag — in, or relevant to, Kenya. */
+  kenya: boolean
+  /** The feed's `categories[]` service areas, comma-separated. */
+  serviceAreas: string
+  /**
    * Opportunity id from the CareerCraft public feed. `null` for anything added
    * by hand or pasted in as JSON — it is what makes re-syncing idempotent.
    */

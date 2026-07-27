@@ -1,5 +1,5 @@
 import type { SyncedRfpDraft } from './db'
-import { SEGMENTS, type Segment } from './types'
+import type { Segment } from './types'
 
 /**
  * Client for the CareerCraft public opportunities feed — the same scraped rows
@@ -11,13 +11,24 @@ import { SEGMENTS, type Segment } from './types'
 
 const DEFAULT_FEED = 'https://www.mycareercraft.site/api/public/opportunities'
 
-/** One row of the public feed. Every field but `id`/`title` can be absent. */
+/**
+ * One row of the public feed. Every field but `id`/`title` can be absent.
+ *
+ * `category` and `type` are both here because the feed renamed the field: rows
+ * used to carry `category: "rfp" | "job"` and now carry `type`. Reading both
+ * means the sync survives whichever side is deployed.
+ */
 interface FeedItem {
   id?: unknown
   source?: unknown
   title?: unknown
   organization?: unknown
+  /** Legacy name for `type`. */
   category?: unknown
+  type?: unknown
+  /** Service-area taxonomy, e.g. ["Monitoring & Evaluation"]. */
+  categories?: unknown
+  kenya?: unknown
   location?: unknown
   deadline?: unknown
   url?: unknown
@@ -132,10 +143,6 @@ export function classifySegment(organization: string, title = ''): Segment {
   return 'Government'
 }
 
-function isSegmentValue(value: string): value is Segment {
-  return (SEGMENTS as readonly string[]).includes(value)
-}
-
 /** Resolves the feed URL, allowing an override for staging or a local server. */
 function feedUrl(params: Record<string, string>): string {
   const base = import.meta.env.VITE_OPPORTUNITIES_API_URL || DEFAULT_FEED
@@ -158,15 +165,24 @@ export interface FetchedOpportunities {
 }
 
 /**
- * Pulls RFP-category opportunities and maps them into RFP drafts.
- * Jobs are excluded at the API level via `category=rfp`.
+ * Pulls every opportunity the scraper has and maps them into RFP drafts.
+ *
+ * Deliberately unfiltered. This used to request `category=rfp`, which dropped
+ * roughly half the feed — but ReliefWeb files consultancy and training
+ * assignments under "job", so that filter was throwing away biddable work
+ * alongside the staff vacancies. Everything now arrives in the tracker, tagged
+ * with its type, and the Proposals pipeline is where triage happens.
+ *
+ * 500 is the endpoint's hard ceiling (`MAX_LIMIT`), and it exposes no
+ * pagination — past 500 opportunities the feed would need an offset parameter
+ * before this could stay complete.
  */
 export async function fetchOpportunities(
-  limit = 200,
+  limit = 500,
 ): Promise<FetchedOpportunities> {
   let response: Response
   try {
-    response = await fetch(feedUrl({ category: 'rfp', limit: String(limit) }), {
+    response = await fetch(feedUrl({ limit: String(limit) }), {
       headers: { Accept: 'application/json' },
     })
   } catch {
@@ -218,15 +234,23 @@ export async function fetchOpportunities(
     const org = decodeEntities(text(item.organization))
     const location = decodeEntities(text(item.location))
     const feedSource = text(item.source)
-    const rawSegment = text(item.category)
+    // `type` is the current field; `category` is what it used to be called.
+    const opportunityType = (text(item.type) || text(item.category)).toLowerCase()
+
+    const serviceAreas = Array.isArray(item.categories)
+      ? item.categories
+          .map((entry) => text(entry))
+          // The scraper emits this placeholder when nothing matched; carrying
+          // it through would just be noise in the table.
+          .filter((entry) => entry && entry.toLowerCase() !== 'uncategorized')
+          .join(', ')
+      : ''
 
     drafts.push({
       externalId,
       title,
       org,
-      // `category` is "rfp"/"job", not a buyer segment, so it is never a
-      // segment value — but check anyway in case the feed gains one.
-      segment: isSegmentValue(rawSegment) ? rawSegment : classifySegment(org, title),
+      segment: classifySegment(org, title),
       deadline: isoDate(item.deadline),
       // The feed carries no contract value.
       value: null,
@@ -234,6 +258,9 @@ export async function fetchOpportunities(
       link: text(item.url),
       notes: location ? `Location: ${location}` : '',
       source: feedSource ? `CareerCraft · ${feedSource}` : 'CareerCraft',
+      opportunityType,
+      kenya: item.kenya === true,
+      serviceAreas,
     })
   })
 

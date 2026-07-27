@@ -25,6 +25,9 @@ const EMPTY: RfpDraft = {
   link: '',
   notes: '',
   source: 'Manual',
+  opportunityType: '',
+  kenya: false,
+  serviceAreas: '',
 }
 
 function toDraft(rfp: Rfp): RfpDraft {

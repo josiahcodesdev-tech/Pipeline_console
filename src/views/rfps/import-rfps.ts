@@ -75,6 +75,9 @@ export function parseRfpImport(raw: string): ImportResult {
       link: text(item.link),
       notes: text(item.notes),
       source: text(item.source) || 'Imported',
+      opportunityType: 'rfp',
+      kenya: false,
+      serviceAreas: '',
     })
   })
 
