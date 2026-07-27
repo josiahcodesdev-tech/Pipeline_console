@@ -96,7 +96,7 @@ export function LeadsView() {
         />
       </div>
 
-      <Panel bodyClassName="overflow-x-auto">
+      <Panel>
         <Table>
           <TableHeader>
             <TableRow>

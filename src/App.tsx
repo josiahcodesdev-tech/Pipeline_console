@@ -30,9 +30,13 @@ function Console() {
   return (
     <div className="flex min-h-screen">
       <AppSidebar current={view} onNavigate={setView} />
-      {/* No top padding: the sticky ViewHeader supplies its own, so it can sit
+      {/* Full width by design — this is a data console, and the tables want
+          every pixel. `min-w-0` lets the flex child shrink below its content
+          width, which is what stops a wide table pushing the *page* sideways;
+          the table then scrolls inside its own container instead.
+          No top padding: the sticky ViewHeader supplies its own, so it can sit
           flush against the viewport top once the page scrolls. */}
-      <main className="w-full max-w-[1240px] flex-1 px-6 pb-10 lg:px-10">
+      <main className="w-full min-w-0 flex-1 px-6 pb-10 lg:px-8">
         {/* Sits above the sticky header, so it needs the top spacing the header
             would otherwise have provided. */}
         {error && (

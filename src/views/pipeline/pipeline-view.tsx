@@ -189,7 +189,6 @@ export function PipelineView() {
                 {section.rows.length}
               </span>
             }
-            bodyClassName="overflow-x-auto"
           >
             <Table>
               <TableHeader>

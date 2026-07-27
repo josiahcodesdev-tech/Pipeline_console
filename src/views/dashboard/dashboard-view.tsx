@@ -175,7 +175,6 @@ export function DashboardView() {
             <span className="text-[11px] text-faint">Next 7 days</span>
           )
         }
-        bodyClassName="overflow-x-auto"
       >
         {soonRfps.length === 0 ? (
           <EmptyState

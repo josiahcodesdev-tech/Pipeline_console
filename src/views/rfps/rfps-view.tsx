@@ -261,7 +261,7 @@ export function RfpsView() {
         </label>
       </div>
 
-      <Panel bodyClassName="overflow-x-auto">
+      <Panel>
         <Table>
           <TableHeader>
             <TableRow>
