@@ -156,6 +156,12 @@ export interface Rfp {
   source: string
   sourced: boolean
   /**
+   * True once this has been taken on as a live proposal. Distinct from
+   * `status`: the tracker holds every scraped tender, most of which is out of
+   * scope, and a tender can sit at Watching for weeks while you decide.
+   */
+  inPipeline: boolean
+  /**
    * Opportunity id from the CareerCraft public feed. `null` for anything added
    * by hand or pasted in as JSON — it is what makes re-syncing idempotent.
    */

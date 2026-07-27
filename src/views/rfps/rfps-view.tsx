@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  CheckIcon,
   ClipboardListIcon,
   ExternalLinkIcon,
   PlusIcon,
@@ -56,6 +57,7 @@ export function RfpsView() {
     saveRfp,
     removeRfp,
     setRfpStatus,
+    setRfpPipeline,
     importRfps,
     syncOpportunities,
     autoSync,
@@ -63,6 +65,9 @@ export function RfpsView() {
   } = usePipeline()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<RfpStatus | 'all'>('all')
+  // The tracker is a firehose; hiding what is already taken on makes triage
+  // of the remainder much easier.
+  const [hideInPipeline, setHideInPipeline] = useState(false)
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -82,6 +87,7 @@ export function RfpsView() {
     return rfps
       .filter((rfp) => {
         if (status !== 'all' && rfp.status !== status) return false
+        if (hideInPipeline && rfp.inPipeline) return false
         if (
           term &&
           !rfp.title.toLowerCase().includes(term) &&
@@ -93,7 +99,7 @@ export function RfpsView() {
       })
       // Undated RFPs sort last rather than first — they are not urgent.
       .sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999'))
-  }, [rfps, search, status])
+  }, [rfps, search, status, hideInPipeline])
 
   async function handleImport() {
     setImporting(true)
@@ -244,6 +250,15 @@ export function RfpsView() {
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-[11.5px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={hideInPipeline}
+            onChange={(event) => setHideInPipeline(event.target.checked)}
+            className="size-3.5 accent-[var(--primary)]"
+          />
+          Hide ones already in the pipeline
+        </label>
       </div>
 
       <Panel bodyClassName="overflow-x-auto">
@@ -315,6 +330,29 @@ export function RfpsView() {
                     value={rfp.status}
                     onChange={(next) => setRfpStatus(rfp.id, next)}
                   />
+                </TableCell>
+                <TableCell onClick={(event) => event.stopPropagation()}>
+                  {rfp.inPipeline ? (
+                    <button
+                      type="button"
+                      onClick={() => void setRfpPipeline(rfp.id, false)}
+                      title="Remove from the proposal pipeline"
+                      className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full bg-success-soft px-2 py-1 text-[11px] font-semibold text-success transition-opacity hover:opacity-75"
+                    >
+                      <CheckIcon className="size-3" />
+                      In pipeline
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void setRfpPipeline(rfp.id, true)}
+                      title="Take this on as a live proposal"
+                      className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary"
+                    >
+                      <PlusIcon className="size-3" />
+                      Add
+                    </button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

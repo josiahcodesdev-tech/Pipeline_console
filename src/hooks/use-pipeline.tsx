@@ -90,6 +90,7 @@ interface PipelineValue {
   saveRfp: (draft: db.RfpDraft, existing: Rfp | null) => Promise<void>
   removeRfp: (id: string) => Promise<void>
   setRfpStatus: (id: string, status: RfpStatus) => Promise<void>
+  setRfpPipeline: (id: string, inPipeline: boolean) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
   syncOpportunities: () => Promise<SyncOutcome>
   /** State of the background sync, for status text in the RFPs view. */
@@ -246,6 +247,28 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [rfps],
   )
 
+  /**
+   * Takes an RFP into or out of the live proposal pipeline.
+   *
+   * Adding one that is still at Watching also moves it to Preparing: taking a
+   * tender on and leaving it marked watching is a contradiction, and it
+   * saves a second click on the action you were always going to take.
+   */
+  const setRfpPipeline = useCallback(async (id: string, inPipeline: boolean) => {
+    const current = rfps.find((rfp) => rfp.id === id)
+    try {
+      const saved = await db.setRfpPipeline(id, inPipeline)
+      setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
+      if (inPipeline && current?.status === 'Watching') {
+        const promoted = await db.updateRfpStatus(id, 'Preparing')
+        setRfps((list) => list.map((rfp) => (rfp.id === id ? promoted : rfp)))
+      }
+      toast.success(inPipeline ? 'Added to the pipeline' : 'Removed from the pipeline')
+    } catch (cause) {
+      toast.error(message(cause))
+    }
+  }, [rfps])
+
   const saveRfp = useCallback(async (draft: db.RfpDraft, existing: Rfp | null) => {
     const saved = existing
       ? await db.updateRfp(existing.id, draft, {
@@ -398,6 +421,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveRfp,
       removeRfp,
       setRfpStatus,
+      setRfpPipeline,
       importRfps,
       syncOpportunities,
       autoSync,
@@ -424,6 +448,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveRfp,
       removeRfp,
       setRfpStatus,
+      setRfpPipeline,
       importRfps,
       syncOpportunities,
       autoSync,

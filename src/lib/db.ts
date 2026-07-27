@@ -32,9 +32,12 @@ import type {
  */
 
 export type LeadDraft = Omit<Lead, 'id' | 'createdOn' | 'statusUpdatedOn'>
+// `inPipeline` is deliberately not part of the draft: it is set by the
+// add/remove action, not by the edit form, so saving a dialog can never
+// silently pull something out of the pipeline.
 export type RfpDraft = Omit<
   Rfp,
-  'id' | 'createdOn' | 'statusUpdatedOn' | 'sourced' | 'externalId'
+  'id' | 'createdOn' | 'statusUpdatedOn' | 'sourced' | 'externalId' | 'inPipeline'
 >
 /** An RFP arriving from the CareerCraft feed, keyed for idempotent re-sync. */
 export type SyncedRfpDraft = RfpDraft & { externalId: string }
@@ -112,6 +115,7 @@ function toRfp(row: RfpRow): Rfp {
     notes: row.notes ?? '',
     source: row.source || 'Manual',
     sourced: row.sourced,
+    inPipeline: row.in_pipeline,
     externalId: row.external_id,
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
@@ -358,6 +362,19 @@ export async function updateRfpStatus(
     await supabase
       .from('rfps')
       .update({ status, status_updated_on: today() })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toRfp(row)
+}
+
+/** Takes an RFP into, or out of, the live proposal pipeline. */
+export async function setRfpPipeline(id: string, inPipeline: boolean): Promise<Rfp> {
+  const row = unwrap(
+    await supabase
+      .from('rfps')
+      .update({ in_pipeline: inPipeline })
       .eq('id', id)
       .select()
       .single(),
