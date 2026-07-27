@@ -1,0 +1,32 @@
+<!--
+  Pipeline Console tab icon — the JM monogram, matching the sidebar mark.
+
+  The letters are stroked paths, not SVG <text>: a favicon cannot depend on a
+  font being installed, and browser-rendered letterforms vary by platform.
+  Heavy strokes with round caps so two letters still hold together at 16px.
+
+  Lives in src/assets so Vite fingerprints it into dist/assets on build.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="jm" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A0522D"/>
+      <stop offset="1" stop-color="#8B4513"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="url(#jm)"/>
+
+  <g
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- J: stem with a hook to the left -->
+    <path d="M12.6 9.8 L12.6 17.6 C 12.6 20.9 10.3 21.7 8.5 20.3" />
+    <!-- M: up, down to the vertex, up, down -->
+    <path d="M16.8 21.6 L16.8 10.4 L20.4 16.2 L24.0 10.4 L24.0 21.6" />
+  </g>
+</svg>
