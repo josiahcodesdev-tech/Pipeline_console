@@ -194,30 +194,107 @@ export interface PipelineSnapshot {
   tasks: Task[]
   reports: WeeklyReport[]
   activities: Activity[]
+  /** Per-table load failures. Empty when everything came back. */
+  errors: string[]
+}
+
+/**
+ * PostgREST's code for "table not in the schema cache" — in practice, a
+ * migration that has not been run yet.
+ */
+function isMissingTable(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST205' || error?.code === '42P01'
+}
+
+/**
+ * Loads one table, degrading to an empty list rather than throwing.
+ *
+ * This used to be a single `Promise.all` where any failure threw, which meant
+ * one unmigrated table blanked the entire console — indistinguishable from
+ * data loss, and alarming for exactly the wrong reason. A table that cannot be
+ * read should cost you that table, not the whole dataset.
+ */
+async function loadTable<Row, T>(
+  name: string,
+  query: PromiseLike<{ data: Row[] | null; error: { message: string; code?: string } | null }>,
+  map: (row: Row) => T,
+  hint: string,
+): Promise<{ rows: T[]; error: string | null }> {
+  try {
+    const result = await query
+    if (result.error) {
+      return {
+        rows: [],
+        error: isMissingTable(result.error)
+          ? `The "${name}" table does not exist yet — run ${hint}. Everything else still loaded.`
+          : `Could not load ${name}: ${result.error.message}`,
+      }
+    }
+    return { rows: (result.data ?? []).map(map), error: null }
+  } catch (cause) {
+    return {
+      rows: [],
+      error: `Could not load ${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    }
+  }
 }
 
 export async function fetchAll(): Promise<PipelineSnapshot> {
   const [leads, rfps, tasks, reports, activities] = await Promise.all([
-    supabase.from('leads').select('*').order('created_at', { ascending: false }),
-    supabase
-      .from('rfps')
-      .select('*')
-      .order('deadline', { ascending: true, nullsFirst: false }),
-    supabase.from('tasks').select('*').order('due', { ascending: true, nullsFirst: false }),
-    supabase.from('weekly_reports').select('*').order('week_start', { ascending: false }),
-    supabase
-      .from('activities')
-      .select('*')
-      .order('occurred_on', { ascending: false })
-      .order('created_at', { ascending: false }),
+    loadTable(
+      'leads',
+      supabase.from('leads').select('*').order('created_at', { ascending: false }),
+      toLead,
+      'migration 0001',
+    ),
+    loadTable(
+      'rfps',
+      supabase
+        .from('rfps')
+        .select('*')
+        .order('deadline', { ascending: true, nullsFirst: false }),
+      toRfp,
+      'migration 0001',
+    ),
+    loadTable(
+      'tasks',
+      supabase
+        .from('tasks')
+        .select('*')
+        .order('due', { ascending: true, nullsFirst: false }),
+      toTask,
+      'migration 0001',
+    ),
+    loadTable(
+      'weekly reports',
+      supabase
+        .from('weekly_reports')
+        .select('*')
+        .order('week_start', { ascending: false }),
+      toWeeklyReport,
+      'migration 0001',
+    ),
+    loadTable(
+      'activities',
+      supabase
+        .from('activities')
+        .select('*')
+        .order('occurred_on', { ascending: false })
+        .order('created_at', { ascending: false }),
+      toActivity,
+      'migration 0003',
+    ),
   ])
 
   return {
-    leads: unwrap(leads).map(toLead),
-    rfps: unwrap(rfps).map(toRfp),
-    tasks: unwrap(tasks).map(toTask),
-    reports: unwrap(reports).map(toWeeklyReport),
-    activities: unwrap(activities).map(toActivity),
+    leads: leads.rows,
+    rfps: rfps.rows,
+    tasks: tasks.rows,
+    reports: reports.rows,
+    activities: activities.rows,
+    errors: [leads, rfps, tasks, reports, activities]
+      .map((result) => result.error)
+      .filter((error): error is string => error !== null),
   }
 }
 

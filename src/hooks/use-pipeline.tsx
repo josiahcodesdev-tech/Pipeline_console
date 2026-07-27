@@ -156,7 +156,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setTasks(snapshot.tasks)
       setReports(snapshot.reports)
       setActivities(snapshot.activities)
-      setError(null)
+      // Partial failures surface as a banner while the tables that *did* load
+      // still render — a missing table must not look like lost data.
+      setError(snapshot.errors.length ? snapshot.errors.join(' ') : null)
     } catch (cause) {
       setError(message(cause))
     } finally {
