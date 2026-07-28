@@ -10,22 +10,22 @@ import { formatDateWithYear } from '@/lib/dates'
 import { MAX_EXEMPLARS } from '@/lib/concept-note'
 import type { UserSettings } from '@/lib/types'
 
-const PROPOSAL_PLACEHOLDER = `Structure every proposal as:
-1. Understanding of the requirement
-2. Approach and methodology, by phase
-3. Deliverables and timeline
-4. Team and relevant capability
-5. Why us — tied to this assignment
+const PROPOSAL_PLACEHOLDER = `e.g.
 
-Always state assumptions explicitly. Never claim a certification we do not hold.
-Prefer concrete method over adjectives: say how a baseline survey is sampled,
-not that it is "robust".`
+Keep the executive summary under one page.
+Always price in KES unless the notice says otherwise.
+Name the Team Leader in the executive summary, not just the team section.
+Do not offer Eval360 to government ministries unless they asked for a platform.
+For evaluations, always propose a validation workshop before the final report.`
 
-const BOILERPLATE_PLACEHOLDER = `Vantage Africa School of Leadership is a Pan-African institution offering…
+const BOILERPLATE_PLACEHOLDER = `Verified facts only — these are stated as true in every draft.
 
+Registered name and number: …
 Accreditations: …
-Delivery footprint: …
-Platforms: Eval360 for M&E engagements`
+Countries delivered in: …
+Professionals trained (as at 2026): …
+Eval360: …
+Three reference assignments the drafter may cite: …`
 
 /**
  * Where the drafter is taught what good looks like.
@@ -92,7 +92,7 @@ export function SettingsView() {
       <ViewHeader
         eyebrow="Drafting"
         title="Proposal guidance"
-        description="What the drafter is told before it writes. Rules set the structure; starred proposals show the voice. Changes apply to the very next draft — nothing is retrained."
+        description="The Vantage Africa proposal doctrine is already built in — compliance-first rules, evidence discipline, the standard structure, and a method playbook picked per tender. What you add here layers on top of it."
         action={
           <Button onClick={() => void handleSave()} disabled={busy || !dirty}>
             {busy ? 'Saving…' : dirty ? 'Save guidance' : 'Saved'}
@@ -102,7 +102,7 @@ export function SettingsView() {
 
       <Panel
         title="House rules — proposals"
-        description="Structure, standards and anything the drafter keeps getting wrong."
+        description="Your additions and corrections. These win over the built-in structure, tone and length wherever they disagree — but never over the rule against inventing experience, statistics or credentials. No need to restate the standard sections; add what the drafter keeps getting wrong."
       >
         <Field label="Proposal guidance" htmlFor="proposal-guidance">
           <Textarea

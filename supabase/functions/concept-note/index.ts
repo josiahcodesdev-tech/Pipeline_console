@@ -14,18 +14,23 @@
  * it out of the shipped bundle can call this. Tightening it means rejecting
  * `role: 'anon'` here — not yet done.
  *
- * House rules, boilerplate and model answers arrive from the client (they are
- * the author's own settings) and are size-capped here regardless.
+ * The prompt doctrine lives in ./prompts.ts and the assignment-specific method
+ * in ./playbooks.ts. House rules, boilerplate and model answers arrive from the
+ * client (they are the author's own settings) and are size-capped here
+ * regardless.
  */
 
 import OpenAI from 'npm:openai@6.45.0'
+import { CONCEPT_NOTE_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
+import { selectPlaybooks } from './playbooks.ts'
 
 /**
- * Matches careercraft-pro's convention. Proposals go into live bids, so if
- * they need more depth, `gpt-4o` is a one-word change here — at roughly 15x
- * the cost per call.
+ * Proposals go into live bids against a full compliance-and-scoring doctrine,
+ * so they get the stronger model; concept notes are short outreach and do not
+ * justify the cost. Both are one-word changes.
  */
-const MODEL = 'gpt-4o-mini'
+const PROPOSAL_MODEL = 'gpt-4o'
+const CONCEPT_NOTE_MODEL = 'gpt-4o-mini'
 
 interface DraftContext {
   kind?: unknown
@@ -36,6 +41,7 @@ interface DraftContext {
   notes?: unknown
   rfpTitle?: unknown
   deadline?: unknown
+  serviceAreas?: unknown
   guidance?: unknown
   boilerplate?: unknown
   examples?: unknown
@@ -58,56 +64,24 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const ORGANISATION = `Vantage Africa School of Leadership is a Pan-African institution offering leadership training, Monitoring & Evaluation (M&E), project management, data analysis, and proposal writing training and consultancy to governments, NGOs, corporates, state-owned enterprises, universities and development partners across Africa.`
-
-const HONESTY = `Never invent specific past client names, figures, dates, team members, or credentials that were not supplied to you. Where a detail would strengthen the document but you were not given it, write around it — or mark it clearly as a placeholder in [square brackets] for the author to complete. Do not present a placeholder as fact.
-
-Return only the document itself — no preamble, no commentary, no markdown code fences.`
-
-/** Unsolicited outreach: has to earn attention and justify its own relevance. */
-const CONCEPT_NOTE_PROMPT = `You draft business development concept notes for ${ORGANISATION}
-
-Write 350-450 words in a professional, consultative tone — never salesy.
-
-Structure the note as:
-1. A brief opening on relevance to the recipient's sector and mandate.
-2. A proposed training or consultancy focus area.
-3. What Vantage Africa brings (accredited programmes, pan-African delivery footprint, and the Eval360 M&E platform where relevant).
-4. A suggested next step, such as a short scoping call.
-
-${HONESTY}`
-
-/**
- * Response to a tender that already exists. Unlike a concept note it does not
- * need to argue for its own relevance — the buyer has already stated the need,
- * so it leads with the response and is structured for evaluators scoring it
- * against criteria.
- */
-const PROPOSAL_PROMPT = `You draft proposals responding to RFPs and tenders on behalf of ${ORGANISATION}
-
-Write 500-700 words as a proposal outline the bid team can build on. The buyer has already published a requirement, so do not spend paragraphs justifying why they might need this — respond to what was asked.
-
-Structure it as:
-1. Understanding of the requirement — restate what the assignment calls for, in your own words, showing you have read it.
-2. Proposed approach and methodology — the phases or workstreams, and what each produces.
-3. Deliverables and indicative timeline, keyed to the submission deadline where one is given.
-4. Relevant capability — what Vantage Africa brings (accredited programmes, pan-African delivery footprint, the Eval360 M&E platform where relevant).
-5. Why Vantage Africa — a short, specific closing tied to this assignment.
-
-Write for an evaluation panel scoring against criteria, not for a general reader. Be concrete about method. Where the RFP title implies a technical requirement you have not been given detail on, flag it in [square brackets] as something the bid team must confirm rather than guessing at it.
-
-${HONESTY}`
-
 function text(value: unknown, limit = 4_000): string {
   return typeof value === 'string' ? value.trim().slice(0, limit) : ''
 }
 
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  })
+}
+
 /**
- * The author's own house rules, layered over the base prompt.
+ * The author's own house rules, layered over the base doctrine.
  *
- * These win on structure, length and tone — that is the point of writing them.
- * They deliberately do *not* win on honesty: a rule saying "claim ISO
- * certification" must not override the instruction never to invent credentials.
+ * These win on structure, length and emphasis — that is the point of writing
+ * them. They deliberately do *not* win on evidence discipline: a rule saying
+ * "claim ISO certification" must not override the instruction never to invent
+ * credentials.
  */
 function houseRulesBlock(guidance: string, boilerplate: string): string {
   const parts: string[] = []
@@ -116,9 +90,9 @@ function houseRulesBlock(guidance: string, boilerplate: string): string {
     parts.push(`## House rules
 
 The author of this document has written the following rules. Follow them over
-the default structure and tone above wherever the two disagree. They do not
-override the honesty instructions — if a rule asks you to state something you
-have not been given as fact, treat it as a placeholder instead.
+the default structure, tone and length above wherever the two disagree. They do
+not override the evidence discipline — if a rule asks you to state something you
+have not been given as fact, insert a placeholder instead.
 
 ${guidance}`)
   }
@@ -127,7 +101,9 @@ ${guidance}`)
     parts.push(`## Organisation facts
 
 Supplied by the author and safe to state as fact. Use what is relevant; do not
-paste the whole block in verbatim, and do not extrapolate beyond it.
+paste the whole block in verbatim, and do not extrapolate beyond it. Anything
+not in here — statistics, accreditations, countries served — is still subject to
+the evidence discipline.
 
 ${boilerplate}`)
   }
@@ -140,7 +116,8 @@ ${boilerplate}`)
  *
  * The explicit warning matters: past proposals are full of real client names,
  * budgets and team members, and a model shown one will happily carry them into
- * a document for a different buyer.
+ * a document for a different buyer — which is precisely the fabrication the
+ * doctrine forbids.
  */
 function examplesBlock(examples: string[]): string {
   if (examples.length === 0) return ''
@@ -162,13 +139,6 @@ past engagements in them belong to other assignments. Never carry any of those
 into this document. Only the writing style transfers.
 
 ${body}`
-}
-
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-  })
 }
 
 Deno.serve(async (request: Request) => {
@@ -205,6 +175,7 @@ Deno.serve(async (request: Request) => {
   const notes = text(context.notes)
   const rfpTitle = text(context.rfpTitle)
   const deadline = text(context.deadline)
+  const serviceAreas = text(context.serviceAreas, 500)
 
   const guidance = text(context.guidance, MAX_GUIDANCE_CHARS)
   const boilerplate = text(context.boilerplate, MAX_BOILERPLATE_CHARS)
@@ -213,44 +184,62 @@ Deno.serve(async (request: Request) => {
     .filter(Boolean)
     .slice(0, MAX_EXEMPLARS)
 
+  // Only proposals get a playbook — a concept note is outreach, not a response
+  // to a scope, so there is no assignment type to match against yet.
+  const playbooks = isProposal
+    ? selectPlaybooks(`${rfpTitle} ${serviceAreas} ${notes} ${segment}`)
+    : []
+
   const details = [
     `${isProposal ? 'Issuing organization' : 'Recipient organization'}: ${org}`,
     `Sector / segment: ${segment}`,
     country ? `Country: ${country}` : null,
     contactRole ? `Likely recipient role: ${contactRole}` : null,
     rfpTitle ? `RFP / tender title: ${rfpTitle}` : null,
+    serviceAreas ? `Service areas: ${serviceAreas}` : null,
     deadline ? `Submission deadline: ${deadline}` : null,
     `Context notes: ${notes || 'None provided.'}`,
   ]
     .filter(Boolean)
     .join('\n')
 
-  // Base prompt first, then the author's rules, then the examples — later
-  // sections are the specific ones, and specific should read as refinement of
-  // general rather than the other way round.
+  // Doctrine first, then the matched playbook, then the author's rules, then
+  // the examples — each layer is more specific than the last, so it reads as
+  // refinement rather than contradiction.
   const systemPrompt = [
     isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
+    ...playbooks.map((playbook) => playbook.body),
     houseRulesBlock(guidance, boilerplate),
     examplesBlock(examples),
   ]
     .filter(Boolean)
     .join('\n\n')
 
+  // The bid team is working from a notice, not the full tender pack, so say so
+  // plainly — otherwise the model treats a thin brief as a complete one and
+  // stops flagging what it was never given.
+  const task = isProposal
+    ? `Draft a proposal responding to this tender.
+
+You have the published notice only — not the full RFP document, evaluation matrix, company profile, CVs or reference letters. Work from what is here, mark everything else as a placeholder, and list what the bid team must supply in the bid readiness notes.
+
+${details}`
+    : `Draft a ${what} using this context:\n\n${details}`
+
   const client = new OpenAI({ apiKey })
 
   try {
     const completion = await client.chat.completions.create({
-      model: MODEL,
+      model: isProposal ? PROPOSAL_MODEL : CONCEPT_NOTE_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Draft a ${what} using this context:\n\n${details}` },
+        { role: 'user', content: task },
       ],
       temperature: 0.7,
-      // A 700-word proposal is roughly 1,000 tokens; the headroom keeps a long
-      // one from being cut mid-sentence. House rules routinely ask for more
-      // structure than the default prompt, so they get more room — output
-      // tokens are only billed if they are actually produced.
-      max_tokens: guidance ? 4000 : 2000,
+      // A full technical proposal with work plan, team, risk and QA tables runs
+      // well past the 700 words the old outline aimed at. Output tokens are
+      // only billed when produced, so the ceiling costs nothing unused.
+      max_tokens: isProposal ? 8000 : 2000,
     })
 
     const choice = completion.choices[0]
@@ -272,7 +261,13 @@ Deno.serve(async (request: Request) => {
     // Truncation is reported rather than hidden — a proposal that stops
     // mid-sentence should be visibly incomplete, not quietly wrong.
     return json(
-      { text: draft, truncated: choice?.finish_reason === 'length' },
+      {
+        text: draft,
+        truncated: choice?.finish_reason === 'length',
+        // Surfaced so the author can see which method the draft was written
+        // against, and correct the tender's service areas if it picked wrong.
+        playbooks: playbooks.map((playbook) => playbook.label),
+      },
       200,
     )
   } catch (cause) {

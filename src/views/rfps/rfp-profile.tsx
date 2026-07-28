@@ -80,6 +80,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [pasteTitle, setPasteTitle] = useState('')
   const [pasteText, setPasteText] = useState('')
   const [pasting, setPasting] = useState(false)
+  const [playbooks, setPlaybooks] = useState<string[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
 
   const ownActivities = useMemo(
@@ -124,6 +125,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         notes: rfp.notes,
         rfpTitle: rfp.title,
         deadline: rfp.deadline,
+        serviceAreas: rfp.serviceAreas,
         guidance: settings.proposalGuidance,
         boilerplate: settings.boilerplate,
         examples: exemplarTexts,
@@ -132,6 +134,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       // generated text — the whole point of keeping drafts on the profile.
       await saveDraftProposal(rfp.id, `Draft — ${formatDateWithYear(new Date().toISOString().slice(0, 10))}`, result.text)
       await downloadProposalDocx(rfp, result.text)
+      setPlaybooks(result.playbooks)
       if (result.truncated) {
         toast.warning('The draft hit the length limit — check the ending.')
       }
@@ -251,8 +254,10 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         <div className="min-w-0">
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-              Generates a proposal outline from this notice, downloads it as
-              Word, and keeps a copy below so you can come back to it.
+              Writes a full technical proposal against this notice — method,
+              work plan, team, risk and QA — plus internal bid-readiness notes
+              listing what you still have to supply. Downloads as Word and keeps
+              a copy below.
             </p>
             <Button onClick={() => void handleDraft()} disabled={drafting}>
               <SparklesIcon />
@@ -271,6 +276,14 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               {' · edit under '}
               <span className="text-clay">Guidance</span>
             </p>
+            {/* Which method it wrote against. A leadership playbook on an
+                evaluation tender means the service areas need correcting, and
+                that is worth knowing before reading 3,000 words. */}
+            {playbooks.length > 0 && (
+              <p className="mt-1 text-[11px] text-faint">
+                Written against: {playbooks.join(' + ')}
+              </p>
+            )}
           </Panel>
 
           <Panel

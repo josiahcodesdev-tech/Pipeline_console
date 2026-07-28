@@ -38,6 +38,8 @@ export interface ConceptNoteContext {
   notes?: string
   rfpTitle?: string
   deadline?: string
+  /** Drives which assignment playbook the server writes against. */
+  serviceAreas?: string
   /** House rules for this kind of document. */
   guidance?: string
   /** Organisation facts reused verbatim. */
@@ -67,6 +69,12 @@ export interface DraftResult {
   text: string
   /** True when the model hit the token ceiling and the draft is cut short. */
   truncated: boolean
+  /**
+   * Which assignment playbooks the server matched this tender to. Reported so a
+   * draft written against the wrong method is diagnosable rather than just
+   * disappointing.
+   */
+  playbooks: string[]
 }
 
 /**
@@ -80,6 +88,7 @@ export async function draftConceptNote(
   const { data, error } = await supabase.functions.invoke<{
     text?: string
     truncated?: boolean
+    playbooks?: string[]
     error?: string
   }>('concept-note', { body: context })
 
@@ -92,5 +101,9 @@ export async function draftConceptNote(
   if (data?.error) throw new Error(data.error)
   if (!data?.text) throw new Error('The drafting service returned an empty response.')
 
-  return { text: data.text, truncated: Boolean(data.truncated) }
+  return {
+    text: data.text,
+    truncated: Boolean(data.truncated),
+    playbooks: data.playbooks ?? [],
+  }
 }
