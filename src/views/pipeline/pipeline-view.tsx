@@ -66,7 +66,11 @@ function DeadlineCell({ deadline }: { deadline: string }) {
  * found. An RFP arrives here only by being explicitly added from the RFP
  * tracker, so this page stays a deliberate work list rather than a feed.
  */
-export function PipelineView() {
+export function PipelineView({
+  onOpenProfile,
+}: {
+  onOpenProfile: (id: string) => void
+}) {
   const { rfps, activities, setRfpStatus, setRfpPipeline } = usePipeline()
 
   const inPipeline = useMemo(
@@ -210,6 +214,7 @@ export function PipelineView() {
                     rfp={rfp}
                     lastTouch={lastTouch.get(rfp.id)}
                     onStatus={setRfpStatus}
+                    onOpen={onOpenProfile}
                     onRemove={(id) => void setRfpPipeline(id, false)}
                   />
                 ))}
@@ -226,17 +231,19 @@ function PipelineRow({
   rfp,
   lastTouch,
   onStatus,
+  onOpen,
   onRemove,
 }: {
   rfp: Rfp
   lastTouch?: string
   onStatus: (id: string, status: RfpStatus) => Promise<void>
+  onOpen: (id: string) => void
   onRemove: (id: string) => void
 }) {
   const stale = !lastTouch && (rfp.status === 'Preparing' || rfp.status === 'Submitted')
 
   return (
-    <TableRow>
+    <TableRow onClick={() => onOpen(rfp.id)} className="cursor-pointer">
       <TableCell className="max-w-[360px] font-medium">
         {rfp.link ? (
           <a

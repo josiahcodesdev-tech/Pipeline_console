@@ -6,10 +6,12 @@ import {
   isLeadPriority,
   isLeadStatus,
   isReportPeriod,
+  isProposalKind,
   isRfpStatus,
   isSegment,
   type Activity,
   type Lead,
+  type Proposal,
   type LeadStatus,
   type Rfp,
   type RfpStatus,
@@ -20,6 +22,7 @@ import {
 import type {
   ActivityRow,
   LeadRow,
+  ProposalRow,
   RfpRow,
   TaskRow,
   WeeklyReportRow,
@@ -93,6 +96,21 @@ function toLead(row: LeadRow): Lead {
     decisionProcess: row.decision_process ?? '',
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
+  }
+}
+
+function toProposal(row: ProposalRow): Proposal {
+  return {
+    id: row.id,
+    rfpId: row.rfp_id,
+    kind: isProposalKind(row.kind) ? row.kind : 'draft',
+    title: row.title ?? '',
+    content: row.content ?? '',
+    filePath: row.file_path ?? '',
+    fileName: row.file_name ?? '',
+    fileSize: row.file_size,
+    notes: row.notes ?? '',
+    createdAt: row.created_at,
   }
 }
 
@@ -207,6 +225,7 @@ export interface PipelineSnapshot {
   tasks: Task[]
   reports: WeeklyReport[]
   activities: Activity[]
+  proposals: Proposal[]
   /** Per-table load failures. Empty when everything came back. */
   errors: string[]
 }
@@ -253,7 +272,7 @@ async function loadTable<Row, T>(
 }
 
 export async function fetchAll(): Promise<PipelineSnapshot> {
-  const [leads, rfps, tasks, reports, activities] = await Promise.all([
+  const [leads, rfps, tasks, reports, activities, proposals] = await Promise.all([
     loadTable(
       'leads',
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -299,6 +318,12 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       toActivity,
       'migration 0003',
     ),
+    loadTable(
+      'proposals',
+      supabase.from('proposals').select('*').order('created_at', { ascending: false }),
+      toProposal,
+      'migration 0007',
+    ),
   ])
 
   return {
@@ -307,9 +332,105 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
     tasks: tasks.rows,
     reports: reports.rows,
     activities: activities.rows,
-    errors: [leads, rfps, tasks, reports, activities]
+    proposals: proposals.rows,
+    errors: [leads, rfps, tasks, reports, activities, proposals]
       .map((result) => result.error)
       .filter((error): error is string => error !== null),
+  }
+}
+
+// ----------------------------------------------------------- proposals -----
+
+const PROPOSAL_BUCKET = 'proposals'
+
+/** Saves generated text against an RFP so a draft survives closing the tab. */
+export async function saveDraftProposal(
+  rfpId: string,
+  title: string,
+  content: string,
+): Promise<Proposal> {
+  const row = unwrap(
+    await supabase
+      .from('proposals')
+      .insert({
+        user_id: await currentUserId(),
+        rfp_id: rfpId,
+        kind: 'draft',
+        title,
+        content,
+        file_path: '',
+        file_name: '',
+        file_size: null,
+        notes: '',
+      })
+      .select()
+      .single(),
+  )
+  return toProposal(row)
+}
+
+/**
+ * Uploads the file that actually went to the buyer.
+ *
+ * The object path starts with the owner's uid because the storage policies
+ * compare that first segment to `auth.uid()` — get the shape wrong and the
+ * upload is rejected rather than silently readable by others.
+ */
+export async function uploadSubmittedProposal(
+  rfpId: string,
+  file: File,
+  notes: string,
+): Promise<Proposal> {
+  const userId = await currentUserId()
+  const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
+  const path = `${userId}/${rfpId}/${crypto.randomUUID()}.${extension}`
+
+  const upload = await supabase.storage
+    .from(PROPOSAL_BUCKET)
+    .upload(path, file, { contentType: file.type || undefined, upsert: false })
+
+  if (upload.error) throw new Error(`Upload failed: ${upload.error.message}`)
+
+  try {
+    const row = unwrap(
+      await supabase
+        .from('proposals')
+        .insert({
+          user_id: userId,
+          rfp_id: rfpId,
+          kind: 'submitted',
+          title: file.name,
+          content: '',
+          file_path: path,
+          file_name: file.name,
+          file_size: file.size,
+          notes,
+        })
+        .select()
+        .single(),
+    )
+    return toProposal(row)
+  } catch (cause) {
+    // Don't strand an orphaned object in the bucket if the row insert fails.
+    await supabase.storage.from(PROPOSAL_BUCKET).remove([path])
+    throw cause
+  }
+}
+
+/** Short-lived signed URL — the bucket is private, so there is no public path. */
+export async function proposalFileUrl(filePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(PROPOSAL_BUCKET)
+    .createSignedUrl(filePath, 60)
+  if (error) throw new Error(error.message)
+  return data.signedUrl
+}
+
+export async function deleteProposal(proposal: Proposal): Promise<void> {
+  const { error } = await supabase.from('proposals').delete().eq('id', proposal.id)
+  if (error) throw new Error(error.message)
+  if (proposal.filePath) {
+    await supabase.storage.from(PROPOSAL_BUCKET).remove([proposal.filePath])
   }
 }
 

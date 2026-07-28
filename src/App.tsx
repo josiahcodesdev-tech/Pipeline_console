@@ -13,6 +13,7 @@ import { RfpsView } from '@/views/rfps/rfps-view'
 import { TasksView } from '@/views/tasks/tasks-view'
 import { ActivityView } from '@/views/activity/activity-view'
 import { PipelineView } from '@/views/pipeline/pipeline-view'
+import { RfpProfile } from '@/views/rfps/rfp-profile'
 import { ReportView } from '@/views/report/report-view'
 
 // Recharts is a large dependency used by this view alone — keep it out of the
@@ -25,11 +26,24 @@ const ProgressView = lazy(() =>
 
 function Console() {
   const [view, setView] = useState<ViewId>('dashboard')
-  const { loading, error } = usePipeline()
+  // Which RFP's profile is open, if any. Kept here rather than inside a view
+  // so the tracker and the Proposals page can both open one, and switching
+  // section closes it.
+  const [profileId, setProfileId] = useState<string | null>(null)
+  const { rfps, loading, error } = usePipeline()
+
+  const profileRfp = profileId
+    ? (rfps.find((rfp) => rfp.id === profileId) ?? null)
+    : null
+
+  function go(next: ViewId) {
+    setProfileId(null)
+    setView(next)
+  }
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar current={view} onNavigate={setView} />
+      <AppSidebar current={view} onNavigate={go} />
       {/* Full width by design — this is a data console, and the tables want
           every pixel. `min-w-0` lets the flex child shrink below its content
           width, which is what stops a wide table pushing the *page* sideways;
@@ -46,9 +60,16 @@ function Console() {
         )}
         {/* Hold the frame while refetching rather than flashing a skeleton. */}
         <div className={loading ? 'opacity-60 transition-opacity' : undefined}>
+          {/* An open profile takes over the column — it is a record view, not a
+              panel, and nesting it under a list would mean two scroll contexts
+              and two headers. */}
+          {profileRfp ? (
+            <RfpProfile rfp={profileRfp} onBack={() => setProfileId(null)} />
+          ) : (
+            <>
           {view === 'dashboard' && <DashboardView />}
           {view === 'leads' && <LeadsView />}
-          {view === 'rfps' && <RfpsView />}
+          {view === 'rfps' && <RfpsView onOpenProfile={setProfileId} />}
           {view === 'progress' && (
             <Suspense
               fallback={
@@ -60,10 +81,12 @@ function Console() {
               <ProgressView />
             </Suspense>
           )}
-          {view === 'pipeline' && <PipelineView />}
+          {view === 'pipeline' && <PipelineView onOpenProfile={setProfileId} />}
           {view === 'activity' && <ActivityView />}
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
+            </>
+          )}
         </div>
       </main>
     </div>

@@ -243,3 +243,30 @@ export function isLeadStatus(value: unknown): value is LeadStatus {
 export function isRfpStatus(value: unknown): value is RfpStatus {
   return RFP_STATUSES.includes(value as RfpStatus)
 }
+
+/** Kinds of proposal record kept against an RFP. */
+export const PROPOSAL_KINDS = ['draft', 'submitted'] as const
+export type ProposalKind = (typeof PROPOSAL_KINDS)[number]
+
+/**
+ * Something written for an RFP. A `draft` holds generated text so it survives
+ * closing the tab; a `submitted` record points at the file that actually went
+ * to the buyer.
+ */
+export interface Proposal {
+  id: string
+  rfpId: string
+  kind: ProposalKind
+  title: string
+  content: string
+  /** Storage object path. Empty on drafts. */
+  filePath: string
+  fileName: string
+  fileSize: number | null
+  notes: string
+  createdAt: string
+}
+
+export function isProposalKind(value: unknown): value is ProposalKind {
+  return PROPOSAL_KINDS.includes(value as ProposalKind)
+}

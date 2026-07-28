@@ -36,6 +36,21 @@ export type LeadRow = {
   updated_at: string
 }
 
+export type ProposalRow = {
+  id: string
+  user_id: string
+  rfp_id: string
+  kind: string
+  title: string
+  content: string
+  file_path: string
+  file_name: string
+  file_size: number | null
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
 export type ActivityRow = {
   id: string
   user_id: string
@@ -141,6 +156,12 @@ export type Database = {
         Row: WeeklyReportRow
         Insert: Insertable<WeeklyReportRow, Generated>
         Update: Partial<WeeklyReportRow>
+        Relationships: []
+      }
+      proposals: {
+        Row: ProposalRow
+        Insert: Insertable<ProposalRow, Generated>
+        Update: Partial<ProposalRow>
         Relationships: []
       }
       activities: {

@@ -14,6 +14,7 @@ import { fetchOpportunities } from '@/lib/opportunities'
 import type {
   Activity,
   Lead,
+  Proposal,
   LeadStatus,
   Rfp,
   RfpStatus,
@@ -76,6 +77,7 @@ interface PipelineValue {
   tasks: Task[]
   reports: WeeklyReport[]
   activities: Activity[]
+  proposals: Proposal[]
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
@@ -104,6 +106,10 @@ interface PipelineValue {
 
   saveReport: (draft: db.WeeklyReportDraft) => Promise<void>
 
+  saveDraftProposal: (rfpId: string, title: string, content: string) => Promise<void>
+  uploadProposal: (rfpId: string, file: File, notes: string) => Promise<void>
+  removeProposal: (proposal: Proposal) => Promise<void>
+
   logActivity: (draft: db.ActivityDraft) => Promise<void>
   removeActivity: (id: string) => Promise<void>
 }
@@ -130,6 +136,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [autoSync, setAutoSync] = useState<AutoSyncStatus>('idle')
@@ -145,6 +152,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setTasks([])
       setReports([])
       setActivities([])
+      setProposals([])
       setLoading(false)
       return
     }
@@ -156,6 +164,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setTasks(snapshot.tasks)
       setReports(snapshot.reports)
       setActivities(snapshot.activities)
+      setProposals(snapshot.proposals)
       // Partial failures surface as a banner while the tables that *did* load
       // still render — a missing table must not look like lost data.
       setError(snapshot.errors.length ? snapshot.errors.join(' ') : null)
@@ -390,6 +399,30 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setTasks((current) => current.filter((task) => task.id !== id))
   }, [])
 
+  const saveDraftProposal = useCallback(
+    async (rfpId: string, title: string, content: string) => {
+      const saved = await db.saveDraftProposal(rfpId, title, content)
+      setProposals((current) => [saved, ...current])
+      toast.success('Draft saved to this RFP')
+    },
+    [],
+  )
+
+  const uploadProposal = useCallback(
+    async (rfpId: string, file: File, notes: string) => {
+      const saved = await db.uploadSubmittedProposal(rfpId, file, notes)
+      setProposals((current) => [saved, ...current])
+      toast.success(`${saved.fileName} uploaded`)
+    },
+    [],
+  )
+
+  const removeProposal = useCallback(async (proposal: Proposal) => {
+    await db.deleteProposal(proposal)
+    setProposals((current) => current.filter((item) => item.id !== proposal.id))
+    toast.success('Removed')
+  }, [])
+
   const logActivity = useCallback(async (draft: db.ActivityDraft) => {
     const saved = await db.createActivity(draft)
     // Newest first, matching the order fetchAll returns.
@@ -414,6 +447,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       tasks,
       reports,
       activities,
+      proposals,
       loading,
       error,
       refresh,
@@ -432,6 +466,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       toggleTask,
       removeTask,
       saveReport,
+      saveDraftProposal,
+      uploadProposal,
+      removeProposal,
       logActivity,
       removeActivity,
     }),
@@ -441,6 +478,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       tasks,
       reports,
       activities,
+      proposals,
       loading,
       error,
       refresh,
@@ -459,6 +497,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       toggleTask,
       removeTask,
       saveReport,
+      saveDraftProposal,
+      uploadProposal,
+      removeProposal,
       logActivity,
       removeActivity,
     ],

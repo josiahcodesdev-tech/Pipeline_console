@@ -51,7 +51,11 @@ function relativeTime(epochMs: number): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-export function RfpsView() {
+export function RfpsView({
+  onOpenProfile,
+}: {
+  onOpenProfile: (id: string) => void
+}) {
   const {
     rfps,
     saveRfp,
@@ -302,7 +306,7 @@ export function RfpsView() {
             {filtered.map((rfp) => (
               <TableRow
                 key={rfp.id}
-                onClick={() => open(rfp)}
+                onClick={() => onOpenProfile(rfp.id)}
                 className="cursor-pointer"
               >
                 <TableCell className="max-w-[380px] font-medium">
