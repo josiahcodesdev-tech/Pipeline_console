@@ -4,6 +4,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { PipelineProvider, usePipeline } from '@/hooks/use-pipeline'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { PROPOSAL_DRAFTING } from '@/lib/features'
 import type { ViewId } from '@/lib/nav'
 import { SetupNotice } from '@/views/setup-notice'
 import { SignInView } from '@/views/sign-in'
@@ -86,7 +87,7 @@ function Console() {
           {view === 'activity' && <ActivityView />}
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
-          {view === 'settings' && <SettingsView />}
+          {view === 'settings' && PROPOSAL_DRAFTING && <SettingsView />}
             </>
           )}
         </div>

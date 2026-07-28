@@ -20,6 +20,7 @@ import { RfpStatusSelect } from '@/components/status-select'
 import { ActivityComposer, ActivityRow } from '@/components/activity-log'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { proposalFileUrl } from '@/lib/db'
+import { PROPOSAL_DRAFTING } from '@/lib/features'
 import {
   draftConceptNote,
   MAX_EXEMPLARS,
@@ -252,6 +253,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
+          {PROPOSAL_DRAFTING && (
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Writes a full technical proposal against this notice — method,
@@ -285,6 +287,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               </p>
             )}
           </Panel>
+          )}
 
           <Panel
             title="Proposals"
@@ -333,7 +336,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                     <div className="flex shrink-0 items-center gap-1">
                       {/* Only text can be imitated — a stored .docx is opaque
                           to the drafter, so it cannot be a model answer. */}
-                      {proposal.content.trim() && (
+                      {PROPOSAL_DRAFTING && proposal.content.trim() && (
                         <button
                           type="button"
                           onClick={() => void toggleExemplar(proposal)}
@@ -436,6 +439,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
           {/* An uploaded file is storage; pasted text is training material.
               This is how a past winning bid becomes a model answer. */}
+          {PROPOSAL_DRAFTING && (
           <Panel
             title="Paste a past proposal"
             description="Text you paste here can be starred as a model answer and shown to the drafter. An uploaded file cannot — it is just an attachment."
@@ -469,6 +473,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               </Button>
             </div>
           </Panel>
+          )}
         </div>
 
         <div className="min-w-0">

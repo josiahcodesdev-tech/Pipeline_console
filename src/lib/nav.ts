@@ -10,6 +10,7 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react'
+import { PROPOSAL_DRAFTING } from './features'
 
 export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboardIcon },
@@ -28,6 +29,14 @@ export const NAV_ITEMS = [
 }[]
 
 export type ViewId = (typeof NAV_ITEMS)[number]['id']
+
+/**
+ * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
+ * covering every view even while one is hidden.
+ */
+export const VISIBLE_NAV_ITEMS = NAV_ITEMS.filter(
+  (item) => item.id !== 'settings' || PROPOSAL_DRAFTING,
+)
 
 export function isViewId(value: string): value is ViewId {
   return NAV_ITEMS.some((item) => item.id === value)

@@ -2,7 +2,7 @@ import { LogOutIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import type { ViewId } from '@/lib/nav'
-import { NAV_ITEMS } from '@/lib/nav'
+import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 
 export function AppSidebar({
   current,
@@ -41,7 +41,7 @@ export function AppSidebar({
 
       <nav className="flex flex-col gap-0.5">
         <div className="eyebrow mb-1.5 px-2.5 text-faint">Workspace</div>
-        {NAV_ITEMS.map((item) => {
+        {VISIBLE_NAV_ITEMS.map((item) => {
           const active = item.id === current
           const Icon = item.icon
           return (
