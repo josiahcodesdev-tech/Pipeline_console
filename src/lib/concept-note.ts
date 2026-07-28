@@ -15,6 +15,20 @@ import { supabase } from './supabase'
  */
 export type DraftKind = 'concept-note' | 'proposal'
 
+/**
+ * How many worked examples to send. Every one is included in full on every
+ * draft, so this is a cost ceiling as much as a quality one — two is enough to
+ * establish a voice, and past that the marginal example mostly buys tokens.
+ */
+export const MAX_EXEMPLARS = 2
+
+/**
+ * Longest example sent, in characters. A 700-word proposal is roughly 5,000,
+ * so this fits a full one while stopping a pasted 40-page bid from dominating
+ * the prompt.
+ */
+export const MAX_EXEMPLAR_CHARS = 12_000
+
 export interface ConceptNoteContext {
   kind: DraftKind
   org: string
@@ -24,6 +38,12 @@ export interface ConceptNoteContext {
   notes?: string
   rfpTitle?: string
   deadline?: string
+  /** House rules for this kind of document. */
+  guidance?: string
+  /** Organisation facts reused verbatim. */
+  boilerplate?: string
+  /** Worked examples to imitate. */
+  examples?: string[]
 }
 
 /** UI labels, so the dialog and the buttons never disagree. */

@@ -60,7 +60,7 @@ export function LeadDialog({
   onSave: (draft: LeadDraft, existing: Lead | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
-  const { activities, logActivity, removeActivity } = usePipeline()
+  const { activities, settings, logActivity, removeActivity } = usePipeline()
   const [draft, setDraft] = useState<LeadDraft>(EMPTY)
   const [busy, setBusy] = useState(false)
   const [conceptOpen, setConceptOpen] = useState(false)
@@ -119,6 +119,8 @@ export function LeadDialog({
         country: draft.country,
         contactRole: draft.contactRole,
         notes: draft.notes,
+        guidance: settings.conceptGuidance,
+        boilerplate: settings.boilerplate,
       }
     : null
 

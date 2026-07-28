@@ -9,8 +9,13 @@
  *   supabase secrets set OPENAI_API_KEY=sk-proj-...
  *   supabase functions deploy concept-note
  *
- * JWT verification is left ON (the Supabase default), so only signed-in users
- * of this project can spend tokens here.
+ * JWT verification is left ON (the Supabase default). Note that this is weaker
+ * than it sounds: the project's *anon* key is a valid JWT, so anyone who reads
+ * it out of the shipped bundle can call this. Tightening it means rejecting
+ * `role: 'anon'` here — not yet done.
+ *
+ * House rules, boilerplate and model answers arrive from the client (they are
+ * the author's own settings) and are size-capped here regardless.
  */
 
 import OpenAI from 'npm:openai@6.45.0'
@@ -31,7 +36,20 @@ interface DraftContext {
   notes?: unknown
   rfpTitle?: unknown
   deadline?: unknown
+  guidance?: unknown
+  boilerplate?: unknown
+  examples?: unknown
 }
+
+/**
+ * Ceilings on the caller-supplied training material. The client already caps
+ * these, but the client is a browser — a hand-rolled request could otherwise
+ * push a multi-megabyte prompt through this function on the project's key.
+ */
+const MAX_GUIDANCE_CHARS = 8_000
+const MAX_BOILERPLATE_CHARS = 6_000
+const MAX_EXEMPLARS = 2
+const MAX_EXEMPLAR_CHARS = 12_000
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -80,8 +98,70 @@ Write for an evaluation panel scoring against criteria, not for a general reader
 
 ${HONESTY}`
 
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
+function text(value: unknown, limit = 4_000): string {
+  return typeof value === 'string' ? value.trim().slice(0, limit) : ''
+}
+
+/**
+ * The author's own house rules, layered over the base prompt.
+ *
+ * These win on structure, length and tone — that is the point of writing them.
+ * They deliberately do *not* win on honesty: a rule saying "claim ISO
+ * certification" must not override the instruction never to invent credentials.
+ */
+function houseRulesBlock(guidance: string, boilerplate: string): string {
+  const parts: string[] = []
+
+  if (guidance) {
+    parts.push(`## House rules
+
+The author of this document has written the following rules. Follow them over
+the default structure and tone above wherever the two disagree. They do not
+override the honesty instructions — if a rule asks you to state something you
+have not been given as fact, treat it as a placeholder instead.
+
+${guidance}`)
+  }
+
+  if (boilerplate) {
+    parts.push(`## Organisation facts
+
+Supplied by the author and safe to state as fact. Use what is relevant; do not
+paste the whole block in verbatim, and do not extrapolate beyond it.
+
+${boilerplate}`)
+  }
+
+  return parts.join('\n\n')
+}
+
+/**
+ * Worked examples, shown as style references rather than source material.
+ *
+ * The explicit warning matters: past proposals are full of real client names,
+ * budgets and team members, and a model shown one will happily carry them into
+ * a document for a different buyer.
+ */
+function examplesBlock(examples: string[]): string {
+  if (examples.length === 0) return ''
+
+  const body = examples
+    .map(
+      (example, index) =>
+        `<example index="${index + 1}">\n${example}\n</example>`,
+    )
+    .join('\n\n')
+
+  return `## Model answers
+
+Below are documents the author considers good. Imitate their structure, register
+and level of detail.
+
+Treat their *content* as off limits: the clients, figures, dates, staff names and
+past engagements in them belong to other assignments. Never carry any of those
+into this document. Only the writing style transfers.
+
+${body}`
 }
 
 function json(body: unknown, status: number): Response {
@@ -126,6 +206,13 @@ Deno.serve(async (request: Request) => {
   const rfpTitle = text(context.rfpTitle)
   const deadline = text(context.deadline)
 
+  const guidance = text(context.guidance, MAX_GUIDANCE_CHARS)
+  const boilerplate = text(context.boilerplate, MAX_BOILERPLATE_CHARS)
+  const examples = (Array.isArray(context.examples) ? context.examples : [])
+    .map((example) => text(example, MAX_EXEMPLAR_CHARS))
+    .filter(Boolean)
+    .slice(0, MAX_EXEMPLARS)
+
   const details = [
     `${isProposal ? 'Issuing organization' : 'Recipient organization'}: ${org}`,
     `Sector / segment: ${segment}`,
@@ -138,19 +225,32 @@ Deno.serve(async (request: Request) => {
     .filter(Boolean)
     .join('\n')
 
+  // Base prompt first, then the author's rules, then the examples — later
+  // sections are the specific ones, and specific should read as refinement of
+  // general rather than the other way round.
+  const systemPrompt = [
+    isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
+    houseRulesBlock(guidance, boilerplate),
+    examplesBlock(examples),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
   const client = new OpenAI({ apiKey })
 
   try {
     const completion = await client.chat.completions.create({
       model: MODEL,
       messages: [
-        { role: 'system', content: isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: `Draft a ${what} using this context:\n\n${details}` },
       ],
       temperature: 0.7,
       // A 700-word proposal is roughly 1,000 tokens; the headroom keeps a long
-      // one from being cut mid-sentence.
-      max_tokens: 2000,
+      // one from being cut mid-sentence. House rules routinely ask for more
+      // structure than the default prompt, so they get more room — output
+      // tokens are only billed if they are actually produced.
+      max_tokens: guidance ? 4000 : 2000,
     })
 
     const choice = completion.choices[0]

@@ -47,6 +47,16 @@ export type ProposalRow = {
   file_name: string
   file_size: number | null
   notes: string
+  is_exemplar: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type UserSettingsRow = {
+  user_id: string
+  proposal_guidance: string
+  concept_guidance: string
+  boilerplate: string
   created_at: string
   updated_at: string
 }
@@ -158,9 +168,15 @@ export type Database = {
         Update: Partial<WeeklyReportRow>
         Relationships: []
       }
+      user_settings: {
+        Row: UserSettingsRow
+        Insert: Insertable<UserSettingsRow, 'created_at' | 'updated_at'>
+        Update: Partial<UserSettingsRow>
+        Relationships: []
+      }
       proposals: {
         Row: ProposalRow
-        Insert: Insertable<ProposalRow, Generated>
+        Insert: Insertable<ProposalRow, Generated | 'is_exemplar'>
         Update: Partial<ProposalRow>
         Relationships: []
       }

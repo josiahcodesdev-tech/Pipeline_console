@@ -264,9 +264,27 @@ export interface Proposal {
   fileName: string
   fileSize: number | null
   notes: string
+  /** Use as a worked example when drafting new proposals. */
+  isExemplar: boolean
   createdAt: string
 }
 
 export function isProposalKind(value: unknown): value is ProposalKind {
   return PROPOSAL_KINDS.includes(value as ProposalKind)
+}
+
+/**
+ * What the drafter has been taught. Injected into the prompt at draft time —
+ * prompt engineering, not fine-tuning, so it takes effect on the next draft.
+ */
+export interface UserSettings {
+  proposalGuidance: string
+  conceptGuidance: string
+  boilerplate: string
+}
+
+export const EMPTY_SETTINGS: UserSettings = {
+  proposalGuidance: '',
+  conceptGuidance: '',
+  boilerplate: '',
 }

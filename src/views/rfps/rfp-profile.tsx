@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   PencilIcon,
   SparklesIcon,
+  StarIcon,
   TargetIcon,
   TrashIcon,
   UploadIcon,
@@ -13,12 +14,17 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Panel, EmptyState } from '@/components/panel'
 import { RfpStatusSelect } from '@/components/status-select'
 import { ActivityComposer, ActivityRow } from '@/components/activity-log'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { proposalFileUrl } from '@/lib/db'
-import { draftConceptNote } from '@/lib/concept-note'
+import {
+  draftConceptNote,
+  MAX_EXEMPLARS,
+  MAX_EXEMPLAR_CHARS,
+} from '@/lib/concept-note'
 import { downloadProposalDocx } from '@/lib/proposal-export'
 import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
@@ -59,15 +65,21 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setRfpPipeline,
     logActivity,
     removeActivity,
+    settings,
     saveDraftProposal,
     uploadProposal,
     removeProposal,
+    setProposalExemplar,
+    addPastProposal,
   } = usePipeline()
 
   const [editing, setEditing] = useState(false)
   const [drafting, setDrafting] = useState(false)
   const [uploadNotes, setUploadNotes] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [pasteTitle, setPasteTitle] = useState('')
+  const [pasteText, setPasteText] = useState('')
+  const [pasting, setPasting] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const ownActivities = useMemo(
@@ -77,6 +89,23 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const ownProposals = useMemo(
     () => proposals.filter((proposal) => proposal.rfpId === rfp.id),
     [proposals, rfp.id],
+  )
+
+  /**
+   * Starred model answers, trimmed to what is worth sending. Drawn from every
+   * RFP, not just this one — a good proposal teaches voice regardless of which
+   * tender it was written for.
+   */
+  const exemplars = useMemo(
+    () => proposals.filter((proposal) => proposal.isExemplar && proposal.content.trim()),
+    [proposals],
+  )
+  const exemplarTexts = useMemo(
+    () =>
+      exemplars
+        .slice(0, MAX_EXEMPLARS)
+        .map((proposal) => proposal.content.slice(0, MAX_EXEMPLAR_CHARS)),
+    [exemplars],
   )
 
   const left = daysUntil(rfp.deadline)
@@ -95,6 +124,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         notes: rfp.notes,
         rfpTitle: rfp.title,
         deadline: rfp.deadline,
+        guidance: settings.proposalGuidance,
+        boilerplate: settings.boilerplate,
+        examples: exemplarTexts,
       })
       // Saved before the download so a slow or cancelled save cannot lose the
       // generated text — the whole point of keeping drafts on the profile.
@@ -121,6 +153,43 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setUploading(false)
+    }
+  }
+
+  async function handlePaste() {
+    if (!pasteText.trim()) {
+      toast.error('Paste the proposal text first')
+      return
+    }
+    setPasting(true)
+    try {
+      await addPastProposal(
+        rfp.id,
+        pasteTitle.trim() || 'Past proposal',
+        pasteText.trim(),
+      )
+      setPasteTitle('')
+      setPasteText('')
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPasting(false)
+    }
+  }
+
+  /** Starring is capped: every example is sent in full with each draft. */
+  async function toggleExemplar(proposal: Proposal) {
+    const next = !proposal.isExemplar
+    if (next && exemplars.length >= MAX_EXEMPLARS) {
+      toast.error(
+        `${MAX_EXEMPLARS} model answers is the limit — unstar one under Guidance first.`,
+      )
+      return
+    }
+    try {
+      await setProposalExemplar(proposal.id, next)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
@@ -189,6 +258,19 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               <SparklesIcon />
               {drafting ? 'Drafting…' : 'Draft proposal'}
             </Button>
+            {/* Say what the drafter is working from, so a bad draft points at
+                something fixable rather than feeling arbitrary. */}
+            <p className="mt-3 text-[11px] text-faint">
+              {settings.proposalGuidance.trim() || settings.boilerplate.trim()
+                ? 'Using your house rules'
+                : 'No house rules set'}
+              {' · '}
+              {exemplarTexts.length === 0
+                ? 'no model answers'
+                : `${exemplarTexts.length} model answer${exemplarTexts.length === 1 ? '' : 's'}`}
+              {' · edit under '}
+              <span className="text-clay">Guidance</span>
+            </p>
           </Panel>
 
           <Panel
@@ -236,6 +318,36 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1">
+                      {/* Only text can be imitated — a stored .docx is opaque
+                          to the drafter, so it cannot be a model answer. */}
+                      {proposal.content.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => void toggleExemplar(proposal)}
+                          aria-pressed={proposal.isExemplar}
+                          aria-label={
+                            proposal.isExemplar
+                              ? 'Unstar as a model answer'
+                              : 'Star as a model answer'
+                          }
+                          title={
+                            proposal.isExemplar
+                              ? 'Shown to the drafter as a model answer'
+                              : 'Star to teach the drafter this style'
+                          }
+                          className={cn(
+                            'cursor-pointer px-1 transition-colors',
+                            proposal.isExemplar
+                              ? 'text-warning'
+                              : 'text-faint hover:text-warning',
+                          )}
+                        >
+                          <StarIcon
+                            className="size-3.5"
+                            fill={proposal.isExemplar ? 'currentColor' : 'none'}
+                          />
+                        </button>
+                      )}
                       {proposal.filePath ? (
                         <Button
                           variant="ghost"
@@ -307,6 +419,42 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 Uploading…
               </p>
             )}
+          </Panel>
+
+          {/* An uploaded file is storage; pasted text is training material.
+              This is how a past winning bid becomes a model answer. */}
+          <Panel
+            title="Paste a past proposal"
+            description="Text you paste here can be starred as a model answer and shown to the drafter. An uploaded file cannot — it is just an attachment."
+          >
+            <Input
+              value={pasteTitle}
+              onChange={(event) => setPasteTitle(event.target.value)}
+              placeholder="Title — e.g. UNDP baseline survey, won Mar 2026"
+              className="mb-2 w-full"
+            />
+            <Textarea
+              value={pasteText}
+              onChange={(event) => setPasteText(event.target.value)}
+              placeholder="Paste the full text of the proposal…"
+              className="min-h-[160px] w-full font-mono text-[11.5px] leading-relaxed"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-faint">
+                {pasteText.length > MAX_EXEMPLAR_CHARS
+                  ? `${pasteText.length.toLocaleString()} characters — only the first ${MAX_EXEMPLAR_CHARS.toLocaleString()} are shown to the drafter`
+                  : pasteText
+                    ? `${pasteText.length.toLocaleString()} characters`
+                    : ''}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => void handlePaste()}
+                disabled={pasting || !pasteText.trim()}
+              >
+                {pasting ? 'Saving…' : 'Save as past proposal'}
+              </Button>
+            </div>
           </Panel>
         </div>
 

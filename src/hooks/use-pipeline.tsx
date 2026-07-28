@@ -11,10 +11,12 @@ import {
 import { toast } from 'sonner'
 import * as db from '@/lib/db'
 import { fetchOpportunities } from '@/lib/opportunities'
+import { EMPTY_SETTINGS } from '@/lib/types'
 import type {
   Activity,
   Lead,
   Proposal,
+  UserSettings,
   LeadStatus,
   Rfp,
   RfpStatus,
@@ -78,6 +80,7 @@ interface PipelineValue {
   reports: WeeklyReport[]
   activities: Activity[]
   proposals: Proposal[]
+  settings: UserSettings
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
@@ -109,6 +112,9 @@ interface PipelineValue {
   saveDraftProposal: (rfpId: string, title: string, content: string) => Promise<void>
   uploadProposal: (rfpId: string, file: File, notes: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
+  setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
+  addPastProposal: (rfpId: string, title: string, content: string) => Promise<void>
+  saveSettings: (next: UserSettings) => Promise<void>
 
   logActivity: (draft: db.ActivityDraft) => Promise<void>
   removeActivity: (id: string) => Promise<void>
@@ -137,6 +143,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [proposals, setProposals] = useState<Proposal[]>([])
+  const [settings, setSettings] = useState<UserSettings>(EMPTY_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [autoSync, setAutoSync] = useState<AutoSyncStatus>('idle')
@@ -153,6 +160,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setReports([])
       setActivities([])
       setProposals([])
+      setSettings(EMPTY_SETTINGS)
       setLoading(false)
       return
     }
@@ -165,6 +173,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setReports(snapshot.reports)
       setActivities(snapshot.activities)
       setProposals(snapshot.proposals)
+      // Settings are small and read on their own; a failure here should not
+      // cost the snapshot, so it degrades to the empty defaults.
+      try {
+        setSettings(await db.fetchSettings())
+      } catch {
+        setSettings(EMPTY_SETTINGS)
+      }
       // Partial failures surface as a banner while the tables that *did* load
       // still render — a missing table must not look like lost data.
       setError(snapshot.errors.length ? snapshot.errors.join(' ') : null)
@@ -417,6 +432,26 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const setProposalExemplar = useCallback(async (id: string, isExemplar: boolean) => {
+    const saved = await db.setProposalExemplar(id, isExemplar)
+    setProposals((current) => current.map((item) => (item.id === id ? saved : item)))
+    toast.success(isExemplar ? 'Marked as a model answer' : 'No longer an example')
+  }, [])
+
+  const addPastProposal = useCallback(
+    async (rfpId: string, title: string, content: string) => {
+      const saved = await db.savePastedProposal(rfpId, title, content)
+      setProposals((current) => [saved, ...current])
+      toast.success('Past proposal recorded')
+    },
+    [],
+  )
+
+  const saveSettings = useCallback(async (next: UserSettings) => {
+    setSettings(await db.saveSettings(next))
+    toast.success('Guidance saved — it applies to the next draft')
+  }, [])
+
   const removeProposal = useCallback(async (proposal: Proposal) => {
     await db.deleteProposal(proposal)
     setProposals((current) => current.filter((item) => item.id !== proposal.id))
@@ -448,6 +483,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reports,
       activities,
       proposals,
+      settings,
       loading,
       error,
       refresh,
@@ -469,6 +505,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveDraftProposal,
       uploadProposal,
       removeProposal,
+      setProposalExemplar,
+      addPastProposal,
+      saveSettings,
       logActivity,
       removeActivity,
     }),
@@ -479,6 +518,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reports,
       activities,
       proposals,
+      settings,
       loading,
       error,
       refresh,
@@ -500,6 +540,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveDraftProposal,
       uploadProposal,
       removeProposal,
+      setProposalExemplar,
+      addPastProposal,
+      saveSettings,
       logActivity,
       removeActivity,
     ],

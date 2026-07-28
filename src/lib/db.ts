@@ -12,6 +12,8 @@ import {
   type Activity,
   type Lead,
   type Proposal,
+  type UserSettings,
+  EMPTY_SETTINGS,
   type LeadStatus,
   type Rfp,
   type RfpStatus,
@@ -110,6 +112,7 @@ function toProposal(row: ProposalRow): Proposal {
     fileName: row.file_name ?? '',
     fileSize: row.file_size,
     notes: row.notes ?? '',
+    isExemplar: row.is_exemplar ?? false,
     createdAt: row.created_at,
   }
 }
@@ -342,6 +345,86 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
 // ----------------------------------------------------------- proposals -----
 
 const PROPOSAL_BUCKET = 'proposals'
+
+/** House rules and boilerplate the drafter is given. One row per user. */
+export async function fetchSettings(): Promise<UserSettings> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('*')
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return EMPTY_SETTINGS
+  return {
+    proposalGuidance: data.proposal_guidance ?? '',
+    conceptGuidance: data.concept_guidance ?? '',
+    boilerplate: data.boilerplate ?? '',
+  }
+}
+
+export async function saveSettings(settings: UserSettings): Promise<UserSettings> {
+  const row = unwrap(
+    await supabase
+      .from('user_settings')
+      .upsert(
+        {
+          user_id: await currentUserId(),
+          proposal_guidance: settings.proposalGuidance,
+          concept_guidance: settings.conceptGuidance,
+          boilerplate: settings.boilerplate,
+        },
+        { onConflict: 'user_id' },
+      )
+      .select()
+      .single(),
+  )
+  return {
+    proposalGuidance: row.proposal_guidance ?? '',
+    conceptGuidance: row.concept_guidance ?? '',
+    boilerplate: row.boilerplate ?? '',
+  }
+}
+
+/** Marks a proposal as a worked example for future drafts. */
+export async function setProposalExemplar(
+  id: string,
+  isExemplar: boolean,
+): Promise<Proposal> {
+  const row = unwrap(
+    await supabase
+      .from('proposals')
+      .update({ is_exemplar: isExemplar })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toProposal(row)
+}
+
+/** Records a past proposal pasted in as text, so it can be used as an example. */
+export async function savePastedProposal(
+  rfpId: string,
+  title: string,
+  content: string,
+): Promise<Proposal> {
+  const row = unwrap(
+    await supabase
+      .from('proposals')
+      .insert({
+        user_id: await currentUserId(),
+        rfp_id: rfpId,
+        kind: 'submitted',
+        title,
+        content,
+        file_path: '',
+        file_name: '',
+        file_size: null,
+        notes: '',
+      })
+      .select()
+      .single(),
+  )
+  return toProposal(row)
+}
 
 /** Saves generated text against an RFP so a draft survives closing the tab. */
 export async function saveDraftProposal(

@@ -15,6 +15,7 @@ import { ActivityView } from '@/views/activity/activity-view'
 import { PipelineView } from '@/views/pipeline/pipeline-view'
 import { RfpProfile } from '@/views/rfps/rfp-profile'
 import { ReportView } from '@/views/report/report-view'
+import { SettingsView } from '@/views/settings/settings-view'
 
 // Recharts is a large dependency used by this view alone — keep it out of the
 // bundle everyone downloads on first load.
@@ -85,6 +86,7 @@ function Console() {
           {view === 'activity' && <ActivityView />}
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
+          {view === 'settings' && <SettingsView />}
             </>
           )}
         </div>

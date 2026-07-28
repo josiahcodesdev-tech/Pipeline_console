@@ -4,6 +4,7 @@ import {
   LayoutDashboardIcon,
   ListChecksIcon,
   MessageSquareIcon,
+  SettingsIcon,
   TargetIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -19,6 +20,7 @@ export const NAV_ITEMS = [
   { id: 'tasks', label: 'Tasks', icon: ListChecksIcon },
   { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
   { id: 'report', label: 'Reports', icon: FileTextIcon },
+  { id: 'settings', label: 'Guidance', icon: SettingsIcon },
 ] as const satisfies readonly {
   id: string
   label: string
