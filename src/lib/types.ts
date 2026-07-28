@@ -177,6 +177,11 @@ export interface Rfp {
    */
   externalId: string | null
   createdOn: IsoDate
+  /**
+   * Full insertion timestamp. `createdOn` is date-only, so a batch synced in
+   * one go would tie — this is what makes "newest first" a stable order.
+   */
+  createdAt: string
   statusUpdatedOn: IsoDate
 }
 

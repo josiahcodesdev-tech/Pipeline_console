@@ -37,7 +37,13 @@ export type LeadDraft = Omit<Lead, 'id' | 'createdOn' | 'statusUpdatedOn'>
 // silently pull something out of the pipeline.
 export type RfpDraft = Omit<
   Rfp,
-  'id' | 'createdOn' | 'statusUpdatedOn' | 'sourced' | 'externalId' | 'inPipeline'
+  | 'id'
+  | 'createdOn'
+  | 'createdAt'
+  | 'statusUpdatedOn'
+  | 'sourced'
+  | 'externalId'
+  | 'inPipeline'
 >
 /** An RFP arriving from the CareerCraft feed, keyed for idempotent re-sync. */
 export type SyncedRfpDraft = RfpDraft & { externalId: string }
@@ -121,6 +127,7 @@ function toRfp(row: RfpRow): Rfp {
     serviceAreas: row.service_areas ?? '',
     externalId: row.external_id,
     createdOn: row.created_on,
+    createdAt: row.created_at,
     statusUpdatedOn: row.status_updated_on ?? '',
   }
 }
@@ -258,7 +265,9 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       supabase
         .from('rfps')
         .select('*')
-        .order('deadline', { ascending: true, nullsFirst: false }),
+        // Newest first — the views sort too, but this keeps the raw
+        // snapshot in the same order they present.
+        .order('created_at', { ascending: false }),
       toRfp,
       'migration 0001',
     ),

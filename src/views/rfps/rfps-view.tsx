@@ -99,8 +99,10 @@ export function RfpsView() {
         }
         return true
       })
-      // Undated RFPs sort last rather than first — they are not urgent.
-      .sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999'))
+      // Newest first: this page is a feed you triage as things arrive, so what
+      // just landed should be at the top. Deadline urgency is carried by the
+      // colour on the date, and by the dashboard's deadline panel.
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [rfps, search, status, hideInPipeline, typeFilter])
 
   async function handleImport() {

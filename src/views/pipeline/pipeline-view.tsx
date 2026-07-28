@@ -73,7 +73,8 @@ export function PipelineView() {
     () =>
       rfps
         .filter((rfp) => rfp.inPipeline)
-        .sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999')),
+        // Newest addition first, within each status section below.
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [rfps],
   )
 
