@@ -35,35 +35,59 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Unschedule first so re-running this file replaces the job rather than
--- stacking a second copy that would double every morning's work.
+-- Everything below is guarded on the placeholders having been replaced.
+--
+-- This file carries secrets it cannot supply itself, which makes it the one
+-- migration that must not run unattended — and `supabase db push` replays every
+-- migration in the folder without asking. Un-guarded, a push would unschedule a
+-- working job and replace it with one posting to a literal "<PROJECT_REF>" URL,
+-- silently killing the morning sync. So a push is now a no-op here, and the job
+-- is only ever created by pasting this file into the SQL Editor with the values
+-- filled in.
 do $$
+declare
+  project_ref constant text := '<PROJECT_REF>';
+  service_key constant text := '<SERVICE_ROLE_KEY>';
 begin
-  perform cron.unschedule('sync-opportunities-daily');
-exception
-  when others then null; -- not scheduled yet
+  if project_ref like '<%>' or service_key like '<%>' then
+    raise notice
+      'sync-opportunities-daily not scheduled: placeholders still present. Paste this file into the SQL Editor with your project ref and service-role key to schedule it.';
+    return;
+  end if;
+
+  -- Unschedule first so re-running this replaces the job rather than stacking a
+  -- second copy that would double every morning's work.
+  begin
+    perform cron.unschedule('sync-opportunities-daily');
+  exception
+    when others then null; -- not scheduled yet
+  end;
+
+  perform cron.schedule(
+    'sync-opportunities-daily',
+    '0 2 * * *',
+    format(
+      $job$
+      select net.http_post(
+        url     := %L,
+        headers := jsonb_build_object(
+          'Content-Type',  'application/json',
+          'Authorization', %L
+        ),
+        body    := '{}'::jsonb,
+        -- Five sources are fetched concurrently, but UNGM pages through its
+        -- results one request at a time and the insert runs once per user. The
+        -- default 5s is nowhere near enough, and a timeout here would look like
+        -- a silent no-op rather than a failure.
+        timeout_milliseconds := 180000
+      );
+      $job$,
+      'https://' || project_ref || '.supabase.co/functions/v1/sync-opportunities',
+      'Bearer ' || service_key
+    )
+  );
 end;
 $$;
-
-select cron.schedule(
-  'sync-opportunities-daily',
-  '0 2 * * *',
-  $$
-  select net.http_post(
-    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/sync-opportunities',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
-    ),
-    body    := '{}'::jsonb,
-    -- Six sources are fetched concurrently, but UNGM pages through its results
-    -- one request at a time and the insert runs once per user. The default 5s
-    -- is nowhere near enough, and a timeout here would look like a silent
-    -- no-op rather than a failure.
-    timeout_milliseconds := 180000
-  );
-  $$
-);
 
 -- Check it registered:
 --   select jobid, schedule, jobname, active from cron.job;
