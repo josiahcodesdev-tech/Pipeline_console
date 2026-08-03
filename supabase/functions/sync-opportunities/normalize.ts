@@ -217,6 +217,20 @@ const TRAINING = [
   "coaching", "mentorship", "mentoring", "facilitation", "facilitator",
   "trainer", "course", "certification", "skills development", "upskilling",
   "training of trainers", "tot ", "seminar", "short course", "induction",
+  // Corporate and institutional capacity building. Banks, SOEs and companies
+  // describe the same work in HR language rather than development language —
+  // "leadership development" and "organisational development" are the private
+  // sector's words for capacity building, and without them these assignments
+  // were being filtered out of feeds that already carried them.
+  "staff training", "employee training", "professional development",
+  "leadership development", "management development", "executive education",
+  "organisational development", "organizational development",
+  "institutional strengthening", "institutional development",
+  "change management", "training needs assessment", "training manual",
+  "training materials", "train the trainer", "knowledge transfer",
+  "competency framework", "learning management system", "soft skills",
+  "technical training", "refresher course", "capacity assessment",
+  "performance management", "talent development", "human resource development",
 ]
 
 /**
