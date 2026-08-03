@@ -258,9 +258,13 @@ Deno.serve(async (request: Request) => {
         fetched,
         added: addedForCaller,
         alreadyHave: Math.max(0, fetched - addedForCaller),
+        // Failures only. A source that is deliberately unconfigured — ReliefWeb
+        // without an appname — is a setting, not a fault, and warning about it
+        // on every single run would train people to ignore the warning. It is
+        // still in `sources` below for anyone actually looking.
         skipped: reports
-          .filter((report) => report.status !== "ok")
-          .map((report) => `${report.name}: ${report.detail ?? report.status}`),
+          .filter((report) => report.status === "failed")
+          .map((report) => `${report.name}: ${report.detail ?? "failed"}`),
         users: userIds.length,
         sources: reports,
         perUser: caller.scope === "all" ? perUser : undefined,

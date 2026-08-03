@@ -141,10 +141,10 @@ export function RfpsView({
     try {
       const outcome = await syncOpportunities()
       if (outcome.fetched === 0) {
-        toast.info('The CareerCraft feed returned nothing right now.')
+        toast.info('No opportunities came back from any source right now.')
       } else if (outcome.added === 0) {
         toast.info(
-          `Already up to date — all ${outcome.fetched} opportunities in the feed are in your tracker.`,
+          `Already up to date — all ${outcome.fetched} opportunities found are in your tracker.`,
         )
       } else {
         toast.success(
@@ -152,9 +152,11 @@ export function RfpsView({
             (outcome.alreadyHave ? ` · ${outcome.alreadyHave} already tracked` : ''),
         )
       }
+      // Whole sources, not rows — one entry here means one site could not be
+      // reached, and the others carried on without it.
       if (outcome.skipped.length) {
         toast.warning(
-          `${outcome.skipped.length} feed row${outcome.skipped.length === 1 ? '' : 's'} skipped (${outcome.skipped[0]})`,
+          `${outcome.skipped.length} source${outcome.skipped.length === 1 ? '' : 's'} unavailable (${outcome.skipped[0]})`,
         )
       }
       // The "Updated …" stamp is set inside syncOpportunities, so both this
