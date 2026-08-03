@@ -11,7 +11,12 @@ import type { Rfp } from './types'
 function inline(
   line: string,
   TextRun: typeof import('docx').TextRun,
-  options: { size?: number; bold?: boolean; color?: string } = {},
+  options: {
+    size?: number
+    bold?: boolean
+    color?: string
+    italics?: boolean
+  } = {},
 ) {
   return line.split('**').map(
     (part, index) =>
@@ -21,6 +26,7 @@ function inline(
         bold: options.bold || index % 2 === 1,
         size: options.size,
         color: options.color,
+        italics: options.italics,
       }),
   )
 }
@@ -50,32 +56,44 @@ function isTableRow(line: string): boolean {
 }
 
 /**
- * Vantage Africa's palette, read off the company profile and the MEIMS
- * proposal rather than guessed.
+ * The house style, taken from the AFSC fundraising proposal.
  *
- * Both documents agree on the core: gold is the signature accent and by far the
- * most-used colour in each, over dark brown text, with maroon and terracotta as
- * secondaries. The export previously used saddle brown (#8B4513) and a duller
- * gold (#C9A227) — the right family, but not the actual brand, and a brand
- * colour that is merely close reads as wrong.
+ * Not sampled from a rendering — read out of that file's own XML, so these are
+ * the exact values the document was built with rather than an eyeballed match.
+ * An earlier pass guessed at a brighter gold from a compressed PDF and was
+ * wrong; the real accent is noticeably more muted.
  *
- * Kept as named constants so the next brand change is one block, not a search
- * for hex strings.
+ * Usage counts in that document, which is also the hierarchy: maroon carries
+ * every heading and label, gold is the accent and rules, cream and tan
+ * alternate as table fills.
  */
 const BRAND = {
-  /** The signature accent. Rules, table headers, the cover band. */
-  gold: 'FAB517',
-  /** Headings and the darkest text. */
-  brown: '401612',
-  /** Secondary headings, so H1 and H2 are distinguishable at a glance. */
-  maroon: '50021A',
-  /** Used heavily in the company profile; carries the cover subtitle. */
-  terracotta: 'A45232',
-  /** Table header fill and other tints. */
-  cream: 'FFF1E6',
-  /** Running heads, captions, anything deliberately quiet. */
-  muted: '8A7966',
+  /** Headings, labels, header and footer. The dominant brand colour. */
+  maroon: '6B0F1A',
+  /** Accent: rules under headings, sub-headings, cover flourishes. */
+  gold: 'C5973A',
+  /** Alternating table rows and callout boxes. */
+  cream: 'F9F3E8',
+  /** The label column of a two-column table, a shade down from cream. */
+  tan: 'F5E6C8',
+  /** Body text. Deliberately not pure black. */
+  ink: '1A1A1A',
+  white: 'FFFFFF',
 } as const
+
+/**
+ * The single typeface, matching the template — every run in it is Arial.
+ *
+ * A previous version paired Cambria headings with Calibri body, which was a
+ * reasonable guess and not what the house actually uses.
+ */
+const FONT = 'Arial'
+
+/** Fixed house details, as they appear in the template's header and footer. */
+const ORG = 'Vantage Africa School of Leadership'
+const WEBSITE = 'www.vantageafricaleaders.com'
+const EMAIL = 'bkiarie@vantageafricaleaders.com'
+const ACCREDITATION = 'Accredited by: NITA | IHRM | TVETA | KASNEB | KISM'
 
 /**
  * Exports a proposal as .docx.
@@ -85,12 +103,10 @@ const BRAND = {
  * other half of that contract: without real Word headings and tables the buyer
  * receives a page of `##` and pipe characters.
  *
- * Typography follows the proposals actually sent: Cambria for headings, Calibri
- * for body. The covers of those were designed in Canva — GlacialIndifference
- * and CanvaSans appear in the font table — but a Canva cover is a flat image,
- * and Montserrat is not installed on most Windows machines. Naming a font the
- * reader does not have means Word silently substitutes one, so this uses the
- * two that ship with Office and are already in use in the body of those files.
+ * Layout follows the AFSC fundraising proposal: a typographic cover, an
+ * auto-built contents page, maroon section headings ruled in gold, tables with
+ * a maroon header row and alternating cream fills, and the house running head
+ * and footer on every page.
  *
  * `docx` is ~400 kB and only needed when someone actually exports, so it is
  * imported on demand rather than shipped in the main bundle.
@@ -112,7 +128,9 @@ export async function downloadProposalDocx(
       Paragraph,
       Table,
       TableCell,
+      TableOfContents,
       TableRow,
+      TabStopType,
       TextRun,
       WidthType,
     },
@@ -178,18 +196,26 @@ export async function downloadProposalDocx(
                         size: Math.floor(100 / width),
                         type: WidthType.PERCENTAGE,
                       },
-                      shading:
-                        rowIndex === 0 ? { fill: BRAND.cream } : undefined,
-                      margins: { top: 60, bottom: 60, left: 100, right: 100 },
+                      // Maroon header, then cream and white alternating —
+                      // banded rows are what keep a long work plan or risk
+                      // register readable across a page break.
+                      shading: {
+                        fill:
+                          rowIndex === 0
+                            ? BRAND.maroon
+                            : rowIndex % 2 === 1
+                              ? BRAND.white
+                              : BRAND.cream,
+                      },
+                      margins: { top: 80, bottom: 80, left: 120, right: 120 },
                       children: [
                         new Paragraph({
+                          alignment: AlignmentType.LEFT,
                           spacing: { before: 20, after: 20 },
                           children: inline(cell, TextRun, {
-                            size: 19,
+                            size: 18,
                             bold: rowIndex === 0,
-                            // Header row in brand brown so a work plan or risk
-                            // register reads as designed rather than defaulted.
-                            color: rowIndex === 0 ? BRAND.brown : undefined,
+                            color: rowIndex === 0 ? BRAND.white : BRAND.ink,
                           }),
                         }),
                       ],
@@ -249,17 +275,26 @@ export async function downloadProposalDocx(
       continue
     }
 
-    // Blockquote — the drafter uses these for positioning statements.
+    // Blockquote — the drafter uses these for positioning statements. The
+    // template renders the equivalent as a cream box with a gold keyline and
+    // maroon italic text, used to close a section with its point.
     const quote = /^\s*>\s?(.*)$/.exec(line)
     if (quote) {
       body.push(
         new Paragraph({
-          spacing: { after: 120 },
-          indent: { left: 360 },
+          spacing: { before: 160, after: 200 },
+          shading: { fill: BRAND.cream },
           border: {
-            left: { style: BorderStyle.SINGLE, size: 12, color: BRAND.gold, space: 12 },
+            top: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
+            left: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
+            right: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
           },
-          children: inline(quote[1], TextRun, { size: 21 }),
+          children: inline(quote[1], TextRun, {
+            size: 20,
+            italics: true,
+            color: BRAND.maroon,
+          }),
         }),
       )
       continue
@@ -279,39 +314,60 @@ export async function downloadProposalDocx(
     description: `Proposal to ${rfp.org}`,
     styles: {
       default: {
-        document: { run: { font: 'Calibri', size: 22, color: '241109' } },
-        // Cambria for headings against Calibri body — the pairing these
-        // proposals already use, and both ship with Office so nothing gets
-        // substituted on the buyer's machine.
-        heading1: {
-          run: { font: 'Cambria', size: 34, bold: true, color: BRAND.brown },
-          paragraph: { spacing: { before: 360, after: 160 } },
+        document: {
+          run: { font: FONT, size: 20, color: BRAND.ink },
+          // Justified body, as the template sets it.
+          paragraph: { alignment: AlignmentType.JUSTIFIED, spacing: { line: 276 } },
         },
+        // Section title: maroon, with the gold rule the template puts under
+        // every numbered section heading.
+        heading1: {
+          run: { font: FONT, size: 30, bold: true, color: BRAND.maroon },
+          paragraph: {
+            alignment: AlignmentType.LEFT,
+            spacing: { before: 240, after: 260 },
+            border: {
+              bottom: { style: BorderStyle.SINGLE, size: 10, color: BRAND.gold, space: 8 },
+            },
+          },
+        },
+        // Sub-headings are gold in the template — "Virtual Facilitation
+        // Methods", "Key Assumptions", "Post-Training Package".
         heading2: {
-          run: { font: 'Cambria', size: 27, bold: true, color: BRAND.maroon },
-          paragraph: { spacing: { before: 280, after: 120 } },
+          run: { font: FONT, size: 24, bold: true, color: BRAND.gold },
+          paragraph: { alignment: AlignmentType.LEFT, spacing: { before: 280, after: 120 } },
         },
         heading3: {
-          run: { font: 'Cambria', size: 23, bold: true, color: BRAND.terracotta },
+          run: { font: FONT, size: 21, bold: true, color: BRAND.maroon },
+          paragraph: { alignment: AlignmentType.LEFT, spacing: { before: 220, after: 100 } },
         },
         heading4: {
-          run: { font: 'Calibri', size: 22, bold: true, italics: true, color: BRAND.terracotta },
+          run: { font: FONT, size: 20, bold: true, italics: true, color: BRAND.maroon },
+          paragraph: { alignment: AlignmentType.LEFT },
         },
       },
     },
     sections: [
       {
         properties: { page: { margin: { top: 1000, bottom: 1000, left: 1000, right: 1000 } } },
+        // Running head: the house name in bold maroon, the assignment after a
+        // divider, ruled off in gold — as in the template, on every page.
         headers: {
           default: new Header({
             children: [
               new Paragraph({
-                alignment: AlignmentType.RIGHT,
+                alignment: AlignmentType.LEFT,
+                spacing: { after: 60 },
+                border: {
+                  bottom: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 4 },
+                },
                 children: [
+                  new TextRun({ text: ORG, bold: true, size: 15, color: BRAND.maroon }),
+                  new TextRun({ text: '  |  ', size: 15, color: BRAND.gold }),
                   new TextRun({
-                    text: rfp.title.slice(0, 90),
-                    size: 16,
-                    color: BRAND.muted,
+                    text: `Technical Proposal: ${rfp.title}`.slice(0, 110),
+                    size: 15,
+                    color: BRAND.maroon,
                   }),
                 ],
               }),
@@ -322,114 +378,194 @@ export async function downloadProposalDocx(
           default: new Footer({
             children: [
               new Paragraph({
-                alignment: AlignmentType.CENTER,
+                alignment: AlignmentType.LEFT,
+                border: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: BRAND.gold, space: 6 },
+                },
+                // A right-aligned tab stop puts the page number on the far edge
+                // while the contact details stay left, which is the template's
+                // arrangement.
+                tabStops: [{ type: TabStopType.RIGHT, position: 9020 }],
                 children: [
-                  new TextRun({
-                    text: 'Vantage Africa School of Leadership · Confidential · Page ',
-                    size: 16,
-                    color: BRAND.muted,
-                  }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 16, color: BRAND.muted }),
-                  new TextRun({ text: ' of ', size: 16, color: BRAND.muted }),
-                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: BRAND.muted }),
+                  new TextRun({ text: WEBSITE, size: 15, color: BRAND.maroon }),
+                  new TextRun({ text: '  |  ', size: 15, color: BRAND.gold }),
+                  new TextRun({ text: EMAIL, size: 15, color: BRAND.maroon }),
+                  new TextRun({ text: '\tPage ', size: 15, color: BRAND.maroon }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 15, color: BRAND.maroon }),
+                  new TextRun({ text: ' of ', size: 15, color: BRAND.maroon }),
+                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 15, color: BRAND.maroon }),
                 ],
               }),
             ],
           }),
         },
         children: [
-          // Cover.
-          //
-          // Typographic rather than illustrated. The sent proposals use a Canva
-          // cover, which is a flat image this cannot regenerate — and a
-          // half-imitated version of a designed page looks worse than a clean
-          // one. So this builds a disciplined cover from the brand palette:
-          // gold rules top and bottom, the assignment large in brown, the
-          // client in terracotta. Drop a exported cover PNG in and it can be
-          // swapped for an ImageRun instead.
-          new Paragraph({ spacing: { before: 900 }, children: [] }),
+          // ------------------------------------------------------- cover ---
+          // Laid out as the template does it: house name in gold caps, a
+          // ruled-off label, the assignment large in maroon, then a two-column
+          // block pairing who is submitting with who is receiving.
+          new Paragraph({ spacing: { before: 700 }, children: [] }),
           new Paragraph({
-            spacing: { after: 300 },
-            border: {
-              bottom: { style: BorderStyle.SINGLE, size: 18, color: BRAND.gold, space: 1 },
-            },
-            children: [],
-          }),
-          new Paragraph({
-            spacing: { after: 220 },
-            children: [
-              new TextRun({
-                text: 'TECHNICAL PROPOSAL',
-                bold: true,
-                font: 'Cambria',
-                size: 22,
-                color: BRAND.terracotta,
-                // Letter-spaced, which is what makes a short label read as a
-                // designed element rather than a stray line of text.
-                characterSpacing: 60,
-              }),
-            ],
-          }),
-          new Paragraph({
+            alignment: AlignmentType.CENTER,
             spacing: { after: 260 },
             children: [
               new TextRun({
-                text: rfp.title,
+                text: ORG.toUpperCase(),
                 bold: true,
-                font: 'Cambria',
-                size: 44,
-                color: BRAND.brown,
+                size: 26,
+                color: BRAND.gold,
+                // Letter-spacing is what makes a short caps line read as a
+                // designed element rather than a stray sentence.
+                characterSpacing: 40,
               }),
             ],
           }),
-          rfp.org
-            ? new Paragraph({
-                spacing: { after: 320 },
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 320 },
+            border: {
+              bottom: { style: BorderStyle.SINGLE, size: 8, color: BRAND.gold, space: 10 },
+            },
+            children: [
+              new TextRun({ text: 'Technical Proposal for:', size: 22, color: BRAND.ink }),
+            ],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 300 },
+            children: [
+              new TextRun({ text: rfp.title, bold: true, size: 44, color: BRAND.maroon }),
+            ],
+          }),
+          ...(rfp.serviceAreas.trim()
+            ? [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 420 },
+                  children: [
+                    new TextRun({
+                      text: rfp.serviceAreas,
+                      italics: true,
+                      size: 22,
+                      color: BRAND.ink,
+                    }),
+                  ],
+                }),
+              ]
+            : [new Paragraph({ spacing: { after: 300 }, children: [] })]),
+
+          // Prepared by / Submitted to, as a two-column block. Maroon panel
+          // against a cream one is the template's strongest cover device.
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
                 children: [
-                  new TextRun({
-                    text: `Submitted to ${rfp.org}`,
-                    font: 'Cambria',
-                    size: 26,
-                    color: BRAND.maroon,
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    shading: { fill: BRAND.maroon },
+                    margins: { top: 200, bottom: 200, left: 160, right: 160 },
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 120 },
+                        children: [
+                          new TextRun({ text: 'Prepared by:', bold: true, size: 20, color: BRAND.gold }),
+                        ],
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: ORG, bold: true, size: 20, color: BRAND.white }),
+                        ],
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: EMAIL, size: 18, color: BRAND.gold }),
+                        ],
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: WEBSITE, size: 18, color: BRAND.gold }),
+                        ],
+                      }),
+                    ],
+                  }),
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    shading: { fill: BRAND.cream },
+                    margins: { top: 200, bottom: 200, left: 160, right: 160 },
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 120 },
+                        children: [
+                          new TextRun({ text: 'Submitted to:', bold: true, size: 20, color: BRAND.maroon }),
+                        ],
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({
+                            text: rfp.org || 'The issuing organization',
+                            bold: true,
+                            size: 20,
+                            color: BRAND.maroon,
+                          }),
+                        ],
+                      }),
+                      ...meta.map(
+                        (line) =>
+                          new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            children: [new TextRun({ text: line, size: 17, color: BRAND.ink })],
+                          }),
+                      ),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 80 },
+                        children: [
+                          new TextRun({
+                            text: formatDateLong(new Date().toISOString().slice(0, 10)),
+                            size: 18,
+                            color: BRAND.ink,
+                          }),
+                        ],
+                      }),
+                    ],
                   }),
                 ],
-              })
-            : new Paragraph({ children: [] }),
-          ...meta.map(
-            (line) =>
-              new Paragraph({
-                spacing: { after: 80 },
-                children: [new TextRun({ text: line, size: 20, color: BRAND.muted })],
               }),
-          ),
+            ],
+          }),
+
           new Paragraph({
-            spacing: { before: 520, after: 160 },
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 520 },
             border: {
-              top: { style: BorderStyle.SINGLE, size: 18, color: BRAND.gold, space: 12 },
+              top: { style: BorderStyle.SINGLE, size: 4, color: BRAND.gold, space: 10 },
             },
-            children: [],
-          }),
-          new Paragraph({
             children: [
-              new TextRun({
-                text: 'Vantage Africa School of Leadership',
-                bold: true,
-                font: 'Cambria',
-                size: 24,
-                color: BRAND.brown,
-              }),
+              new TextRun({ text: ACCREDITATION, bold: true, size: 18, color: BRAND.maroon }),
             ],
           }),
+
+          // ---------------------------------------------------- contents ---
+          // A real Word field rather than a written-out list, so it renumbers
+          // itself when the document is edited. Word asks to update fields on
+          // open; until then it shows the placeholder below.
           new Paragraph({
-            spacing: { after: 400 },
-            children: [
-              new TextRun({
-                text: `${formatDateLong(new Date().toISOString().slice(0, 10))} · Confidential`,
-                size: 18,
-                color: BRAND.muted,
-              }),
-            ],
+            pageBreakBefore: true,
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: 'Contents' })],
           }),
+          new TableOfContents('Right-click and choose "Update Field" to build the contents.', {
+            hyperlink: true,
+            headingStyleRange: '1-3',
+          }),
+
           new Paragraph({ pageBreakBefore: true, children: [] }),
           ...body,
         ],
