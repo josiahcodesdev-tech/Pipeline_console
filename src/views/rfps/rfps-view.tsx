@@ -40,6 +40,21 @@ function deadlineClass(days: number | null): string {
   return ''
 }
 
+/**
+ * `serviceAreas` is stored comma-joined ("Training & Capacity Building, M&E");
+ * this is its parsed form.
+ *
+ * Filtering matches whole entries rather than substrings, so picking
+ * "Research & Assessment" cannot also drag in unrelated areas that happen to
+ * share a word.
+ */
+function areasOf(rfp: Rfp): string[] {
+  return rfp.serviceAreas
+    .split(',')
+    .map((area) => area.trim())
+    .filter(Boolean)
+}
+
 /** "just now" / "14 minutes ago" / "3 hours ago" — enough for a status line. */
 function relativeTime(epochMs: number): string {
   const seconds = Math.round((Date.now() - epochMs) / 1000)
@@ -79,6 +94,8 @@ export function RfpsView({
   // September — so the list has to filter as well.
   const [hideExpired, setHideExpired] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
+  // Which kind of work: corporate training, M&E, research and so on.
+  const [areaFilter, setAreaFilter] = useState<string>('all')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -107,6 +124,20 @@ export function RfpsView({
 
   const closedCount = useMemo(() => rfps.filter(isClosed).length, [rfps])
 
+  /**
+   * Built from the data, not hardcoded.
+   *
+   * Rows synced before the current taxonomy carry their own labels ("M&E"
+   * rather than "Monitoring & Evaluation"), and a fixed list would silently
+   * make those unreachable. This also means the filter gains new areas by
+   * itself as the tagging in the Edge Function grows.
+   */
+  const serviceAreaOptions = useMemo(() => {
+    const found = new Set<string>()
+    for (const rfp of rfps) for (const area of areasOf(rfp)) found.add(area)
+    return [...found].sort((a, b) => a.localeCompare(b))
+  }, [rfps])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rfps
@@ -115,6 +146,7 @@ export function RfpsView({
         if (hideInPipeline && rfp.inPipeline) return false
         if (hideExpired && isClosed(rfp)) return false
         if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
+        if (areaFilter !== 'all' && !areasOf(rfp).includes(areaFilter)) return false
         if (
           term &&
           !rfp.title.toLowerCase().includes(term) &&
@@ -137,7 +169,7 @@ export function RfpsView({
         }
         return b.createdAt.localeCompare(a.createdAt)
       })
-  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter])
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter])
 
   async function handleImport() {
     setImporting(true)
@@ -301,6 +333,17 @@ export function RfpsView({
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
+        {/* Hidden until something is actually tagged, so a fresh tracker does
+            not show a filter with nothing but "All" behind it. */}
+        {serviceAreaOptions.length > 0 && (
+          <FilterSelect
+            value={areaFilter}
+            options={serviceAreaOptions}
+            onChange={setAreaFilter}
+            allLabel="All service areas"
+            ariaLabel="Filter by service area"
+          />
+        )}
         {/* The feed's own label. ReliefWeb files consultancy work under "job",
             so this narrows the list without being trusted as ground truth. */}
         <div className="flex rounded-lg border border-border bg-card p-0.5">
