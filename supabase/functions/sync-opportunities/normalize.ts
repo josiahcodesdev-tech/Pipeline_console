@@ -225,7 +225,10 @@ const TRAINING = [
   "staff training", "employee training", "professional development",
   "leadership development", "management development", "executive education",
   "organisational development", "organizational development",
-  "institutional strengthening", "institutional development",
+  // "institutional development" is deliberately absent: it names a whole class
+  // of donor project ("Water Sector Institutional Development Project") and
+  // tagged procurement audits as training.
+  "institutional strengthening",
   "change management", "training needs assessment", "training manual",
   "training materials", "train the trainer", "knowledge transfer",
   "competency framework", "learning management system", "soft skills",
@@ -280,26 +283,77 @@ export function isRelevant(...parts: string[]): boolean {
   )
 }
 
-/** Tags the row so the Training/M&E service-area filters are populated. */
+/**
+ * Tags the row with the kind of work it is, which is what the tracker's service
+ * area filter offers — "is this a training contract or an evaluation?".
+ *
+ * A notice can carry more than one: a baseline study that also delivers a
+ * training workshop is genuinely both, and forcing a single label would lose
+ * that. Untagged is a real answer too — plenty of consultancy fits none of
+ * these, and inventing a category for it would make the filter lie.
+ */
 export function serviceAreasFor(...parts: string[]): string {
   const haystack = parts.join(" ").toLowerCase()
   const areas: string[] = []
   const any = (...terms: string[]) => terms.some((t) => haystack.includes(t))
 
-  if (any("training", "capacity building", "capacity development", "curriculum", "workshop", "course")) {
+  // Reuses the relevance vocabulary rather than keeping a second, narrower copy
+  // of it. They had drifted: corporate wording like "leadership development"
+  // was good enough to let a notice IN, but not to tag it as training, so it
+  // arrived and then hid from the training filter.
+  if (TRAINING.some((term) => haystack.includes(term))) {
     areas.push("Training & Capacity Building")
   }
-  if (any("monitoring", "evaluation", "m&e", "mel ", "baseline", "endline", "midterm", "mid-term")) {
+  // Bare "monitoring" is deliberately absent — it caught construction and
+  // environmental monitoring, which are not this line of work. "impact
+  // assessment" is out for the same reason: in these feeds it is nearly always
+  // an ESIA, not an impact evaluation.
+  if (any(
+    "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
+    "evaluation", "baseline", "endline", "midterm", "mid-term",
+    "results framework", "learning agenda", "impact evaluation",
+  )) {
     areas.push("Monitoring & Evaluation")
   }
-  if (any("research", "study", "survey", "assessment", "analysis", "diagnostic")) {
+  if (any("research", "study", "survey", "assessment", "analysis", "diagnostic", "mapping")) {
     areas.push("Research & Assessment")
   }
   if (any("strategy", "strategic plan", "policy", "institutional", "governance")) {
     areas.push("Strategy & Policy")
   }
-  if (any("climate", "environment", "biodiversity", "conservation", "nature")) {
+  if (any("climate", "environment", "biodiversity", "conservation", "nature", "resilience")) {
     areas.push("Climate & Environment")
+  }
+  // The areas below exist mostly so the filter can be used the other way — to
+  // put aside the engineering and ICT work this business does not bid on. With
+  // only the five categories above, two thirds of the tracker was untagged and
+  // therefore unreachable by any filter choice.
+  if (any("procurement", "supply chain", "tendering", "bid evaluation", "sourcing")) {
+    areas.push("Procurement")
+  }
+  if (any("audit", "financial management", "accounting", "actuarial", "taxation", "budgeting")) {
+    areas.push("Finance & Audit")
+  }
+  if (any(
+    "software", "digital", " ict", "information system", "database",
+    "website", "web platform", "cyber", "data platform", "automation",
+  )) {
+    areas.push("ICT & Digital")
+  }
+  if (any("gender", "social inclusion", "disability", "safeguard", "gesi")) {
+    areas.push("Gender & Inclusion")
+  }
+  if (any("communication", "media", "branding", "graphic design", "translation", "storytelling")) {
+    areas.push("Communications")
+  }
+  if (any("engineering", "architect", "structural design", "feasibility", "supervision of works")) {
+    areas.push("Engineering & Infrastructure")
+  }
+  if (any("health", "medical", "nutrition", "hiv", "malaria", "immunis", "immuniz")) {
+    areas.push("Health")
+  }
+  if (any("education", "school", "teacher", "literacy", "curriculum")) {
+    areas.push("Education")
   }
   return areas.join(", ")
 }
