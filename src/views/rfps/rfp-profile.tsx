@@ -153,10 +153,11 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         // rather than after a minute of a disabled button.
         (_chunk, soFar) => setDraftPreview(soFar),
       )
-      // Saved before the download so a slow or cancelled save cannot lose the
-      // generated text — the whole point of keeping drafts on the profile.
+      // Saved, but deliberately not downloaded. A draft is worth reading before
+      // it is worth keeping, and firing a .docx into the downloads folder on
+      // every attempt left a trail of near-identical files to sort out later.
+      // The preview panel and the list below both offer the download.
       await saveDraftProposal(rfp.id, `Draft — ${formatDateWithYear(new Date().toISOString().slice(0, 10))}`, result.text)
-      await downloadProposalDocx(rfp, result.text)
       setPlaybooks(result.playbooks)
       if (result.truncated) {
         toast.warning('The draft hit the length limit — check the ending.')
@@ -257,7 +258,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                     Writing…
                   </>
                 ) : (
-                  'Draft ready · saved and downloaded'
+                  'Draft ready · saved to this RFP'
                 )}
               </p>
               <p className="truncate text-xs text-faint">{rfp.title}</p>
@@ -297,11 +298,24 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             </div>
           </div>
 
-          <footer className="border-t border-border px-4 py-2.5 text-[10.5px] text-faint">
-            {draftPreview.trim()
-              ? `${draftPreview.trim().split(/\s+/).length.toLocaleString()} words`
-              : 'Starting…'}
-            {!drafting && ' · Word file is in your downloads'}
+          <footer className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+            <span className="text-[10.5px] text-faint">
+              {draftPreview.trim()
+                ? `${draftPreview.trim().split(/\s+/).length.toLocaleString()} words`
+                : 'Starting…'}
+              {!drafting && draftPreview.trim() && ' · saved to this RFP'}
+            </span>
+            {/* Downloading is a decision, not a side effect of drafting. */}
+            {!drafting && draftPreview.trim() && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => void downloadProposalDocx(rfp, draftPreview)}
+              >
+                <DownloadIcon />
+                Download Word
+              </Button>
+            )}
           </footer>
         </aside>
       )}
@@ -356,8 +370,8 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Writes a full technical proposal against this notice — method,
               work plan, team, risk and QA — plus internal bid-readiness notes
-              listing what you still have to supply. Downloads as Word and keeps
-              a copy below.
+              listing what you still have to supply. Appears as it is written,
+              and is kept below; download it as Word when you want it.
             </p>
             <Button onClick={() => void handleDraft()} disabled={drafting}>
               <SparklesIcon />
