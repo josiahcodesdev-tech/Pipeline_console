@@ -11,10 +11,15 @@
  * Guidance page, the model-answer stars, and pasting a past proposal as
  * training material.
  *
- * Off for now. Already-saved proposals stay visible and downloadable, and
- * uploading a sent proposal still works: those are bid history, not drafting.
+ * On. Drafting runs in the `concept-note` Edge Function, so it needs that
+ * deployed and OPENAI_API_KEY set as a function secret — the key is never in
+ * the browser bundle.
+ *
+ * Turning this off hides the drafter and the model-answer stars but keeps
+ * every saved proposal visible and downloadable: those are bid history, not
+ * drafting.
  */
-export const PROPOSAL_DRAFTING = false
+export const PROPOSAL_DRAFTING = true
 
 /**
  * Pulling RFPs from the procurement sources — the scheduled 05:00 run, the sync
