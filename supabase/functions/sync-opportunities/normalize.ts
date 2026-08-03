@@ -199,42 +199,123 @@ export function mentionsKenya(...parts: string[]): boolean {
  * notices — mostly roads, generators and school furniture. Without this filter
  * the tracker is unusable, so every source runs through it.
  */
-const CONSULTANCY = [
-  "consultan", "consulting", "expression of interest", "request for proposal",
-  "technical assistance", "advisory", "advisor", "adviser", "specialist",
-  "expert", "feasibility", "study", "studies", "assessment", "evaluation",
-  "evaluator", "review", "survey", "baseline", "endline", "midterm",
-  "mid-term", "research", "analysis", "diagnostic", "audit", "strategy",
-  "strategic plan", "design of", "scoping", "mapping", "due diligence",
-  "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
-  "knowledge management", "policy development", "institutional support",
-  "individual consultant", "firm to conduct", "terms of reference",
+/**
+ * What Vantage Africa actually delivers, taken from vantageafricaleaders.com.
+ *
+ * This replaced a generic consultancy keyword list, which let in every advisory
+ * assignment on earth — environmental impact studies, procurement specialists,
+ * legal advisors, engineering design. All real consultancy; none of it work
+ * this firm can bid. A tracker full of assignments you cannot deliver costs
+ * more attention than it saves.
+ *
+ * One list, two jobs: it decides whether a notice is worth importing at all,
+ * and it supplies the service-area tag. Those were previously separate
+ * vocabularies and they drifted — corporate wording was good enough to let a
+ * notice in but not to tag it, so it arrived and then hid from its own filter.
+ * Keeping them as one map means that cannot happen again.
+ *
+ * `label` is what appears in the tracker's service-area filter.
+ */
+const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> = [
+  {
+    // The flagship. Eval 360, VAMEPA and most of the case studies sit here.
+    label: "Monitoring & Evaluation",
+    terms: [
+      "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
+      "meal ", "evaluation", "evaluator", "baseline", "endline", "midterm",
+      "mid-term", "logframe", "logical framework", "theory of change",
+      "results framework", "results-based", "impact evaluation", "indicator",
+      "performance tracking", "learning agenda", "accountability and learning",
+    ],
+  },
+  {
+    label: "Leadership & Governance",
+    terms: [
+      "leadership", "governance", "board development", "board training",
+      "executive development", "executive education", "management development",
+      "supervisory skills", "management training", "corporate governance",
+    ],
+  },
+  {
+    label: "Project Management",
+    terms: [
+      "project management", "programme management", "program management",
+      "project planning", "project cycle", "contract management",
+      "prince2", "pmp ", "project implementation support",
+    ],
+  },
+  {
+    // Data work specifically, NOT research in general. A first pass had bare
+    // "survey", "study", "assessment" and "research" here and this became a
+    // catch-all: it matched 27 of 49 notices, among them a land survey and an
+    // environmental impact assessment. Baseline and endline surveys are still
+    // caught — by Monitoring & Evaluation, where they belong.
+    label: "Data & Analysis",
+    terms: [
+      "data analysis", "data analytics", "data science", "business intelligence",
+      "dashboard", "data visualisation", "data visualization",
+      "statistical analysis", "data management", "data quality",
+      "data collection tool", "survey design", "research design",
+      "knowledge product", "data system",
+    ],
+  },
+  {
+    label: "Proposal Writing & Fundraising",
+    terms: [
+      "proposal writing", "fundraising", "fund raising", "resource mobilisation",
+      "resource mobilization", "grant writing", "grant management",
+      "donor engagement", "concept note", "bid writing",
+    ],
+  },
+  {
+    label: "Digital & AI Skills",
+    terms: [
+      "digital skills", "digital literacy", "artificial intelligence",
+      "ai-augmented", "e-learning", "elearning", "learning management system",
+      "digital productivity", "digital transformation",
+    ],
+  },
+  {
+    label: "Institutional Capacity Building",
+    terms: [
+      "capacity building", "capacity development", "capacity-building",
+      "capacity assessment", "capacity strengthening", "institutional strengthening",
+      "organisational development", "organizational development",
+      "systems strengthening", "institutional support", "change management",
+      "knowledge management", "knowledge transfer",
+    ],
+  },
+  {
+    label: "Strategy & Performance",
+    terms: [
+      "strategic plan", "strategy development", "strategic management",
+      "performance management", "performance improvement", "appraisal",
+      "balanced scorecard", "policy development", "operational review",
+      "institutional performance", "competency framework",
+    ],
+  },
+  {
+    label: "Training & Facilitation",
+    terms: [
+      "training", "curriculum", "workshop", "facilitation", "facilitator",
+      "trainer", "train the trainer", "training of trainers",
+      "skills development", "upskilling", "short course", "certification",
+      "coaching", "mentorship", "mentoring", "seminar", "induction",
+      "staff training", "employee training", "professional development",
+      "training needs assessment", "training manual", "training materials",
+      "refresher course", "soft skills",
+    ],
+  },
 ]
 
-const TRAINING = [
-  "training", "capacity building", "capacity development", "capacity-building",
-  "workshop", "curriculum", "e-learning", "elearning", "learning and development",
-  "coaching", "mentorship", "mentoring", "facilitation", "facilitator",
-  "trainer", "course", "certification", "skills development", "upskilling",
-  "training of trainers", "tot ", "seminar", "short course", "induction",
-  // Corporate and institutional capacity building. Banks, SOEs and companies
-  // describe the same work in HR language rather than development language —
-  // "leadership development" and "organisational development" are the private
-  // sector's words for capacity building, and without them these assignments
-  // were being filtered out of feeds that already carried them.
-  "staff training", "employee training", "professional development",
-  "leadership development", "management development", "executive education",
-  "organisational development", "organizational development",
-  // "institutional development" is deliberately absent: it names a whole class
-  // of donor project ("Water Sector Institutional Development Project") and
-  // tagged procurement audits as training.
-  "institutional strengthening",
-  "change management", "training needs assessment", "training manual",
-  "training materials", "train the trainer", "knowledge transfer",
-  "competency framework", "learning management system", "soft skills",
-  "technical training", "refresher course", "capacity assessment",
-  "performance management", "talent development", "human resource development",
-]
+/** Every capability this notice touches, by label. Empty means out of scope. */
+export function matchCapabilities(...parts: string[]): string[] {
+  const haystack = parts.join(" ").toLowerCase()
+  if (!haystack.trim()) return []
+  return CAPABILITIES.filter((capability) =>
+    capability.terms.some((term) => haystack.includes(term)),
+  ).map((capability) => capability.label)
+}
 
 /**
  * Hard excludes, checked first.
@@ -267,95 +348,41 @@ const NOT_OUR_WORK = [
 ]
 
 /**
- * Does this notice describe consultancy or training work?
+ * Is this work Vantage Africa could actually bid and deliver?
  *
- * Sources that can filter structurally should do so instead — World Bank's
- * `procurement_group=CS` is a far better signal than any keyword list. This is
- * for the sources that hand over everything and leave the sorting to us.
+ * Two gates. The notice must not be something nobody here bids — goods, works,
+ * a supplier registration drive — and it must touch at least one capability the
+ * firm sells.
+ *
+ * That second gate is the change worth understanding. This used to ask only
+ * "is it consultancy or training?", which is equally true of environmental
+ * impact studies, engineering supervision and legal advisory, and every one of
+ * those landed in the tracker to be read and discarded by hand. Requiring a
+ * capability match is narrower on purpose: fewer notices, nearly all biddable.
+ * A missed opportunity is a real cost, so CAPABILITIES is written generously
+ * with synonyms — but a tracker nobody trusts enough to read is worse than a
+ * slightly short one.
  */
 export function isRelevant(...parts: string[]): boolean {
   const haystack = parts.join(" ").toLowerCase()
   if (!haystack.trim()) return false
   if (NOT_OUR_WORK.some((term) => haystack.includes(term))) return false
-  return (
-    CONSULTANCY.some((term) => haystack.includes(term)) ||
-    TRAINING.some((term) => haystack.includes(term))
-  )
+  return matchCapabilities(haystack).length > 0
 }
 
 /**
- * Tags the row with the kind of work it is, which is what the tracker's service
- * area filter offers — "is this a training contract or an evaluation?".
+ * The service areas this notice touches, comma-joined for the tracker's filter.
  *
- * A notice can carry more than one: a baseline study that also delivers a
- * training workshop is genuinely both, and forcing a single label would lose
- * that. Untagged is a real answer too — plenty of consultancy fits none of
- * these, and inventing a category for it would make the filter lie.
+ * Deliberately the same capability map that decided the notice was relevant in
+ * the first place. A row can therefore never be imported as training work and
+ * then fail to appear under the training filter — which is exactly what
+ * happened while these were two separate lists.
+ *
+ * A notice can carry several: a baseline study that also runs a workshop is
+ * genuinely both, and forcing one label would lose that.
  */
 export function serviceAreasFor(...parts: string[]): string {
-  const haystack = parts.join(" ").toLowerCase()
-  const areas: string[] = []
-  const any = (...terms: string[]) => terms.some((t) => haystack.includes(t))
-
-  // Reuses the relevance vocabulary rather than keeping a second, narrower copy
-  // of it. They had drifted: corporate wording like "leadership development"
-  // was good enough to let a notice IN, but not to tag it as training, so it
-  // arrived and then hid from the training filter.
-  if (TRAINING.some((term) => haystack.includes(term))) {
-    areas.push("Training & Capacity Building")
-  }
-  // Bare "monitoring" is deliberately absent — it caught construction and
-  // environmental monitoring, which are not this line of work. "impact
-  // assessment" is out for the same reason: in these feeds it is nearly always
-  // an ESIA, not an impact evaluation.
-  if (any(
-    "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
-    "evaluation", "baseline", "endline", "midterm", "mid-term",
-    "results framework", "learning agenda", "impact evaluation",
-  )) {
-    areas.push("Monitoring & Evaluation")
-  }
-  if (any("research", "study", "survey", "assessment", "analysis", "diagnostic", "mapping")) {
-    areas.push("Research & Assessment")
-  }
-  if (any("strategy", "strategic plan", "policy", "institutional", "governance")) {
-    areas.push("Strategy & Policy")
-  }
-  if (any("climate", "environment", "biodiversity", "conservation", "nature", "resilience")) {
-    areas.push("Climate & Environment")
-  }
-  // The areas below exist mostly so the filter can be used the other way — to
-  // put aside the engineering and ICT work this business does not bid on. With
-  // only the five categories above, two thirds of the tracker was untagged and
-  // therefore unreachable by any filter choice.
-  if (any("procurement", "supply chain", "tendering", "bid evaluation", "sourcing")) {
-    areas.push("Procurement")
-  }
-  if (any("audit", "financial management", "accounting", "actuarial", "taxation", "budgeting")) {
-    areas.push("Finance & Audit")
-  }
-  if (any(
-    "software", "digital", " ict", "information system", "database",
-    "website", "web platform", "cyber", "data platform", "automation",
-  )) {
-    areas.push("ICT & Digital")
-  }
-  if (any("gender", "social inclusion", "disability", "safeguard", "gesi")) {
-    areas.push("Gender & Inclusion")
-  }
-  if (any("communication", "media", "branding", "graphic design", "translation", "storytelling")) {
-    areas.push("Communications")
-  }
-  if (any("engineering", "architect", "structural design", "feasibility", "supervision of works")) {
-    areas.push("Engineering & Infrastructure")
-  }
-  if (any("health", "medical", "nutrition", "hiv", "malaria", "immunis", "immuniz")) {
-    areas.push("Health")
-  }
-  if (any("education", "school", "teacher", "literacy", "curriculum")) {
-    areas.push("Education")
-  }
-  return areas.join(", ")
+  return matchCapabilities(...parts).join(', ')
 }
 
 /**

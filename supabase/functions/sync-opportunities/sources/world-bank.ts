@@ -19,6 +19,7 @@
 import {
   type Notice,
   decodeEntities,
+  isRelevant,
   parseDate,
   serviceAreasFor,
   stillOpen,
@@ -75,6 +76,13 @@ export function parseWorldBank(payload: unknown, now = new Date()): Notice[] {
 
     const country = decodeEntities(text(item.project_ctry_name))
     const org = decodeEntities(text(item.contact_organization)) || "World Bank"
+
+    // `procurement_group=CS` proves it is consultancy, not that it is OUR
+    // consultancy — the same bucket carries environmental impact studies,
+    // procurement specialists and engineering design. This source used to skip
+    // isRelevant on the strength of the structural filter alone, which is why
+    // the tracker filled with advisory work nobody here could bid.
+    if (!isRelevant(title)) continue
 
     notices.push({
       externalId: `worldbank:${id}`,
