@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   CheckIcon,
+  ChevronRightIcon,
   ClipboardListIcon,
   ExternalLinkIcon,
   PlusIcon,
@@ -241,8 +242,8 @@ export function RfpsView({
         title="Opportunity tracker"
         description={
           OPPORTUNITY_SYNC
-            ? 'Consultancy and training opportunities pulled every morning from World Bank, UNDP, UNGM and others. Click a title to open the original notice, and Add the ones worth bidding.'
-            : 'Every opportunity you are tracking — tenders and consultancy assignments alike. Click a title to open the original notice, and Add the ones worth bidding.'
+            ? 'Consultancy and training opportunities pulled every morning from World Bank, UNDP, UNGM and others. Open a row to see the record and draft a proposal; the title link goes to the original notice.'
+            : 'Every opportunity you are tracking — tenders and consultancy assignments alike. Open a row to see the record and draft a proposal; the title link goes to the original notice.'
         }
         meta={
           <span className="text-[11px] text-muted-foreground">
@@ -395,6 +396,12 @@ export function RfpsView({
               <TableHead>Source</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Pipeline</TableHead>
+              {/* The whole row opens the record, but that is an invisible
+                  gesture — and the title next to it is a link to the external
+                  notice that stops propagation, so the most obvious thing to
+                  click is the one thing that does NOT open it. This column
+                  makes the way in visible. */}
+              <TableHead className="text-right">Open</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -488,6 +495,17 @@ export function RfpsView({
                       Add
                     </button>
                   )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => onOpenProfile(rfp.id)}
+                    title="Open the record — activity, proposals and the drafter"
+                    className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary"
+                  >
+                    Open
+                    <ChevronRightIcon className="size-3" />
+                  </button>
                 </TableCell>
               </TableRow>
             ))}
