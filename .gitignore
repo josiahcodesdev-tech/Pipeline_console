@@ -32,3 +32,6 @@ supabase/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Filled-in copies of migrations that carry secrets. Never commit these.
+*.local.sql
