@@ -1,4 +1,4 @@
-import { LogOutIcon } from 'lucide-react'
+import { LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import type { ViewId } from '@/lib/nav'
@@ -7,9 +7,12 @@ import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 export function AppSidebar({
   current,
   onNavigate,
+  onCollapse,
 }: {
   current: ViewId
   onNavigate: (id: ViewId) => void
+  /** Hides the sidebar, leaving a hamburger in the corner to bring it back. */
+  onCollapse: () => void
 }) {
   const { session, signOut } = useAuth()
 
@@ -27,7 +30,7 @@ export function AppSidebar({
         >
           JM
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="font-display text-[17px] leading-tight text-foreground">
             Pipeline Console
           </h1>
@@ -37,6 +40,15 @@ export function AppSidebar({
             Corporate Dept · BDE
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label="Hide navigation"
+          title="Hide navigation"
+          className="-mr-1 mt-0.5 shrink-0 cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <PanelLeftCloseIcon className="size-4" />
+        </button>
       </div>
 
       <nav className="flex flex-col gap-0.5">

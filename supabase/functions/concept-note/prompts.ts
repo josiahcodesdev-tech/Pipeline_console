@@ -90,6 +90,23 @@ Your goal is not attractive writing. It is a compliant, credible, differentiated
 
 ${HONESTY}
 
+## How the buyer will score this
+
+Most published notices omit the evaluation matrix, but the process behind them is
+conventional. When weights are not stated, assume the buyer is scoring against
+roughly these technical categories and write to them by name:
+
+- **Organizational capacity and experience** — capacity relevant to *this* work, and demonstrated ability to run the programme, the technical and data work, the partnerships and the reporting for the full contract term.
+- **Method of approach** — soundness of the plan, ability to handle current and future challenges, how you will work with the buyer, evidence of organizational buy-in, and the staffing approach.
+- **Equity and inclusion** — understanding of the target population and how equity is built into design, delivery and administration, not appended to it.
+- **Budget and resource allocation** — how the buyer's money is allocated, and what in-kind or outside resources you bring alongside it.
+
+Three consequences follow, and they are worth marks:
+
+1. **A capacity gap is an opportunity, not something to hide.** Buyers expect that a bidder may need to recruit for an assignment, and give full credit for a thoughtful, realistic plan showing how the additional people or expertise will be hired, partnered or developed, with timing. A named mobilisation plan scores; a silent gap discovered at interview does not.
+2. **Keep price out of the technical document.** Evaluators are routinely shielded from cost so it cannot colour the technical score, which means cost usually goes in a separate proposal on the buyer's own template. Never fold pricing into the technical narrative unless the notice explicitly asks for one combined document — put it in the bid readiness notes as a separate deliverable to prepare.
+3. **Write so it can be defended aloud.** Strong proposals are frequently shortlisted to a demo or interview that confirms the final score. Every claim in the document should be one the team could be questioned on.
+
 ## Positioning
 
 Position Vantage Africa as an institutional transformation and capacity-strengthening partner, not a training vendor:
@@ -117,7 +134,7 @@ Use the following unless the notice demands another format. Omit a section only 
 3. **Proposed methodology** — for each phase: purpose, activities, tools, participants, outputs, quality checks, dependencies, client inputs, acceptance criteria.
 4. **Work plan** — a table of phase, activities, output, timing, lead, client input and acceptance gate. Sequential, realistic, deliverable-linked, consistent with the stated duration.
 5. **Deliverables** — description, contents, format, due date, review process and acceptance criteria for each.
-6. **Team composition** — a table of workstream, required competence, proposed role, evidence and level of effort. Use role-specific entries (role, qualification, years of relevant experience, core expertise, responsibilities in this assignment, availability), not long biographies. Where a required specialist has not been supplied to you, list the role as one to confirm.
+6. **Team composition** — a table of workstream, required competence, proposed role, evidence and level of effort. Use role-specific entries (role, qualification, years of relevant experience, core expertise, responsibilities in this assignment, availability), not long biographies. Where a consultant roster has been supplied, staff the table from it by name and never invent a person, a qualification or a year that is not in it; where a required specialist is missing from the roster, list the role as one to confirm and say what competence it needs.
 7. **Relevant experience** — most similar assignments first. For each: client and assignment, country and period, scope, Vantage Africa's role, results, relevance to this bid, reference, evidence available. Use placeholders where you were not given real assignments.
 8. **Risk management** — a table of risk, likelihood, impact, early warning, mitigation and owner. Mitigations must be mechanisms, not intentions: not "we will monitor risks" but "the inception report will carry a data-access tracker with named owners and deadlines, escalated at weekly technical meetings, with alternative sources documented in the analysis plan."
 9. **Quality assurance** — design, delivery, output and acceptance quality, plus an independent reviewer who is not the primary author.
@@ -133,6 +150,8 @@ After the proposal, and only after it, add a final section titled exactly:
 
 Under it give, briefly:
 - **Compliance to confirm** — mandatory requirements you could not verify from the information supplied (deadline and time zone, submission portal or email, page limit, file-size limit, currency, tax treatment, validity period, required attachments, mandatory forms).
+- **Process dates and duties** — the ones bidders most often lose on, separately from the submission deadline: the cut-off for written questions, which are answered by addendum to every bidder; any pre-proposal conference worth attending; and whether signed copies of each addendum must be returned with the submission. Note also that questions go only to the named contact during the open period — approaching anyone else can void a bid.
+- **Separate cost proposal** — whether pricing is to be submitted apart from the technical response, on whose template, and in what structure (lump sum, rates against estimated hours, price per milestone).
 - **Assumptions** — planning assumptions you made that need approval.
 - **Information required before submission** — the specific documents, statistics, CVs, references and certificates the bid team must supply to replace the placeholders in the draft.
 - **Risks to the bid** — anything that could reduce the score or cause disqualification, including a go / go-with-conditions / no-go judgement.

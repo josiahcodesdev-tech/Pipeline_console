@@ -1,4 +1,8 @@
 import { supabase } from './supabase'
+import type { Consultant } from './types'
+
+/** What the drafter is told about each consultant. Mirrors the roster block. */
+export type ConsultantBrief = Omit<Consultant, 'id' | 'longBio'>
 
 /**
  * Context the Edge Function turns into a concept-note draft. Deliberately
@@ -30,6 +34,8 @@ export const MAX_EXEMPLARS = 2
 export const MAX_EXEMPLAR_CHARS = 12_000
 
 export interface ConceptNoteContext {
+  /** The people available to staff this bid. Proposals only. */
+  consultants?: ConsultantBrief[]
   kind: DraftKind
   org: string
   segment: string
@@ -106,4 +112,111 @@ export async function draftConceptNote(
     truncated: Boolean(data.truncated),
     playbooks: data.playbooks ?? [],
   }
+}
+
+/**
+ * Same draft, streamed.
+ *
+ * `functions.invoke` buffers the whole response before resolving, which is
+ * exactly wrong when the point is to watch the document being written — a full
+ * proposal is 8,000 tokens and the better part of a minute of nothing. So this
+ * goes to the function URL directly and reads the body as it arrives.
+ *
+ * `onDelta` is called with each fragment of text, in order. The promise
+ * resolves once with the finished document, so callers that also need the whole
+ * thing (to save it, to export it) do not have to accumulate it themselves.
+ */
+export async function draftConceptNoteStreaming(
+  context: ConceptNoteContext,
+  onDelta: (chunk: string, soFar: string) => void,
+): Promise<DraftResult> {
+  const base = import.meta.env.VITE_SUPABASE_URL
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
+
+  // The function verifies the caller, so it needs this user's token rather than
+  // the anon key. invoke() would have attached it for us.
+  const { data: session } = await supabase.auth.getSession()
+  const accessToken = session.session?.access_token
+  if (!accessToken) throw new Error('You are signed out. Sign in and try again.')
+
+  let response: Response
+  try {
+    response = await fetch(`${base}/functions/v1/concept-note`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...context, stream: true }),
+    })
+  } catch {
+    throw new Error(`Could not reach the drafting service to draft the ${what}.`)
+  }
+
+  if (!response.ok || !response.body) {
+    // A failure before the first byte is still a normal JSON error response.
+    const detail = await response
+      .json()
+      .then((body: { error?: string }) => body?.error)
+      .catch(() => null)
+    throw new Error(
+      detail ??
+        `Could not draft the ${what} (${response.status}). Check that the concept-note function is deployed and OPENAI_API_KEY is set.`,
+    )
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let text = ''
+  let truncated = false
+  let playbooks: string[] = []
+  let failure: string | null = null
+  let finished = false
+
+  const handle = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return
+    let event: { type?: string; text?: string; message?: string; truncated?: boolean; playbooks?: string[] }
+    try {
+      event = JSON.parse(trimmed)
+    } catch {
+      return // A partial line; the next read completes it.
+    }
+    if (event.type === 'delta' && event.text) {
+      text += event.text
+      onDelta(event.text, text)
+    } else if (event.type === 'meta') {
+      playbooks = event.playbooks ?? []
+    } else if (event.type === 'done') {
+      truncated = Boolean(event.truncated)
+      finished = true
+    } else if (event.type === 'error') {
+      failure = event.message ?? 'The drafting service failed.'
+    }
+  }
+
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    // Newline-delimited: everything before the last newline is complete, and
+    // whatever follows it is a partial line to carry into the next read.
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const raw of lines) handle(raw)
+  }
+  handle(buffer)
+
+  if (failure) throw new Error(failure)
+  // The stream ending without a `done` event means the connection dropped
+  // mid-document. Whatever arrived is incomplete, and saying so beats handing
+  // over a proposal that stops mid-sentence as though it were finished.
+  if (!finished && !text.trim()) {
+    throw new Error(`The drafting service returned an empty ${what}.`)
+  }
+
+  return { text, truncated: truncated || !finished, playbooks }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeftIcon,
   DownloadIcon,
@@ -22,7 +22,7 @@ import { usePipeline } from '@/hooks/use-pipeline'
 import { proposalFileUrl } from '@/lib/db'
 import { PROPOSAL_DRAFTING } from '@/lib/features'
 import {
-  draftConceptNote,
+  draftConceptNoteStreaming,
   MAX_EXEMPLARS,
   MAX_EXEMPLAR_CHARS,
 } from '@/lib/concept-note'
@@ -67,6 +67,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     logActivity,
     removeActivity,
     settings,
+    consultants,
     saveDraftProposal,
     uploadProposal,
     removeProposal,
@@ -82,7 +83,19 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [pasteText, setPasteText] = useState('')
   const [pasting, setPasting] = useState(false)
   const [playbooks, setPlaybooks] = useState<string[]>([])
+  /** The document as it arrives, shown live in the side panel. */
+  const [draftPreview, setDraftPreview] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
+  const previewScroll = useRef<HTMLDivElement>(null)
+
+  // Follow the text as it is written, the way a document scrolls while you
+  // type. Only while drafting — once it has finished, the reader is in charge
+  // and yanking them back to the bottom would be obnoxious.
+  useEffect(() => {
+    if (!drafting) return
+    const pane = previewScroll.current
+    if (pane) pane.scrollTop = pane.scrollHeight
+  }, [draftPreview, drafting])
 
   const ownActivities = useMemo(
     () => activities.filter((activity) => activity.rfpId === rfp.id),
@@ -118,19 +131,28 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       return
     }
     setDrafting(true)
+    setDraftPreview('')
     try {
-      const result = await draftConceptNote({
-        kind: 'proposal',
-        org: rfp.org,
-        segment: rfp.segment,
-        notes: rfp.notes,
-        rfpTitle: rfp.title,
-        deadline: rfp.deadline,
-        serviceAreas: rfp.serviceAreas,
-        guidance: settings.proposalGuidance,
-        boilerplate: settings.boilerplate,
-        examples: exemplarTexts,
-      })
+      const result = await draftConceptNoteStreaming(
+        {
+          kind: 'proposal',
+          org: rfp.org,
+          segment: rfp.segment,
+          notes: rfp.notes,
+          rfpTitle: rfp.title,
+          deadline: rfp.deadline,
+          serviceAreas: rfp.serviceAreas,
+          guidance: settings.proposalGuidance,
+          boilerplate: settings.boilerplate,
+          examples: exemplarTexts,
+          // The long bio is for a CV annex, not the proposal body — sending it
+          // would triple the roster block for text the drafter should not use.
+          consultants: consultants.map(({ id: _id, longBio: _longBio, ...brief }) => brief),
+        },
+        // The panel renders from this, so the document appears as it is written
+        // rather than after a minute of a disabled button.
+        (_chunk, soFar) => setDraftPreview(soFar),
+      )
       // Saved before the download so a slow or cancelled save cannot lose the
       // generated text — the whole point of keeping drafts on the profile.
       await saveDraftProposal(rfp.id, `Draft — ${formatDateWithYear(new Date().toISOString().slice(0, 10))}`, result.text)
@@ -208,6 +230,82 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
   return (
     <>
+      {/*
+        The document as it is written, pinned to the side of the screen.
+
+        A proposal is 8,000 tokens and takes the better part of a minute, which
+        as a disabled button is indistinguishable from a hang. It stays open
+        after the draft finishes so the text can be read without digging the
+        .docx out of the downloads folder, and closing it does not cancel
+        anything — the save and the download have already happened.
+      */}
+      {(drafting || draftPreview) && (
+        <aside
+          // Half the screen: at 440px the document reflowed so narrowly that it
+          // gave no sense of how the finished page would look, which is most of
+          // the point of watching it being written. Full width below `sm`,
+          // where a split view has nothing to split.
+          className="fixed right-0 top-0 z-40 flex h-screen w-full flex-col border-l border-border bg-background shadow-2xl sm:w-1/2"
+          aria-label="Proposal draft preview"
+        >
+          <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {drafting ? (
+                  <>
+                    <SparklesIcon className="size-3 animate-pulse" />
+                    Writing…
+                  </>
+                ) : (
+                  'Draft ready · saved and downloaded'
+                )}
+              </p>
+              <p className="truncate text-xs text-faint">{rfp.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftPreview('')}
+              className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+              // Hidden mid-draft: closing would leave the panel unable to show
+              // the rest, and the draft carries on regardless.
+              disabled={drafting}
+            >
+              {drafting ? '' : 'Close'}
+            </button>
+          </header>
+
+          <div ref={previewScroll} className="flex-1 overflow-y-auto bg-muted/40 p-5">
+            {/* Shaped like a page so it reads as the document being built,
+                rather than as a log of text arriving. The max width is a
+                readable measure rather than the full pane — a line of body text
+                running the whole width of half a monitor is unreadable, and the
+                finished Word file will not look like that either. */}
+            <div className="mx-auto max-w-[68ch] rounded-md border border-border bg-card px-8 py-7 shadow-sm">
+              <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-[1.75] text-foreground">
+                {draftPreview}
+                {drafting && (
+                  <span className="ml-0.5 inline-block animate-pulse font-bold text-primary">
+                    ▍
+                  </span>
+                )}
+              </pre>
+              {drafting && !draftPreview && (
+                <p className="text-[13px] italic text-faint">
+                  Reading the notice and your house rules…
+                </p>
+              )}
+            </div>
+          </div>
+
+          <footer className="border-t border-border px-4 py-2.5 text-[10.5px] text-faint">
+            {draftPreview.trim()
+              ? `${draftPreview.trim().split(/\s+/).length.toLocaleString()} words`
+              : 'Starting…'}
+            {!drafting && ' · Word file is in your downloads'}
+          </footer>
+        </aside>
+      )}
+
       {/* Not the shared ViewHeader: this page is about one record, so the
           heading is the tender's title rather than a section name. */}
       <div className="sticky top-0 z-20 -mx-6 mb-6 border-b border-border bg-background/85 px-6 pb-4 pt-8 backdrop-blur-md lg:-mx-8 lg:px-8">

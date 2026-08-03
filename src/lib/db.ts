@@ -17,12 +17,14 @@ import {
   type LeadStatus,
   type Rfp,
   type RfpStatus,
+  type Consultant,
   type Task,
   type TaskPriority,
   type WeeklyReport,
 } from './types'
 import type {
   ActivityRow,
+  ConsultantRow,
   LeadRow,
   ProposalRow,
   RfpRow,
@@ -51,6 +53,7 @@ export type RfpDraft = Omit<
   | 'inPipeline'
 >
 export type TaskDraft = Omit<Task, 'id' | 'done' | 'completedOn' | 'createdOn'>
+export type ConsultantDraft = Omit<Consultant, 'id'>
 export type WeeklyReportDraft = Omit<WeeklyReport, 'id'>
 
 /**
@@ -227,6 +230,7 @@ export interface PipelineSnapshot {
   reports: WeeklyReport[]
   activities: Activity[]
   proposals: Proposal[]
+  consultants: Consultant[]
   /** Per-table load failures. Empty when everything came back. */
   errors: string[]
 }
@@ -273,7 +277,7 @@ async function loadTable<Row, T>(
 }
 
 export async function fetchAll(): Promise<PipelineSnapshot> {
-  const [leads, rfps, tasks, reports, activities, proposals] = await Promise.all([
+  const [leads, rfps, tasks, reports, activities, proposals, consultants] = await Promise.all([
     loadTable(
       'leads',
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -325,6 +329,12 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       toProposal,
       'migration 0007',
     ),
+    loadTable(
+      'consultants',
+      supabase.from('consultants').select('*').order('name', { ascending: true }),
+      toConsultant,
+      'migration 0010',
+    ),
   ])
 
   return {
@@ -334,7 +344,8 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
     reports: reports.rows,
     activities: activities.rows,
     proposals: proposals.rows,
-    errors: [leads, rfps, tasks, reports, activities, proposals]
+    consultants: consultants.rows,
+    errors: [leads, rfps, tasks, reports, activities, proposals, consultants]
       .map((result) => result.error)
       .filter((error): error is string => error !== null),
   }
@@ -787,4 +798,74 @@ export async function saveWeeklyReport(
       .single(),
   )
   return toWeeklyReport(row)
+}
+
+// --------------------------------------------------------- consultants -----
+
+function toConsultant(row: ConsultantRow): Consultant {
+  return {
+    id: row.id,
+    name: row.name ?? '',
+    title: row.title ?? '',
+    coreExpertise: row.core_expertise ?? '',
+    yearsExperience: row.years_experience,
+    sectors: row.sectors ?? '',
+    countries: row.countries ?? '',
+    qualifications: row.qualifications ?? '',
+    taskFit: row.task_fit ?? '',
+    projectExperience: row.project_experience ?? '',
+    languages: row.languages ?? '',
+    availability: row.availability ?? '',
+    shortBio: row.short_bio ?? '',
+    longBio: row.long_bio ?? '',
+  }
+}
+
+function consultantFields(draft: ConsultantDraft) {
+  return {
+    name: draft.name.trim(),
+    title: draft.title.trim(),
+    core_expertise: draft.coreExpertise.trim(),
+    years_experience: draft.yearsExperience,
+    sectors: draft.sectors.trim(),
+    countries: draft.countries.trim(),
+    qualifications: draft.qualifications.trim(),
+    task_fit: draft.taskFit.trim(),
+    project_experience: draft.projectExperience.trim(),
+    languages: draft.languages.trim(),
+    availability: draft.availability.trim(),
+    short_bio: draft.shortBio.trim(),
+    long_bio: draft.longBio.trim(),
+  }
+}
+
+export async function createConsultant(draft: ConsultantDraft): Promise<Consultant> {
+  const row = unwrap(
+    await supabase
+      .from('consultants')
+      .insert({ ...consultantFields(draft), user_id: await currentUserId() })
+      .select()
+      .single(),
+  )
+  return toConsultant(row)
+}
+
+export async function updateConsultant(
+  id: string,
+  draft: ConsultantDraft,
+): Promise<Consultant> {
+  const row = unwrap(
+    await supabase
+      .from('consultants')
+      .update(consultantFields(draft))
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toConsultant(row)
+}
+
+export async function deleteConsultant(id: string): Promise<void> {
+  const { error } = await supabase.from('consultants').delete().eq('id', id)
+  if (error) throw new Error(error.message)
 }

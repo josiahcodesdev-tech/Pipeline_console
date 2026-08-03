@@ -288,3 +288,57 @@ export const EMPTY_SETTINGS: UserSettings = {
   conceptGuidance: '',
   boilerplate: '',
 }
+
+/**
+ * Someone who can be staffed onto a bid.
+ *
+ * Exists to answer the team-composition section of a proposal with real people.
+ * The fields are deliberately the ones an evaluator scores — qualifications,
+ * years, sectors, countries and what the person has actually delivered — rather
+ * than a general profile.
+ *
+ * Several fields are comma-separated free text (`coreExpertise`, `sectors`,
+ * `countries`). They are read by a language model rather than joined against,
+ * so a phrase is worth as much as a foreign key and costs far less.
+ */
+export interface Consultant {
+  id: string
+  name: string
+  /** e.g. "Senior MEL Specialist". */
+  title: string
+  /** Comma-separated tags, e.g. "Monitoring & Evaluation, Grant Writing". */
+  coreExpertise: string
+  yearsExperience: number | null
+  sectors: string
+  countries: string
+  qualifications: string
+  /**
+   * The RFP components this person should be put forward for. Weighted most
+   * heavily when the drafter picks a team, because it is written in the
+   * language of the work rather than of the person.
+   */
+  taskFit: string
+  projectExperience: string
+  languages: string
+  availability: string
+  /** ~50 words, ready to drop into a team-composition table. */
+  shortBio: string
+  /** ~150 words, for a CV annex or a detailed technical proposal. */
+  longBio: string
+}
+
+export const EMPTY_CONSULTANT: Omit<Consultant, 'id'> = {
+  name: '',
+  title: '',
+  coreExpertise: '',
+  yearsExperience: null,
+  sectors: '',
+  countries: '',
+  qualifications: '',
+  taskFit: '',
+  projectExperience: '',
+  languages: '',
+  availability: '',
+  shortBio: '',
+  longBio: '',
+}

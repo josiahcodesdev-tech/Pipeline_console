@@ -125,6 +125,26 @@ export type WeeklyReportRow = {
   updated_at: string
 }
 
+export type ConsultantRow = {
+  id: string
+  user_id: string
+  name: string
+  title: string
+  core_expertise: string
+  years_experience: number | null
+  sectors: string
+  countries: string
+  qualifications: string
+  task_fit: string
+  project_experience: string
+  languages: string
+  availability: string
+  short_bio: string
+  long_bio: string
+  created_at: string
+  updated_at: string
+}
+
 /** Columns the database fills in when omitted. */
 type Generated = 'id' | 'created_at' | 'updated_at'
 
@@ -184,6 +204,29 @@ export type Database = {
         Row: ActivityRow
         Insert: Insertable<ActivityRow, Generated | 'occurred_on'>
         Update: Partial<ActivityRow>
+        Relationships: []
+      }
+      consultants: {
+        Row: ConsultantRow
+        // Every descriptive column defaults to '' — only a name is required to
+        // start a record, so the rest can be filled in over time.
+        Insert: Insertable<
+          ConsultantRow,
+          | Generated
+          | 'title'
+          | 'core_expertise'
+          | 'years_experience'
+          | 'sectors'
+          | 'countries'
+          | 'qualifications'
+          | 'task_fit'
+          | 'project_experience'
+          | 'languages'
+          | 'availability'
+          | 'short_bio'
+          | 'long_bio'
+        >
+        Update: Partial<ConsultantRow>
         Relationships: []
       }
     }

@@ -15,6 +15,7 @@ import { OPPORTUNITY_SYNC } from '@/lib/features'
 import { EMPTY_SETTINGS } from '@/lib/types'
 import type {
   Activity,
+  Consultant,
   Lead,
   Proposal,
   UserSettings,
@@ -81,6 +82,7 @@ interface PipelineValue {
   reports: WeeklyReport[]
   activities: Activity[]
   proposals: Proposal[]
+  consultants: Consultant[]
   settings: UserSettings
   loading: boolean
   error: string | null
@@ -115,6 +117,8 @@ interface PipelineValue {
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
   addPastProposal: (rfpId: string, title: string, content: string) => Promise<void>
+  saveConsultant: (draft: db.ConsultantDraft, existing: Consultant | null) => Promise<void>
+  removeConsultant: (id: string) => Promise<void>
   saveSettings: (next: UserSettings) => Promise<void>
 
   logActivity: (draft: db.ActivityDraft) => Promise<void>
@@ -144,6 +148,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [proposals, setProposals] = useState<Proposal[]>([])
+  const [consultants, setConsultants] = useState<Consultant[]>([])
   const [settings, setSettings] = useState<UserSettings>(EMPTY_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -161,6 +166,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setReports([])
       setActivities([])
       setProposals([])
+      setConsultants([])
       setSettings(EMPTY_SETTINGS)
       setLoading(false)
       return
@@ -174,6 +180,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setReports(snapshot.reports)
       setActivities(snapshot.activities)
       setProposals(snapshot.proposals)
+      setConsultants(snapshot.consultants)
       // Settings are small and read on their own; a failure here should not
       // cost the snapshot, so it degrades to the empty defaults.
       try {
@@ -443,6 +450,28 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const saveConsultant = useCallback(
+    async (draft: db.ConsultantDraft, existing: Consultant | null) => {
+      const saved = existing
+        ? await db.updateConsultant(existing.id, draft)
+        : await db.createConsultant(draft)
+      // Sorted by name, matching the order fetchAll returns, so a newly added
+      // consultant lands where it will be after the next reload rather than
+      // jumping to the top and moving later.
+      setConsultants((current) =>
+        upsertInto(current, saved).sort((a, b) => a.name.localeCompare(b.name)),
+      )
+      toast.success('Consultant saved')
+    },
+    [],
+  )
+
+  const removeConsultant = useCallback(async (id: string) => {
+    await db.deleteConsultant(id)
+    setConsultants((current) => current.filter((person) => person.id !== id))
+    toast.success('Consultant removed')
+  }, [])
+
   const setProposalExemplar = useCallback(async (id: string, isExemplar: boolean) => {
     const saved = await db.setProposalExemplar(id, isExemplar)
     setProposals((current) => current.map((item) => (item.id === id ? saved : item)))
@@ -494,6 +523,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reports,
       activities,
       proposals,
+      consultants,
       settings,
       loading,
       error,
@@ -518,6 +548,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeProposal,
       setProposalExemplar,
       addPastProposal,
+      saveConsultant,
+      removeConsultant,
       saveSettings,
       logActivity,
       removeActivity,
@@ -529,6 +561,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reports,
       activities,
       proposals,
+      consultants,
       settings,
       loading,
       error,
@@ -553,6 +586,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeProposal,
       setProposalExemplar,
       addPastProposal,
+      saveConsultant,
+      removeConsultant,
       saveSettings,
       logActivity,
       removeActivity,

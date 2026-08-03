@@ -45,6 +45,10 @@ interface DraftContext {
   guidance?: unknown
   boilerplate?: unknown
   examples?: unknown
+  /** The people available to staff the bid; see rosterBlock. */
+  consultants?: unknown
+  /** Opt in to the newline-delimited JSON stream instead of a buffered reply. */
+  stream?: unknown
 }
 
 /**
@@ -55,6 +59,17 @@ interface DraftContext {
 const MAX_GUIDANCE_CHARS = 8_000
 const MAX_BOILERPLATE_CHARS = 6_000
 const MAX_EXEMPLARS = 2
+
+/**
+ * How many consultants reach the prompt, and how much of each.
+ *
+ * The roster is ranked by relevance before it is cut, so a small team all
+ * arrives and a larger one arrives shortlisted. Eight is well above the roster
+ * this was built for — it is a ceiling that stops a growing team from crowding
+ * out the model answers, not a filter meant to bite today.
+ */
+const MAX_CONSULTANTS = 8
+const MAX_CONSULTANT_CHARS = 1_500
 const MAX_EXEMPLAR_CHARS = 12_000
 
 const CORS_HEADERS: Record<string, string> = {
@@ -109,6 +124,117 @@ ${boilerplate}`)
   }
 
   return parts.join('\n\n')
+}
+
+interface RosterEntry {
+  name?: unknown
+  title?: unknown
+  coreExpertise?: unknown
+  yearsExperience?: unknown
+  sectors?: unknown
+  countries?: unknown
+  qualifications?: unknown
+  taskFit?: unknown
+  projectExperience?: unknown
+  languages?: unknown
+  availability?: unknown
+  shortBio?: unknown
+}
+
+/**
+ * Ranks the roster against the assignment before it is cut to MAX_CONSULTANTS.
+ *
+ * Deliberately crude — a word-overlap score, not a classifier. It only has to
+ * decide who is *most* worth sending when the roster is bigger than the budget;
+ * the model does the real matching once they arrive. `taskFit` is weighted
+ * highest because it is written in the language of the work rather than of the
+ * person, which is exactly what the notice is too.
+ */
+function rankRoster(roster: RosterEntry[], assignment: string): RosterEntry[] {
+  const words = new Set(
+    assignment
+      .toLowerCase()
+      .split(/[^a-z0-9&]+/)
+      .filter((word) => word.length > 3),
+  )
+  if (words.size === 0) return roster.slice(0, MAX_CONSULTANTS)
+
+  const score = (person: RosterEntry) => {
+    const weighted = [
+      [text(person.taskFit), 3],
+      [text(person.coreExpertise), 3],
+      [text(person.sectors), 2],
+      [text(person.title), 2],
+      [text(person.projectExperience), 1],
+      [text(person.countries), 1],
+    ] as const
+    let total = 0
+    for (const [field, weight] of weighted) {
+      const seen = new Set(field.toLowerCase().split(/[^a-z0-9&]+/))
+      for (const word of words) if (seen.has(word)) total += weight
+    }
+    return total
+  }
+
+  return roster
+    .map((person, index) => ({ person, score: score(person), index }))
+    // Ties keep their original order — the roster arrives sorted by name, and a
+    // stable result is easier to reason about than an arbitrary one.
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, MAX_CONSULTANTS)
+    .map((entry) => entry.person)
+}
+
+/**
+ * The people available to staff the bid.
+ *
+ * Without this the team-composition section is written entirely in
+ * placeholders. The warning about not inventing people matters as much as the
+ * roster does: a model given four consultants and asked for six will invent two
+ * more, complete with plausible degrees.
+ */
+function rosterBlock(roster: RosterEntry[]): string {
+  if (roster.length === 0) return ''
+
+  const people = roster
+    .map((person) => {
+      const lines = [
+        `**${text(person.name)}**${text(person.title) ? ` — ${text(person.title)}` : ''}`,
+        // Years arrives as a number, which `text` would drop on the floor.
+        typeof person.yearsExperience === 'number'
+          ? `Years of experience: ${person.yearsExperience}`
+          : '',
+        text(person.coreExpertise) ? `Core expertise: ${text(person.coreExpertise)}` : '',
+        text(person.sectors) ? `Sectors: ${text(person.sectors)}` : '',
+        text(person.countries) ? `Countries: ${text(person.countries)}` : '',
+        text(person.qualifications) ? `Qualifications: ${text(person.qualifications)}` : '',
+        text(person.taskFit) ? `Suited to: ${text(person.taskFit)}` : '',
+        text(person.projectExperience) ? `Experience: ${text(person.projectExperience)}` : '',
+        text(person.languages) ? `Languages: ${text(person.languages)}` : '',
+        text(person.availability) ? `Availability: ${text(person.availability)}` : '',
+        text(person.shortBio) ? `Bio: ${text(person.shortBio)}` : '',
+      ].filter(Boolean)
+      return lines.join('\n').slice(0, MAX_CONSULTANT_CHARS)
+    })
+    .filter(Boolean)
+    .join('\n\n')
+
+  return `## Available consultants
+
+These are the people who can actually be staffed on this assignment. Supplied by
+the author and safe to state as fact.
+
+Build the team composition section from them. Match each to the workstreams their
+stated expertise and suitability fit, and say why that person fits that role.
+
+Never invent a consultant, a qualification, a degree, an employer or a year that
+does not appear below, and never move one person's experience onto another. If the
+assignment needs a competence nobody here has, say so plainly: name the role, state
+the competence it requires, and list it in the bid readiness notes as a position to
+fill. An honest gap with a recruitment plan scores; a fabricated CV loses the
+contract and the relationship.
+
+${people}`
 }
 
 /**
@@ -184,6 +310,17 @@ Deno.serve(async (request: Request) => {
     .filter(Boolean)
     .slice(0, MAX_EXEMPLARS)
 
+  // Proposals only: a concept note has no scope to staff against yet.
+  const roster = isProposal && Array.isArray(context.consultants)
+    ? rankRoster(
+        context.consultants.filter(
+          (entry): entry is RosterEntry =>
+            typeof entry === 'object' && entry !== null && Boolean(text((entry as RosterEntry).name)),
+        ),
+        `${rfpTitle} ${serviceAreas} ${notes}`,
+      )
+    : []
+
   // Only proposals get a playbook — a concept note is outreach, not a response
   // to a scope, so there is no assignment type to match against yet.
   const playbooks = isProposal
@@ -210,6 +347,7 @@ Deno.serve(async (request: Request) => {
     isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
     houseRulesBlock(guidance, boilerplate),
+    rosterBlock(roster),
     examplesBlock(examples),
   ]
     .filter(Boolean)
@@ -227,6 +365,96 @@ ${details}`
     : `Draft a ${what} using this context:\n\n${details}`
 
   const client = new OpenAI({ apiKey })
+
+  /**
+   * Streaming is opt-in via `stream: true` in the request body.
+   *
+   * A full proposal is 8,000 tokens and takes the better part of a minute, so
+   * the RFP profile asks for it in order to show the document building. The
+   * concept-note dialog does not, and keeping the buffered path intact means
+   * that caller needed no changes at all.
+   *
+   * The wire format is newline-delimited JSON rather than SSE: it carries the
+   * trailing metadata (truncation, matched playbooks) and mid-stream failures
+   * in the same channel as the text, which `data:` framing would not without
+   * inventing event names for both.
+   */
+  if (context.stream === true) {
+    const encoder = new TextEncoder()
+    const line = (value: unknown) => encoder.encode(`${JSON.stringify(value)}\n`)
+
+    const body = new ReadableStream({
+      async start(controller) {
+        try {
+          // Sent first so the client can show which method the draft is being
+          // written against while the text is still arriving.
+          controller.enqueue(line({
+            type: 'meta',
+            playbooks: playbooks.map((playbook) => playbook.label),
+          }))
+
+          const completion = await client.chat.completions.create({
+            model: isProposal ? PROPOSAL_MODEL : CONCEPT_NOTE_MODEL,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: task },
+            ],
+            temperature: 0.7,
+            max_tokens: isProposal ? 8000 : 2000,
+            stream: true,
+          })
+
+          let finishReason: string | null = null
+          let produced = false
+
+          for await (const chunk of completion) {
+            const choice = chunk.choices[0]
+            const delta = choice?.delta?.content
+            if (delta) {
+              produced = true
+              controller.enqueue(line({ type: 'delta', text: delta }))
+            }
+            if (choice?.finish_reason) finishReason = choice.finish_reason
+          }
+
+          if (finishReason === 'content_filter') {
+            controller.enqueue(line({
+              type: 'error',
+              message:
+                'The drafting service declined this request. Try rephrasing the notes on this record.',
+            }))
+          } else if (!produced) {
+            controller.enqueue(line({
+              type: 'error',
+              message: `The drafting service returned an empty ${what}.`,
+            }))
+          } else {
+            // Truncation is reported rather than hidden — a proposal that stops
+            // mid-sentence should be visibly incomplete, not quietly wrong.
+            controller.enqueue(line({ type: 'done', truncated: finishReason === 'length' }))
+          }
+        } catch (cause) {
+          console.error('concept-note stream failed', cause)
+          const detail = cause instanceof Error ? cause.message : String(cause)
+          // Reported in-band. The response status was already committed as 200
+          // the moment the first byte went out, so a thrown error here would
+          // otherwise reach the client as nothing but a truncated document.
+          controller.enqueue(line({ type: 'error', message: detail }))
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(body, {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-store',
+      },
+    })
+  }
 
   try {
     const completion = await client.chat.completions.create({
