@@ -73,6 +73,11 @@ export function RfpsView({
   // The tracker is a firehose; hiding what is already taken on makes triage
   // of the remainder much easier.
   const [hideInPipeline, setHideInPipeline] = useState(false)
+  // On by default: a closed tender cannot be bid on, so it is clutter rather
+  // than information. The sync already refuses to import anything past its
+  // deadline, but rows age in place — what arrived open in August is closed by
+  // September — so the list has to filter as well.
+  const [hideExpired, setHideExpired] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
@@ -88,12 +93,27 @@ export function RfpsView({
     [rfps],
   )
 
+  /**
+   * True once the deadline is in the past.
+   *
+   * A missing deadline is NOT treated as closed — some sources (AfDB) publish
+   * the notice without one, and hiding those would quietly drop real work on
+   * the basis of a field the source never filled in.
+   */
+  const isClosed = (rfp: Rfp): boolean => {
+    const days = daysUntil(rfp.deadline)
+    return days !== null && days < 0
+  }
+
+  const closedCount = useMemo(() => rfps.filter(isClosed).length, [rfps])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rfps
       .filter((rfp) => {
         if (status !== 'all' && rfp.status !== status) return false
         if (hideInPipeline && rfp.inPipeline) return false
+        if (hideExpired && isClosed(rfp)) return false
         if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
         if (
           term &&
@@ -104,11 +124,20 @@ export function RfpsView({
         }
         return true
       })
-      // Newest first: this page is a feed you triage as things arrive, so what
-      // just landed should be at the top. Deadline urgency is carried by the
-      // colour on the date, and by the dashboard's deadline panel.
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [rfps, search, status, hideInPipeline, typeFilter])
+      // Deadline first while closed ones are hidden: everything on screen is
+      // still biddable, so the useful question is what closes soonest. Undated
+      // notices sort last — they cannot claim urgency they have not stated.
+      .sort((a, b) => {
+        if (hideExpired) {
+          const left = daysUntil(a.deadline)
+          const right = daysUntil(b.deadline)
+          if (left === null && right !== null) return 1
+          if (right === null && left !== null) return -1
+          if (left !== null && right !== null && left !== right) return left - right
+        }
+        return b.createdAt.localeCompare(a.createdAt)
+      })
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter])
 
   async function handleImport() {
     setImporting(true)
@@ -185,7 +214,8 @@ export function RfpsView({
         }
         meta={
           <span className="text-[11px] text-muted-foreground">
-            {rfps.length} {rfps.length === 1 ? 'opportunity' : 'opportunities'}
+            {filtered.length} {filtered.length === 1 ? 'opportunity' : 'opportunities'}
+            {hideExpired && closedCount > 0 ? ` · ${closedCount} closed` : ''}
           </span>
         }
         action={
@@ -298,6 +328,15 @@ export function RfpsView({
             className="size-3.5 accent-[var(--primary)]"
           />
           Hide ones already in the pipeline
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-[11.5px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={hideExpired}
+            onChange={(event) => setHideExpired(event.target.checked)}
+            className="size-3.5 accent-[var(--primary)]"
+          />
+          Hide closed deadlines
         </label>
       </div>
 
