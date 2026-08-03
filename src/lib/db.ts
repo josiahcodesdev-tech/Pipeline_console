@@ -50,8 +50,6 @@ export type RfpDraft = Omit<
   | 'externalId'
   | 'inPipeline'
 >
-/** An RFP arriving from the CareerCraft feed, keyed for idempotent re-sync. */
-export type SyncedRfpDraft = RfpDraft & { externalId: string }
 export type TaskDraft = Omit<Task, 'id' | 'done' | 'completedOn' | 'createdOn'>
 export type WeeklyReportDraft = Omit<WeeklyReport, 'id'>
 
@@ -707,34 +705,22 @@ export async function importRfps(drafts: RfpDraft[]): Promise<Rfp[]> {
 }
 
 /**
- * Inserts RFPs synced from the CareerCraft feed, skipping any whose
- * `external_id` this user already holds.
+ * Re-reads every RFP for the current user.
  *
- * `ignoreDuplicates` makes the call idempotent at the database level via the
- * `rfps_user_external_id_key` index, so a second sync — or two devices syncing
- * at once — cannot create duplicates even though the caller also filters
- * client-side. Rows already present are left untouched rather than overwritten,
- * so local edits (status moved to Preparing, notes added) survive re-syncing.
+ * The opportunity sync writes its rows server-side in the Edge Function, so
+ * after it runs the client has no idea what arrived — this is how the tracker
+ * catches up. Deliberately a full re-read rather than a diff: the sync inserts
+ * across several sources at once and a handful of rows is not worth the
+ * bookkeeping of working out which.
  */
-export async function syncRfps(drafts: SyncedRfpDraft[]): Promise<Rfp[]> {
-  if (drafts.length === 0) return []
-  const stamp = today()
-  const userId = await currentUserId()
+export async function listRfps(): Promise<Rfp[]> {
   const rows = unwrap(
     await supabase
       .from('rfps')
-      .upsert(
-        drafts.map((draft) => ({
-          ...rfpFields(draft),
-          user_id: userId,
-          sourced: true,
-          external_id: draft.externalId,
-          created_on: stamp,
-          status_updated_on: stamp,
-        })),
-        { onConflict: 'user_id,external_id', ignoreDuplicates: true },
-      )
-      .select(),
+      .select('*')
+      // Matches the order fetchAll returns, so a synced list and a freshly
+      // loaded one present identically.
+      .order('created_at', { ascending: false }),
   )
   return rows.map(toRfp)
 }

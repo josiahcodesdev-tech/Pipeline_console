@@ -10,7 +10,8 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 import * as db from '@/lib/db'
-import { fetchOpportunities } from '@/lib/opportunities'
+import { runOpportunitySync } from '@/lib/opportunities'
+import { OPPORTUNITY_SYNC } from '@/lib/features'
 import { EMPTY_SETTINGS } from '@/lib/types'
 import type {
   Activity,
@@ -318,14 +319,20 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const syncOpportunities = useCallback(async (): Promise<SyncOutcome> => {
-    const { drafts, skipped } = await fetchOpportunities()
+    // Belt and braces alongside the hidden button: nothing should reach the
+    // sources while the flag is off, including a stale tab or a keyboard path.
+    if (!OPPORTUNITY_SYNC) {
+      return { fetched: 0, added: 0, alreadyHave: 0, skipped: [] }
+    }
 
-    // `ON CONFLICT DO NOTHING ... RETURNING *` returns only the rows actually
-    // inserted, so the database itself tells us what was new — no need to diff
-    // against local state first. That keeps this callback free of a `rfps`
-    // dependency, which is what makes it safe to fire from an effect.
-    const created = drafts.length ? await db.syncRfps(drafts) : []
-    if (created.length) setRfps((current) => [...created, ...current])
+    // The Edge Function fetches every source and writes the rows itself, so
+    // there is nothing to insert here — only to catch up with what it did.
+    const report = await runOpportunitySync()
+
+    // Re-read rather than diff: the function inserts across several sources at
+    // once and reports counts, not rows. Skipped when nothing arrived, so the
+    // common "already up to date" case costs no extra round trip.
+    if (report.added > 0) setRfps(await db.listRfps())
 
     // Stamped here rather than in the caller so the manual "Check now" button
     // and the automatic run both refresh the "Updated …" status.
@@ -333,23 +340,27 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setSyncedAt(Date.now())
 
     return {
-      fetched: drafts.length,
-      added: created.length,
-      alreadyHave: drafts.length - created.length,
-      skipped,
+      fetched: report.fetched,
+      added: report.added,
+      alreadyHave: report.alreadyHave,
+      skipped: report.skipped,
     }
   }, [])
 
   /**
-   * Pull new RFPs from CareerCraft on load, without the user asking.
+   * Pull new opportunities on load, without the user asking.
    *
    * Runs once the initial fetch has settled (so the tracker is populated
    * first), at most once per mount, and only if the throttle window has
    * elapsed. Failures are deliberately quiet: this is background work the user
-   * did not initiate, and a feed outage should not greet them with an error
+   * did not initiate, and a source outage should not greet them with an error
    * toast. A new arrival IS worth interrupting for, so that still toasts.
+   *
+   * This is a convenience on top of the 05:00 scheduled run, not the mechanism:
+   * the tracker is filled overnight whether or not anyone opens the console.
    */
   useEffect(() => {
+    if (!OPPORTUNITY_SYNC) return
     if (!session || loading || autoSyncStarted.current) return
 
     const previous = lastSyncedAt()
@@ -368,7 +379,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         setAutoSync('done')
         if (outcome.added > 0) {
           toast.success(
-            `${outcome.added} new opportunit${outcome.added === 1 ? 'y' : 'ies'} from CareerCraft`,
+            `${outcome.added} new opportunit${outcome.added === 1 ? 'y' : 'ies'}`,
           )
         }
       })

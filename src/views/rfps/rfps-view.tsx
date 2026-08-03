@@ -26,6 +26,7 @@ import { usePipeline } from '@/hooks/use-pipeline'
 import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/lib/types'
+import { OPPORTUNITY_SYNC } from '@/lib/features'
 import { RfpDialog } from './rfp-dialog'
 import { parseRfpImport } from './import-rfps'
 
@@ -175,7 +176,11 @@ export function RfpsView({
       <ViewHeader
         eyebrow="Bid pipeline"
         title="Opportunity tracker"
-        description="Everything the scraper finds, sorted by deadline — tenders and consultancy assignments alike. Click a title to open the original notice, and Add the ones worth bidding."
+        description={
+          OPPORTUNITY_SYNC
+            ? 'Consultancy and training opportunities pulled every morning from World Bank, UNDP, UNGM and others. Click a title to open the original notice, and Add the ones worth bidding.'
+            : 'Every opportunity you are tracking — tenders and consultancy assignments alike. Click a title to open the original notice, and Add the ones worth bidding.'
+        }
         meta={
           <span className="text-[11px] text-muted-foreground">
             {rfps.length} {rfps.length === 1 ? 'opportunity' : 'opportunities'}
@@ -190,46 +195,52 @@ export function RfpsView({
       />
 
       <Panel
-        title="Scraped opportunities"
+        title="Sourced opportunities"
         action={
-          <div className="flex items-center gap-2 text-[11px]">
-            {busy ? (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <RefreshCwIcon className="size-3 animate-spin" />
-                Checking CareerCraft…
-              </span>
-            ) : autoSync === 'failed' ? (
-              <span className="text-warning">
-                Could not reach CareerCraft — showing what you already have
-              </span>
-            ) : syncedAt ? (
-              <span className="text-faint">Updated {relativeTime(syncedAt)}</span>
-            ) : null}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void handleSync()}
-              disabled={busy}
-              title="Check CareerCraft for new RFPs now"
-            >
-              <RefreshCwIcon />
-              Check now
-            </Button>
-          </div>
+          !OPPORTUNITY_SYNC ? null : (
+            <div className="flex items-center gap-2 text-[11px]">
+              {busy ? (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <RefreshCwIcon className="size-3 animate-spin" />
+                  Checking sources…
+                </span>
+              ) : autoSync === 'failed' ? (
+                <span className="text-warning">
+                  Could not reach the sources — showing what you already have
+                </span>
+              ) : syncedAt ? (
+                <span className="text-faint">Updated {relativeTime(syncedAt)}</span>
+              ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleSync()}
+                disabled={busy}
+                title="Check every source for new opportunities now"
+              >
+                <RefreshCwIcon />
+                Check now
+              </Button>
+            </div>
+          )
         }
       >
         <p className="text-xs leading-relaxed text-muted-foreground">
-          {syncedCount > 0
-            ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from the scraper.`
-            : 'Nothing synced from the scraper yet.'}
+          {!OPPORTUNITY_SYNC
+            ? syncedCount > 0
+              ? `Syncing is off — RFPs are added by hand. The ${syncedCount} already pulled are still here.`
+              : 'Syncing is off — RFPs are added by hand.'
+            : syncedCount > 0
+              ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from World Bank, UNDP, UNGM, IUCN or AfDB. New ones arrive every morning at 5am.`
+              : 'Nothing synced yet. Sources are checked every morning at 5am — or press Check now.'}
         </p>
       </Panel>
 
       <Panel title="Paste sourced RFPs">
         <p className="mb-2.5 text-xs leading-relaxed text-muted-foreground">
-          For anything the scraper does not cover: ask Claude in chat to search
-          tender/NGO/government portals, then paste the JSON list it gives you
-          here.
+          {OPPORTUNITY_SYNC
+            ? 'For anything the sources do not cover: ask Claude in chat to search tender/NGO/government portals, then paste the JSON list it gives you here.'
+            : 'Ask Claude in chat to search tender/NGO/government portals, then paste the JSON list it gives you here. Or use Add RFP above to enter one yourself.'}
         </p>
         <Textarea
           value={json}
