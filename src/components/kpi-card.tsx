@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react'
-import { CircleCheckIcon, TriangleAlertIcon, OctagonAlertIcon } from 'lucide-react'
+import {
+  ArrowUpRightIcon,
+  CircleCheckIcon,
+  TriangleAlertIcon,
+  OctagonAlertIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type KpiTone = 'neutral' | 'good' | 'warn' | 'bad'
@@ -43,6 +48,9 @@ export function KpiCard({
   value,
   hint,
   tone = 'neutral',
+  mark,
+  onClick,
+  linkLabel,
   className,
 }: {
   label: string
@@ -50,41 +58,86 @@ export function KpiCard({
   /** Optional line under the figure — what it counts, or over what period. */
   hint?: string
   tone?: KpiTone
+  /**
+   * A sparkline or meter shown at the foot of the card. Full-bleed, so it
+   * arrives already sized rather than being wrapped in padding here.
+   */
+  mark?: ReactNode
+  /** Makes the whole card the way through to where this figure is worked on. */
+  onClick?: () => void
+  /** Where the click goes, e.g. "Leads" — used in the accessible name. */
+  linkLabel?: string
   className?: string
 }) {
-  return (
-    <div
-      className={cn(
-        'lift relative overflow-hidden rounded-xl border border-border bg-card px-4 pb-4 pt-4.5 shadow-brand-sm',
-        className,
-      )}
-    >
+  const body = (
+    <>
       <span
         aria-hidden
         className={cn('absolute inset-x-0 top-0 h-[3px]', TONE_RULE[tone])}
       />
 
-      <div className="eyebrow text-muted-foreground">{label}</div>
-
-      <div className="mt-2 flex items-baseline gap-2">
-        {/* Proportional figures: tabular-nums makes display sizes look loose. */}
-        <span
-          className={cn(
-            'font-display text-[30px] leading-none',
-            TONE_VALUE[tone],
+      <div className="px-4 pt-4.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="eyebrow text-muted-foreground">{label}</div>
+          {onClick && (
+            // Always visible rather than revealed on hover: a control the
+            // reader cannot see until they touch it is one they never find,
+            // which is how the RFP table's own link went unnoticed for weeks.
+            <ArrowUpRightIcon
+              aria-hidden
+              className="mt-px size-3.5 shrink-0 text-faint transition-colors group-hover:text-primary"
+            />
           )}
-        >
-          {value}
-        </span>
-        {tone !== 'neutral' && (
-          <span className={cn('shrink-0', TONE_VALUE[tone])}>
-            {TONE_ICON[tone]}
-            <span className="sr-only">{TONE_LABEL[tone]}</span>
+        </div>
+
+        <div className="mt-2 flex items-baseline gap-2">
+          {/* Proportional figures: tabular-nums makes display sizes look loose. */}
+          <span
+            className={cn(
+              'font-display text-[30px] leading-none',
+              TONE_VALUE[tone],
+            )}
+          >
+            {value}
           </span>
-        )}
+          {tone !== 'neutral' && (
+            <span className={cn('shrink-0', TONE_VALUE[tone])}>
+              {TONE_ICON[tone]}
+              <span className="sr-only">{TONE_LABEL[tone]}</span>
+            </span>
+          )}
+        </div>
+
+        {hint && <p className="mt-1.5 text-[11px] text-faint">{hint}</p>}
       </div>
 
-      {hint && <p className="mt-1.5 text-[11px] text-faint">{hint}</p>}
-    </div>
+      {/* The strip is reserved whether or not a mark is present, so cards in a
+          row keep one baseline instead of stepping up and down. */}
+      <div className="mt-3 flex h-[26px] items-end px-4 pb-4 [&>*]:w-full">
+        {mark}
+      </div>
+    </>
+  )
+
+  const shell =
+    'lift group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-brand-sm'
+
+  if (!onClick) {
+    return <div className={cn(shell, className)}>{body}</div>
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={linkLabel ? `${label} — open ${linkLabel}` : label}
+      className={cn(
+        shell,
+        'cursor-pointer transition-colors hover:border-brand-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        className,
+      )}
+    >
+      {body}
+    </button>
   )
 }

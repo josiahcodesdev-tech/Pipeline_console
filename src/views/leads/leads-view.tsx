@@ -24,11 +24,21 @@ import {
 } from '@/lib/types'
 import { LeadDialog } from './lead-dialog'
 
-export function LeadsView() {
+export function LeadsView({
+  /**
+   * Stage to open filtered to. Set when the register is reached by clicking a
+   * pipeline stage on the dashboard, so the click lands on those leads rather
+   * than on all of them. The caller remounts on change, so this is genuinely
+   * an initial value.
+   */
+  initialStatus,
+}: {
+  initialStatus?: LeadStatus
+} = {}) {
   const { leads, saveLead, removeLead, setLeadStatus } = usePipeline()
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment | 'all'>('all')
-  const [status, setStatus] = useState<LeadStatus | 'all'>('all')
+  const [status, setStatus] = useState<LeadStatus | 'all'>(initialStatus ?? 'all')
   const [editing, setEditing] = useState<Lead | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 

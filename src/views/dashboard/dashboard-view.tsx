@@ -1,7 +1,13 @@
 import { useMemo } from 'react'
-import { CalendarCheckIcon, CheckCheckIcon, ExternalLinkIcon } from 'lucide-react'
+import {
+  CalendarCheckIcon,
+  CheckCheckIcon,
+  ChevronRightIcon,
+  ExternalLinkIcon,
+} from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
-import { KpiCard, type KpiTone } from '@/components/kpi-card'
+import { KpiCard } from '@/components/kpi-card'
+import { Meter, Sparkline, type MeterTone } from '@/components/metric-marks'
 import { PipelineBar } from '@/components/pipeline-bar'
 import { RfpStatusSelect } from '@/components/status-select'
 import {
@@ -15,9 +21,11 @@ import {
 import { usePipeline } from '@/hooks/use-pipeline'
 import { TaskRow } from '@/views/tasks/task-row'
 import {
+  addDays,
   daysUntil,
   formatDateWithYear,
   formatToday,
+  recentWeekStarts,
   today,
   weekEnd,
   weekStart,
@@ -31,12 +39,34 @@ import {
   upcomingRfpDeadlines,
 } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
-import type { Lead } from '@/lib/types'
+import type { Lead, LeadStatus } from '@/lib/types'
+import type { ViewId } from '@/lib/nav'
 
-function disciplineTone(pct: number): KpiTone {
+/** How many periods a sparkline shows. Twelve reads as a trend, not a history. */
+const TREND_POINTS = 12
+
+/**
+ * Discipline is never "neutral" — a booked next action is either happening or
+ * it is not — so this is narrower than KpiTone and feeds the meter directly.
+ */
+function disciplineTone(pct: number): MeterTone {
   if (pct >= 80) return 'good'
   if (pct >= 50) return 'warn'
   return 'bad'
+}
+
+/** "View all" affordance shared by the panels, so both behave the same way. */
+function PanelLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex cursor-pointer items-center gap-0.5 rounded text-[11px] font-medium text-primary transition-colors hover:text-clay focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      {label}
+      <ChevronRightIcon className="size-3" aria-hidden />
+    </button>
+  )
 }
 
 /**
@@ -76,7 +106,17 @@ function DeadlineCell({ deadline }: { deadline: string }) {
   )
 }
 
-export function DashboardView() {
+export function DashboardView({
+  onNavigate,
+  onOpenProfile,
+  onOpenLeadStage,
+}: {
+  onNavigate: (view: ViewId) => void
+  /** Opens an RFP's record, the same view the tracker opens. */
+  onOpenProfile: (id: string) => void
+  /** Opens the leads register filtered to one pipeline stage. */
+  onOpenLeadStage: (stage: LeadStatus) => void
+}) {
   const { leads, rfps, tasks, activities, toggleTask, setRfpStatus } = usePipeline()
 
   const leadsById = useMemo(() => {
@@ -97,6 +137,25 @@ export function DashboardView() {
     return left !== null && left < 0
   }).length
 
+  // Only the two figures with a real history get a sparkline. Active RFPs and
+  // tasks due are current-state counts — there is no honest series behind them,
+  // and inventing one would be a decoration that reads as data.
+  const qualifiedTrend = useMemo(
+    () =>
+      recentWeekStarts(TREND_POINTS).map((weekFrom) =>
+        qualifiedInWeek(leads, weekFrom, weekEnd(weekFrom)),
+      ),
+    [leads],
+  )
+
+  const loggedTrend = useMemo(() => {
+    const from = today()
+    return Array.from({ length: TREND_POINTS }, (_, index) => {
+      const day = addDays(from, index - (TREND_POINTS - 1))
+      return communicationsInRange(activities, day, day)
+    })
+  }, [activities])
+
   return (
     <>
       <ViewHeader
@@ -110,40 +169,74 @@ export function DashboardView() {
         }
       />
 
-      <PipelineBar leads={leads} />
+      <PipelineBar leads={leads} onSelectStage={onOpenLeadStage} />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Qualified this week"
           value={qualified}
           hint="Leads reaching Qualified or beyond"
+          onClick={() => onNavigate('leads')}
+          linkLabel="Leads"
+          mark={
+            <Sparkline
+              values={qualifiedTrend}
+              label={`Leads qualified in each of the last ${TREND_POINTS} weeks`}
+            />
+          }
         />
         <KpiCard
           label="Follow-up discipline"
           value={`${discipline}%`}
           hint="Active leads with a next action booked"
           tone={disciplineTone(discipline)}
+          onClick={() => onNavigate('leads')}
+          linkLabel="Leads"
+          // A share of a whole, so it gets a meter rather than a trend: the
+          // question is how close to 100 it is, not which way it moved.
+          mark={
+            <Meter
+              value={discipline}
+              tone={disciplineTone(discipline)}
+              label={`${discipline}% of active leads have a next action booked`}
+            />
+          }
         />
         <KpiCard
           label="Active RFPs"
           value={activeRfps}
           hint="Watching, Preparing or Submitted"
+          onClick={() => onNavigate('rfps')}
+          linkLabel="RFPs"
         />
         <KpiCard
           label="Logged today"
           value={loggedToday}
           hint="Calls, emails, messages, meetings"
           tone={loggedToday > 0 ? 'good' : 'warn'}
+          onClick={() => onNavigate('activity')}
+          linkLabel="Activity"
+          mark={
+            <Sparkline
+              values={loggedTrend}
+              label={`Communications logged on each of the last ${TREND_POINTS} days`}
+            />
+          }
         />
         <KpiCard
           label="Tasks due / overdue"
           value={dueTasks.length}
           hint={dueTasks.length > 0 ? 'Needs clearing today' : 'Nothing outstanding'}
           tone={dueTasks.length > 0 ? 'warn' : 'good'}
+          onClick={() => onNavigate('tasks')}
+          linkLabel="Tasks"
         />
       </div>
 
-      <Panel title="Due today & overdue">
+      <Panel
+        title="Due today & overdue"
+        action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
+      >
         {dueTasks.length === 0 ? (
           <EmptyState
             icon={<CheckCheckIcon className="size-5" />}
@@ -167,13 +260,16 @@ export function DashboardView() {
       <Panel
         title="RFP deadlines"
         action={
-          overdueCount > 0 ? (
-            <span className="text-[11px] font-semibold text-danger">
-              {overdueCount} overdue
-            </span>
-          ) : (
-            <span className="text-[11px] text-faint">Next 7 days</span>
-          )
+          <div className="flex items-center gap-3">
+            {overdueCount > 0 ? (
+              <span className="text-[11px] font-semibold text-danger">
+                {overdueCount} overdue
+              </span>
+            ) : (
+              <span className="text-[11px] text-faint">Next 7 days</span>
+            )}
+            <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
+          </div>
         }
       >
         {soonRfps.length === 0 ? (
@@ -191,6 +287,7 @@ export function DashboardView() {
                 <TableHead>Organization</TableHead>
                 <TableHead>Deadline</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-10 text-right">Open</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -226,6 +323,21 @@ export function DashboardView() {
                       value={rfp.status}
                       onChange={(next) => setRfpStatus(rfp.id, next)}
                     />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {/* An explicit control rather than a clickable row. The
+                        title already links out to the buyer's notice, and two
+                        different destinations on one row is how the tracker's
+                        own "open the record" affordance went unfound. */}
+                    <button
+                      type="button"
+                      onClick={() => onOpenProfile(rfp.id)}
+                      aria-label={`Open ${rfp.title}`}
+                      title="Open this RFP's record"
+                      className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <ChevronRightIcon className="size-4" aria-hidden />
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}

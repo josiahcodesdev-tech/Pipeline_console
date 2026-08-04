@@ -19,7 +19,14 @@ const STAGE_TINT = [
   'bg-brand-soft',
 ]
 
-export function PipelineBar({ leads }: { leads: Lead[] }) {
+export function PipelineBar({
+  leads,
+  onSelectStage,
+}: {
+  leads: Lead[]
+  /** Opens the leads register filtered to one stage. */
+  onSelectStage?: (stage: Lead['status']) => void
+}) {
   const stages = pipelineCounts(leads)
   const total = stages.reduce((sum, stage) => sum + stage.count, 0)
 
@@ -34,11 +41,17 @@ export function PipelineBar({ leads }: { leads: Lead[] }) {
 
       <div className="flex overflow-hidden rounded-b-xl">
         {stages.map(({ stage, count }, index) => (
-          <div
+          <button
             key={stage}
+            type="button"
+            disabled={!onSelectStage}
+            onClick={() => onSelectStage?.(stage)}
+            aria-label={`${count} ${stage} — open in Leads`}
             className={cn(
-              'relative flex-1 border-r border-border px-4 pb-4 pt-3.5 last:border-r-0',
+              'group relative flex-1 border-r border-border px-4 pb-4 pt-3.5 text-left last:border-r-0',
               STAGE_TINT[index],
+              onSelectStage &&
+                'cursor-pointer transition-[filter] hover:brightness-[0.97] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
             )}
           >
             <div
@@ -64,7 +77,7 @@ export function PipelineBar({ leads }: { leads: Lead[] }) {
                 className="absolute -right-[5px] top-1/2 z-10 size-[9px] -translate-y-1/2 rotate-45 border-r border-t border-border bg-inherit"
               />
             )}
-          </div>
+          </button>
         ))}
       </div>
     </div>

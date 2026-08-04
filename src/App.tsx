@@ -7,6 +7,7 @@ import { PipelineProvider, usePipeline } from '@/hooks/use-pipeline'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { PROPOSAL_DRAFTING } from '@/lib/features'
 import type { ViewId } from '@/lib/nav'
+import type { LeadStatus } from '@/lib/types'
 import { SetupNotice } from '@/views/setup-notice'
 import { SignInView } from '@/views/sign-in'
 import { DashboardView } from '@/views/dashboard/dashboard-view'
@@ -53,6 +54,10 @@ function Console() {
   // so the tracker and the Proposals page can both open one, and switching
   // section closes it.
   const [profileId, setProfileId] = useState<string | null>(null)
+  // Which pipeline stage the leads register should open filtered to, when it
+  // was reached by clicking one on the dashboard. Cleared by any other
+  // navigation so the filter never outlives the click that asked for it.
+  const [leadStage, setLeadStage] = useState<LeadStatus | undefined>(undefined)
   const { rfps, loading, error } = usePipeline()
 
   const profileRfp = profileId
@@ -61,7 +66,15 @@ function Console() {
 
   function go(next: ViewId) {
     setProfileId(null)
+    setLeadStage(undefined)
     setView(next)
+  }
+
+  /** Dashboard pipeline stage → the leads register, filtered to that stage. */
+  function goToLeadStage(stage: LeadStatus) {
+    setProfileId(null)
+    setLeadStage(stage)
+    setView('leads')
   }
 
   function toggleSidebar(collapsed: boolean) {
@@ -123,8 +136,19 @@ function Console() {
             <RfpProfile rfp={profileRfp} onBack={() => setProfileId(null)} />
           ) : (
             <>
-          {view === 'dashboard' && <DashboardView />}
-          {view === 'leads' && <LeadsView />}
+          {view === 'dashboard' && (
+            <DashboardView
+              onNavigate={go}
+              onOpenProfile={setProfileId}
+              onOpenLeadStage={goToLeadStage}
+            />
+          )}
+          {/* Keyed on the stage so arriving from a different pipeline segment
+              remounts the register rather than keeping the previous filter —
+              `initialStatus` is genuinely initial. */}
+          {view === 'leads' && (
+            <LeadsView key={leadStage ?? 'all'} initialStatus={leadStage} />
+          )}
           {view === 'rfps' && <RfpsView onOpenProfile={setProfileId} />}
           {view === 'progress' && (
             <Suspense
