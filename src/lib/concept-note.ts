@@ -36,6 +36,8 @@ export const MAX_EXEMPLAR_CHARS = 12_000
 export interface ConceptNoteContext {
   /** The people available to staff this bid. Proposals only. */
   consultants?: ConsultantBrief[]
+  /** Text of the tender document, when one has been attached to the RFP. */
+  tenderText?: string
   kind: DraftKind
   org: string
   segment: string

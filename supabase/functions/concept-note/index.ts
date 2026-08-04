@@ -47,6 +47,8 @@ interface DraftContext {
   examples?: unknown
   /** The people available to staff the bid; see rosterBlock. */
   consultants?: unknown
+  /** Text of the tender document, extracted from a PDF by the client. */
+  tenderText?: unknown
   /** Opt in to the newline-delimited JSON stream instead of a buffered reply. */
   stream?: unknown
 }
@@ -70,6 +72,16 @@ const MAX_EXEMPLARS = 2
  */
 const MAX_CONSULTANTS = 8
 const MAX_CONSULTANT_CHARS = 1_500
+
+/**
+ * How much of an attached tender document reaches the prompt.
+ *
+ * The client already caps extraction at the same figure; this is the server
+ * refusing to be talked past it. Sixty thousand characters is roughly fifteen
+ * thousand tokens — a large slice of the budget, but a tender the model has
+ * actually read is worth more than anything else that could occupy it.
+ */
+const MAX_TENDER_CHARS = 60_000
 const MAX_EXEMPLAR_CHARS = 12_000
 
 const CORS_HEADERS: Record<string, string> = {
@@ -353,11 +365,30 @@ Deno.serve(async (request: Request) => {
     .filter(Boolean)
     .join('\n\n')
 
-  // The bid team is working from a notice, not the full tender pack, so say so
-  // plainly — otherwise the model treats a thin brief as a complete one and
-  // stops flagging what it was never given.
+  // Only proposals carry a tender document; a lead has no scope to attach yet.
+  const tender = isProposal ? text(context.tenderText, MAX_TENDER_CHARS) : ''
+
+  // What the model has been given changes what it should do about the gaps, so
+  // this is stated either way rather than assuming the thin case. Getting it
+  // wrong in the generous direction is the expensive one: told it has the full
+  // pack when it does not, the model stops flagging what it was never given and
+  // the bid readiness notes go quiet exactly when they matter most.
   const task = isProposal
-    ? `Draft a proposal responding to this tender.
+    ? tender
+      ? `Draft a proposal responding to this tender.
+
+The full tender document is reproduced below, after the summary. It is the authority: take the scope, deliverables, evaluation criteria, timelines, mandatory requirements and the buyer's own terminology from it rather than from the summary or from your own assumptions. Where the two disagree, the tender document wins.
+
+Read it for compliance as well as content — page limits, submission method, validity period, required attachments and forms — and list anything it demands that you cannot satisfy from the information supplied in the bid readiness notes.
+
+${details}
+
+---
+
+## Tender document
+
+${tender}`
+      : `Draft a proposal responding to this tender.
 
 You have the published notice only — not the full RFP document, evaluation matrix, company profile, CVs or reference letters. Work from what is here, mark everything else as a placeholder, and list what the bid team must supply in the bid readiness notes.
 

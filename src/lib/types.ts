@@ -172,6 +172,14 @@ export interface Rfp {
   /** The feed's `categories[]` service areas, comma-separated. */
   serviceAreas: string
   /**
+   * Text of the tender document, extracted from an uploaded PDF in the browser.
+   * Sent to the drafter so it writes against the real scope and evaluation
+   * criteria rather than the notice alone. Empty when none is attached.
+   */
+  tenderText: string
+  /** Filename the tender text came from, so its provenance is visible. */
+  tenderFileName: string
+  /**
    * Opportunity id from the CareerCraft public feed. `null` for anything added
    * by hand or pasted in as JSON — it is what makes re-syncing idempotent.
    */

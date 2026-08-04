@@ -91,6 +91,9 @@ export type RfpRow = {
   opportunity_type: string
   kenya: boolean
   service_areas: string
+  /** Text extracted from the tender PDF in the browser; see migration 0011. */
+  tender_text: string
+  tender_file_name: string
   /** Opportunity id from the CareerCraft feed; null for manual entries. */
   external_id: string | null
   created_on: string
@@ -172,6 +175,8 @@ export type Database = {
           | 'opportunity_type'
           | 'kenya'
           | 'service_areas'
+          | 'tender_text'
+          | 'tender_file_name'
         >
         Update: Partial<RfpRow>
         Relationships: []

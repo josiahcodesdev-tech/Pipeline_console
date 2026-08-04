@@ -100,6 +100,7 @@ interface PipelineValue {
   setRfpStatus: (id: string, status: RfpStatus) => Promise<void>
   setRfpPipeline: (id: string, inPipeline: boolean) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
+  setTenderDocument: (id: string, text: string, fileName: string) => Promise<void>
   syncOpportunities: () => Promise<SyncOutcome>
   /** State of the background sync, for status text in the RFPs view. */
   autoSync: AutoSyncStatus
@@ -325,6 +326,15 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     return created.length
   }, [])
 
+  const setTenderDocument = useCallback(
+    async (id: string, text: string, fileName: string) => {
+      const saved = await db.setTenderDocument(id, text, fileName)
+      setRfps((current) => current.map((rfp) => (rfp.id === id ? saved : rfp)))
+      toast.success(text ? 'Tender document attached' : 'Tender document removed')
+    },
+    [],
+  )
+
   const syncOpportunities = useCallback(async (): Promise<SyncOutcome> => {
     // Belt and braces alongside the hidden button: nothing should reach the
     // sources while the flag is off, including a stale tab or a keyboard path.
@@ -536,6 +546,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setRfpStatus,
       setRfpPipeline,
       importRfps,
+      setTenderDocument,
       syncOpportunities,
       autoSync,
       syncedAt,
@@ -574,6 +585,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setRfpStatus,
       setRfpPipeline,
       importRfps,
+      setTenderDocument,
       syncOpportunities,
       autoSync,
       syncedAt,

@@ -28,6 +28,8 @@ const EMPTY: RfpDraft = {
   opportunityType: '',
   kenya: false,
   serviceAreas: '',
+  tenderText: '',
+  tenderFileName: '',
 }
 
 function toDraft(rfp: Rfp): RfpDraft {

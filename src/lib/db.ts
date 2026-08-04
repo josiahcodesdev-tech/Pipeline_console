@@ -147,6 +147,8 @@ function toRfp(row: RfpRow): Rfp {
     opportunityType: row.opportunity_type ?? '',
     kenya: row.kenya ?? false,
     serviceAreas: row.service_areas ?? '',
+    tenderText: row.tender_text ?? '',
+    tenderFileName: row.tender_file_name ?? '',
     externalId: row.external_id,
     createdOn: row.created_on,
     createdAt: row.created_at,
@@ -218,6 +220,8 @@ function rfpFields(draft: RfpDraft) {
     opportunity_type: draft.opportunityType,
     kenya: draft.kenya,
     service_areas: draft.serviceAreas,
+    tender_text: draft.tenderText,
+    tender_file_name: draft.tenderFileName,
   }
 }
 
@@ -680,6 +684,30 @@ export async function setRfpPipeline(id: string, inPipeline: boolean): Promise<R
     await supabase
       .from('rfps')
       .update({ in_pipeline: inPipeline })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toRfp(row)
+}
+
+/**
+ * Attaches (or clears) the tender document text on an RFP.
+ *
+ * Its own call rather than a field on the edit dialog's draft: the text runs to
+ * tens of thousands of characters, and pushing that through every unrelated
+ * save — a status change, a note — would be wasteful and would risk one stale
+ * copy of the form wiping a document someone else had just attached.
+ */
+export async function setTenderDocument(
+  id: string,
+  text: string,
+  fileName: string,
+): Promise<Rfp> {
+  const row = unwrap(
+    await supabase
+      .from('rfps')
+      .update({ tender_text: text, tender_file_name: fileName })
       .eq('id', id)
       .select()
       .single(),

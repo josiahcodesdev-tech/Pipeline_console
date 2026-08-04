@@ -27,6 +27,7 @@ import {
   MAX_EXEMPLAR_CHARS,
 } from '@/lib/concept-note'
 import { downloadProposalDocx } from '@/lib/proposal-export'
+import { extractPdfText, MAX_TENDER_CHARS } from '@/lib/pdf-text'
 import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import type { Proposal, Rfp } from '@/lib/types'
@@ -68,6 +69,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     removeActivity,
     settings,
     consultants,
+    setTenderDocument,
     saveDraftProposal,
     uploadProposal,
     removeProposal,
@@ -85,7 +87,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [playbooks, setPlaybooks] = useState<string[]>([])
   /** The document as it arrives, shown live in the side panel. */
   const [draftPreview, setDraftPreview] = useState('')
+  const [readingTender, setReadingTender] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  const tenderInput = useRef<HTMLInputElement>(null)
   const previewScroll = useRef<HTMLDivElement>(null)
 
   // Follow the text as it is written, the way a document scrolls while you
@@ -148,6 +152,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           // The long bio is for a CV annex, not the proposal body — sending it
           // would triple the roster block for text the drafter should not use.
           consultants: consultants.map(({ id: _id, longBio: _longBio, ...brief }) => brief),
+          // The whole point of attaching it: the drafter stops guessing at the
+          // scope from a one-line notice.
+          tenderText: rfp.tenderText,
         },
         // The panel renders from this, so the document appears as it is written
         // rather than after a minute of a disabled button.
@@ -166,6 +173,40 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setDrafting(false)
+    }
+  }
+
+  /**
+   * Reads an uploaded tender PDF and attaches its text to this RFP.
+   *
+   * Extraction happens here in the browser — the file itself is never uploaded,
+   * which keeps an unpublished tender off the server entirely and costs nothing
+   * per page.
+   */
+  async function handleTenderUpload(file: File | undefined) {
+    if (!file) return
+    setReadingTender(true)
+    try {
+      const result = await extractPdfText(file)
+      if (result.scanned) {
+        // Said plainly rather than saving an empty document: a scanned tender
+        // needs OCR, which this deliberately does not do.
+        toast.error(
+          `No text found in ${file.name} — it looks like a scan. Paste the scope into Notes instead.`,
+        )
+        return
+      }
+      await setTenderDocument(rfp.id, result.text, file.name)
+      if (result.truncated) {
+        toast.warning(
+          `Attached, but only the first ${MAX_TENDER_CHARS.toLocaleString()} characters — the rest is beyond what the drafter can read.`,
+        )
+      }
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setReadingTender(false)
+      if (tenderInput.current) tenderInput.current.value = ''
     }
   }
 
@@ -366,6 +407,51 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
           {PROPOSAL_DRAFTING && (
+          <>
+          {/* Above the drafter on purpose: attaching the tender is what makes
+              the draft worth having, so it should be read first. */}
+          <Panel
+            title="Tender document"
+            description="Upload the tender PDF and its text is read here in the browser, then written against by the drafter. The file itself is never uploaded."
+          >
+            {rfp.tenderText ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-success-soft px-2 py-1 text-[11.5px] font-medium text-success">
+                  <FileTextIcon className="size-3.5" />
+                  {rfp.tenderFileName || 'Tender attached'}
+                </span>
+                <span className="text-[11px] text-faint">
+                  {rfp.tenderText.length.toLocaleString()} characters — the drafter
+                  writes against this rather than the notice alone
+                </span>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void setTenderDocument(rfp.id, '', '')}
+                >
+                  <TrashIcon />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={tenderInput}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => void handleTenderUpload(event.target.files?.[0])}
+                  className="block w-full text-[11.5px] text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-border file:bg-card file:px-3 file:py-1.5 file:text-[11.5px] file:text-foreground"
+                  disabled={readingTender}
+                />
+                <p className="mt-2 text-[11px] text-faint">
+                  {readingTender
+                    ? 'Reading the document…'
+                    : 'Digital PDFs only. A scanned tender has no text to read and will be refused rather than attached empty.'}
+                </p>
+              </>
+            )}
+          </Panel>
+
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Writes a full technical proposal against this notice — method,
@@ -399,6 +485,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               </p>
             )}
           </Panel>
+          </>
           )}
 
           <Panel

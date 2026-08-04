@@ -78,6 +78,12 @@ export function parseRfpImport(raw: string): ImportResult {
       opportunityType: 'rfp',
       kenya: false,
       serviceAreas: '',
+
+      // Pasted JSON carries no tender document; one is attached later on the profile.
+
+      tenderText: '',
+
+      tenderFileName: '',
     })
   })
 
