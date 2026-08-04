@@ -432,6 +432,12 @@ ${details}`
             if (event.type === 'text') {
               produced = true
               controller.enqueue(line({ type: 'delta', text: event.text }))
+            } else if (event.type === 'progress') {
+              // A heartbeat, not content. Claude reasons for a while before the
+              // first word of a long proposal, and the runtime drops a response
+              // that stays silent for 150s. Older clients ignore unknown event
+              // types, so this is safe to send to any of them.
+              controller.enqueue(line({ type: 'ping' }))
             } else {
               truncated = event.truncated
               refused = event.refused
@@ -476,15 +482,20 @@ ${details}`
   try {
     // The same generator the streaming path uses, collected. Driving both from
     // one source is what stops a buffered draft from behaving differently to a
-    // streamed one; the model is streamed either way because a 16,000-token
-    // document is long enough to hit an idle timeout on a single response.
+    // streamed one.
+    //
+    // This path sends nothing until the document is finished, so it is bounded
+    // by the runtime's 150-second idle timeout no matter how the model is
+    // driven — a long proposal must use `stream: true`. That is why the
+    // progress ticks are dropped here rather than turned into anything: there
+    // is no open response for them to keep alive.
     const chunks: string[] = []
     let truncated = false
     let refused = false
 
     for await (const event of drafter.run(job)) {
       if (event.type === 'text') chunks.push(event.text)
-      else {
+      else if (event.type === 'end') {
         truncated = event.truncated
         refused = event.refused
       }

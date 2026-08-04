@@ -22,9 +22,17 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.115.0'
 import OpenAI from 'npm:openai@6.45.0'
 
-/** What the drafter emits, in order. Exactly one `end` closes a run. */
+/**
+ * What the drafter emits, in order. Exactly one `end` closes a run.
+ *
+ * `progress` carries no content. It exists because Claude thinks before it
+ * writes, and the Edge Function runtime kills a response that sends nothing for
+ * 150 seconds — so the reasoning phase has to be visible on the wire as
+ * *something* or the request is cut off before the document begins.
+ */
 export type DraftEvent =
   | { type: 'text'; text: string }
+  | { type: 'progress' }
   | { type: 'end'; truncated: boolean; refused: boolean }
 
 export interface DraftJob {
@@ -78,41 +86,94 @@ const CLAUDE_NOTE_EFFORT = 'low'
  */
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
 
+/**
+ * Fast mode, and why a proposal needs it.
+ *
+ * Edge Functions are killed at roughly 150 seconds of wall clock. A full
+ * eighteen-page proposal is around 30,000 characters, and at standard output
+ * speed Claude does not finish one inside that budget — measured, not guessed:
+ * the first run streamed 28,860 characters and was cut mid-document at 152s.
+ *
+ * Fast mode runs the same model at up to 2.5x the output rate, which is the
+ * only lever that closes that gap without either shortening the document or
+ * moving off Edge Functions. It bills at $10/$50 per million tokens rather than
+ * $5/$25 — a few cents more on a document being written to win a contract.
+ *
+ * It has its own rate limit, separate from standard Opus, so a 429 here means
+ * "no fast capacity right now" rather than "you are over your limit". That is
+ * recoverable by simply asking for the standard speed, which `run` does.
+ */
+const FAST_BETA = 'fast-mode-2026-02-01'
+
 function anthropicDrafter(apiKey: string): Drafter {
   const client = new Anthropic({ apiKey })
 
   return {
     label: `Anthropic ${CLAUDE_MODEL}`,
     async *run(job: DraftJob): AsyncGenerator<DraftEvent> {
-      const stream = client.beta.messages.stream({
-        model: CLAUDE_MODEL,
-        max_tokens: job.heavy ? CLAUDE_PROPOSAL_MAX_TOKENS : CLAUDE_NOTE_MAX_TOKENS,
-        system: job.system,
-        messages: [{ role: 'user', content: job.task }],
-        // Adaptive is the default on Opus 5; stated so the intent survives a
-        // future model change. Note there is deliberately no `temperature` —
-        // Opus 5 rejects the sampling parameters outright.
-        thinking: { type: 'adaptive' },
-        output_config: {
-          effort: job.heavy ? CLAUDE_PROPOSAL_EFFORT : CLAUDE_NOTE_EFFORT,
-        },
-        betas: [FALLBACK_BETA],
-        fallbacks: 'default',
-      })
+      const open = (fast: boolean) =>
+        client.beta.messages.stream({
+          model: CLAUDE_MODEL,
+          max_tokens: job.heavy ? CLAUDE_PROPOSAL_MAX_TOKENS : CLAUDE_NOTE_MAX_TOKENS,
+          system: job.system,
+          messages: [{ role: 'user', content: job.task }],
+          // Adaptive is the default on Opus 5; stated so the intent survives a
+          // future model change. Note there is deliberately no `temperature` —
+          // Opus 5 rejects the sampling parameters outright.
+          thinking: { type: 'adaptive' },
+          output_config: {
+            effort: job.heavy ? CLAUDE_PROPOSAL_EFFORT : CLAUDE_NOTE_EFFORT,
+          },
+          ...(fast ? { speed: 'fast' as const } : {}),
+          betas: fast ? [FALLBACK_BETA, FAST_BETA] : [FALLBACK_BETA],
+          fallbacks: 'default',
+        })
 
-      for await (const event of stream) {
-        // Opus 5 thinks before it writes. Thinking arrives as its own delta
-        // type and is not part of the document — only text_delta is.
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          yield { type: 'text', text: event.delta.text }
+      // Only a proposal is long enough to need the extra speed, and only a
+      // proposal is worth the premium. A concept note finishes comfortably
+      // inside the budget at standard rate.
+      let fast = job.heavy
+
+      for (;;) {
+        const stream = open(fast)
+        let wrote = false
+
+        try {
+          for await (const event of stream) {
+            // Opus 5 thinks before it writes. Thinking arrives as its own delta
+            // type and is not part of the document — only text_delta is. Every
+            // other event still proves the model is working, and is forwarded
+            // as a contentless progress tick so the connection is never idle
+            // long enough for the runtime to kill it mid-reasoning.
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              wrote = true
+              yield { type: 'text', text: event.delta.text }
+            } else {
+              yield { type: 'progress' }
+            }
+          }
+
+          const message = await stream.finalMessage()
+          yield {
+            type: 'end',
+            truncated: message.stop_reason === 'max_tokens',
+            refused: message.stop_reason === 'refusal',
+          }
+          return
+        } catch (cause) {
+          // Fast capacity is a separate pool from standard Opus, so being
+          // turned away from it is not a reason to fail the draft — it is a
+          // reason to wait a little longer for the same model. Retried only
+          // before the first word: once the document has started, restarting
+          // would duplicate everything already sent.
+          const status = (cause as { status?: number })?.status
+          if (fast && !wrote && status === 429) {
+            console.warn('fast mode unavailable (429); retrying at standard speed')
+            fast = false
+            continue
+          }
+          throw cause
         }
-      }
-
-      const message = await stream.finalMessage()
-      yield {
-        type: 'end',
-        truncated: message.stop_reason === 'max_tokens',
-        refused: message.stop_reason === 'refusal',
       }
     },
   }

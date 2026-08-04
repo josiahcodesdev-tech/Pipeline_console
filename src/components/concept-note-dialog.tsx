@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  draftConceptNote,
+  draftConceptNoteStreaming,
   DRAFT_LABELS,
   type ConceptNoteContext,
 } from '@/lib/concept-note'
@@ -34,7 +34,14 @@ export function ConceptNoteDialog({
     setStatus('loading')
     setDraft('')
 
-    draftConceptNote(context)
+    // Streamed rather than buffered, even though this dialog shows the draft
+    // only when it is finished. A buffered request sends nothing until the last
+    // word, and the Edge Function runtime drops a response that goes quiet for
+    // 150 seconds — which a full proposal comfortably does. Watching the text
+    // arrive is the better dialog anyway.
+    draftConceptNoteStreaming(context, (_chunk, soFar) => {
+      if (active) setDraft(soFar)
+    })
       .then((result) => {
         if (!active) return
         setDraft(result.text)
