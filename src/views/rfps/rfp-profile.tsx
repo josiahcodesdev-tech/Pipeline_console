@@ -32,6 +32,7 @@ import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import type { Proposal, Rfp } from '@/lib/types'
 import { RfpDialog } from './rfp-dialog'
+import { ProposalPreview } from './proposal-preview'
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return ''
@@ -322,15 +323,16 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 readable measure rather than the full pane — a line of body text
                 running the whole width of half a monitor is unreadable, and the
                 finished Word file will not look like that either. */}
-            <div className="mx-auto max-w-[68ch] rounded-md border border-border bg-card px-8 py-7 shadow-sm">
-              <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-[1.75] text-foreground">
-                {draftPreview}
-                {drafting && (
-                  <span className="ml-0.5 inline-block animate-pulse font-bold text-primary">
-                    ▍
-                  </span>
-                )}
-              </pre>
+            {/* White page rather than the themed card: this is a picture of
+                the Word file, so it should look like paper regardless of how
+                the console around it is styled. */}
+            <div className="mx-auto max-w-[68ch] rounded-md border border-border bg-white px-9 py-8 shadow-sm">
+              <ProposalPreview markdown={draftPreview} />
+              {drafting && (
+                <span className="inline-block animate-pulse font-bold" style={{ color: '#C5973A' }}>
+                  ▍
+                </span>
+              )}
               {drafting && !draftPreview && (
                 <p className="text-[13px] italic text-faint">
                   Reading the notice and your house rules…

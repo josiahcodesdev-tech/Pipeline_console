@@ -1,4 +1,5 @@
 import { formatDateLong, formatKes } from './dates'
+import { parseProposal, type Block } from './proposal-markdown'
 import type { Rfp } from './types'
 
 /**
@@ -29,30 +30,6 @@ function inline(
         italics: options.italics,
       }),
   )
-}
-
-/** A `|`-delimited row, minus the outer pipes and trimmed. */
-function cells(line: string): string[] {
-  return line
-    .replace(/^\s*\|/, '')
-    .replace(/\|\s*$/, '')
-    .split('|')
-    .map((cell) => cell.trim())
-}
-
-/**
- * The `|---|:--:|` line under a table's header row, which is not data.
- *
- * Only ever applied to the second line of a table. A row of `| - | - |` is
- * legitimate data — "not applicable" in a risk register — and dropping it
- * lower down would quietly lose a row from the buyer's copy.
- */
-function isTableDivider(line: string): boolean {
-  return /^\s*\|?[\s|:-]+\|[\s|:-]*$/.test(line) && line.includes('-')
-}
-
-function isTableRow(line: string): boolean {
-  return line.trimStart().startsWith('|')
 }
 
 /**
@@ -151,198 +128,106 @@ export async function downloadProposalDocx(
     HeadingLevel.HEADING_4,
   ]
 
-  const lines = content.split('\n').map((line) => line.trimEnd())
+  // Parsed by the shared module, so the Word file and the live preview can
+  // never disagree about what the document is — which section is number 4,
+  // which lines form a table, which callout is the dark one.
+  const blocks: Block[] = parseProposal(content)
   const body: (InstanceType<typeof Paragraph> | InstanceType<typeof Table>)[] = []
-  let sectionNumber = 0
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
-    const trimmed = line.trim()
-
-    if (!trimmed) {
+  for (const block of blocks) {
+    if (block.kind === "blank") {
       body.push(new Paragraph({ children: [] }))
       continue
     }
 
-    // ------------------------------------------------------------- tables ---
-    // Consumed as a block: a table's rows only mean anything together, and
-    // Word needs the whole grid before it can size the columns.
-    if (isTableRow(line)) {
-      const rows: string[][] = []
-      let offset = 0
-      while (index < lines.length && isTableRow(lines[index])) {
-        if (offset !== 1 || !isTableDivider(lines[index])) {
-          rows.push(cells(lines[index]))
-        }
-        offset += 1
-        index += 1
-      }
-      index -= 1
-
-      if (rows.length > 0) {
-        const width = Math.max(...rows.map((row) => row.length))
-        body.push(
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: rows.map(
-              (row, rowIndex) =>
-                new TableRow({
-                  // Repeat the header on every page — a work plan or risk
-                  // register that breaks across pages is unreadable without it.
-                  tableHeader: rowIndex === 0,
-                  children: Array.from({ length: width }, (_unused, column) => {
-                    const cell = row[column] ?? ''
-                    return new TableCell({
-                      width: {
-                        size: Math.floor(100 / width),
-                        type: WidthType.PERCENTAGE,
-                      },
-                      // Maroon header, then cream and white alternating —
-                      // banded rows are what keep a long work plan or risk
-                      // register readable across a page break.
-                      //
-                      // The first column of every body row is set apart on tan:
-                      // in the sent proposals almost every table is a label
-                      // against a description ("Delivery quality | Use
-                      // experienced facilitators..."), and even the ones that
-                      // are not — the day-by-day schedule — emphasise their
-                      // first column the same way. It is the single device that
-                      // most makes a table look like theirs rather than
-                      // Word's default.
-                      shading: {
-                        fill:
-                          rowIndex === 0
-                            ? BRAND.maroon
-                            : column === 0 && width > 1
-                              ? BRAND.tan
-                              : rowIndex % 2 === 1
-                                ? BRAND.white
-                                : BRAND.cream,
-                      },
-                      margins: { top: 80, bottom: 80, left: 120, right: 120 },
-                      children: [
-                        new Paragraph({
-                          alignment: AlignmentType.LEFT,
-                          spacing: { before: 20, after: 20 },
-                          children: inline(cell, TextRun, {
-                            size: 18,
-                            bold: rowIndex === 0 || (column === 0 && width > 1),
-                            color:
-                              rowIndex === 0
-                                ? BRAND.white
-                                : column === 0 && width > 1
-                                  ? BRAND.maroon
-                                  : BRAND.ink,
-                          }),
+    if (block.kind === "table") {
+      const width = Math.max(...block.rows.map((row) => row.length))
+      body.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: block.rows.map(
+            (row, rowIndex) =>
+              new TableRow({
+                // Repeat the header on every page — a work plan or risk
+                // register that breaks across pages is unreadable without it.
+                tableHeader: rowIndex === 0,
+                children: Array.from({ length: width }, (_unused, column) => {
+                  const cell = row[column] ?? ""
+                  const header = rowIndex === 0
+                  // The first body column is the label column, which is the
+                  // device running through almost every table in the sent
+                  // proposals — and even the schedule, whose Day column is
+                  // emphasised the same way.
+                  const label = !header && column === 0 && width > 1
+                  return new TableCell({
+                    width: { size: Math.floor(100 / width), type: WidthType.PERCENTAGE },
+                    shading: {
+                      fill: header
+                        ? BRAND.maroon
+                        : label
+                          ? BRAND.tan
+                          : rowIndex % 2 === 1
+                            ? BRAND.white
+                            : BRAND.cream,
+                    },
+                    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.LEFT,
+                        spacing: { before: 20, after: 20 },
+                        children: inline(cell, TextRun, {
+                          size: 18,
+                          bold: header || label,
+                          color: header ? BRAND.white : label ? BRAND.maroon : BRAND.ink,
                         }),
-                      ],
-                    })
-                  }),
+                      }),
+                    ],
+                  })
                 }),
-            ),
-          }),
-        )
-        // Word merges adjacent tables that touch, so keep them apart.
-        body.push(new Paragraph({ spacing: { after: 80 }, children: [] }))
-      }
+              }),
+          ),
+        }),
+      )
+      // Word merges adjacent tables that touch, so keep them apart.
+      body.push(new Paragraph({ spacing: { after: 80 }, children: [] }))
       continue
     }
 
-    // ----------------------------------------------------------- headings ---
-    const heading = /^(#{1,4})\s+(.*)$/.exec(trimmed)
-    if (heading) {
-      const level = heading[1].length
-      let label = heading[2]
-
-      // Number the sections, as every sent proposal does — "1. Executive
-      // Summary", "2. Understanding of the Assignment". The doctrine already
-      // told the drafter not to number them itself, on the grounds that the
-      // template would; nothing actually did, so they came out bare and the
-      // contents page listed them bare too.
-      //
-      // Level TWO, not one. In the doctrine `#` is the document title and the
-      // bid-readiness appendix, and `##` is a section — numbering level one
-      // would have put "1." in front of the document's own title.
-      if (level === 2) {
-        sectionNumber += 1
-        label = `${sectionNumber}. ${label}`
-      }
-
+    if (block.kind === "heading") {
+      const label = block.number ? `${block.number}. ${block.text}` : block.text
       body.push(
         new Paragraph({
-          heading: HEADINGS[level - 1],
-          spacing: { before: level === 1 ? 360 : 240, after: 120 },
-          // The internal section is a hard stop, not another chapter.
-          pageBreakBefore: level === 1 && body.length > 0,
+          heading: HEADINGS[block.level - 1],
+          spacing: { before: block.level === 1 ? 360 : 240, after: 120 },
+          // A level-one heading is the document title or the internal
+          // appendix — both are a hard stop, not another chapter.
+          pageBreakBefore: block.level === 1 && body.length > 0,
           children: inline(label, TextRun),
         }),
       )
       continue
     }
 
-    // ------------------------------------------------------------ bullets ---
-    const bullet = /^\s*[-*•]\s+(.*)$/.exec(line)
-    if (bullet) {
-      body.push(
-        new Paragraph({
-          bullet: { level: 0 },
-          spacing: { after: 60 },
-          children: inline(bullet[1], TextRun),
-        }),
-      )
-      continue
-    }
-
-    const numbered = /^\s*(\d+)\.\s+(.*)$/.exec(line)
-    if (numbered) {
-      body.push(
-        new Paragraph({
-          spacing: { after: 60 },
-          indent: { left: 360, hanging: 360 },
-          children: [
-            new TextRun({ text: `${numbered[1]}.\t` }),
-            ...inline(numbered[2], TextRun),
-          ],
-        }),
-      )
-      continue
-    }
-
-    // Blockquotes are the sent proposals' two callout devices, and which one
-    // you get depends on whether the quote opens with a bold label.
-    //
-    //   > A point worth pausing on.            → cream box, maroon italic
-    //   > **Core value proposition** Text...   → dark maroon box, gold label
-    //
-    // The dark box is what those documents use to close a section or state the
-    // promise, and it is the strongest thing on the page. Keying it to a bold
-    // lead-in gives the drafter a way to ask for it in plain Markdown, rather
-    // than inventing syntax nobody would remember.
-    const quote = /^\s*>\s?(.*)$/.exec(line)
-    if (quote) {
-      const labelled = /^\*\*(.+?)\*\*\s*(.*)$/.exec(quote[1].trim())
-
-      if (labelled) {
-        const [, label, rest] = labelled
+    if (block.kind === "callout") {
+      if (block.label) {
+        // The dark panel: gold label over white on maroon, which is the
+        // strongest mark the sent proposals use.
         body.push(
           new Paragraph({
             spacing: { before: 200, after: 60 },
             shading: { fill: BRAND.maroon },
-            children: [
-              new TextRun({ text: label, bold: true, size: 21, color: BRAND.gold }),
-            ],
+            children: [new TextRun({ text: block.label, bold: true, size: 21, color: BRAND.gold })],
           }),
         )
         body.push(
           new Paragraph({
             spacing: { after: 220 },
             shading: { fill: BRAND.maroon },
-            children: [new TextRun({ text: rest, size: 20, color: BRAND.white })],
+            children: [new TextRun({ text: block.text, size: 20, color: BRAND.white })],
           }),
         )
         continue
       }
-
       body.push(
         new Paragraph({
           spacing: { before: 160, after: 200 },
@@ -353,21 +238,39 @@ export async function downloadProposalDocx(
             left: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
             right: { style: BorderStyle.SINGLE, size: 6, color: BRAND.gold, space: 10 },
           },
-          children: inline(quote[1], TextRun, {
-            size: 20,
-            italics: true,
-            color: BRAND.maroon,
-          }),
+          children: inline(block.text, TextRun, { size: 20, italics: true, color: BRAND.maroon }),
+        }),
+      )
+      continue
+    }
+
+    if (block.kind === "bullet") {
+      body.push(
+        new Paragraph({
+          bullet: { level: 0 },
+          spacing: { after: 60 },
+          children: inline(block.text, TextRun),
+        }),
+      )
+      continue
+    }
+
+    if (block.kind === "numbered") {
+      body.push(
+        new Paragraph({
+          spacing: { after: 60 },
+          indent: { left: 360, hanging: 360 },
+          children: [
+            new TextRun({ text: `${block.marker}.	` }),
+            ...inline(block.text, TextRun),
+          ],
         }),
       )
       continue
     }
 
     body.push(
-      new Paragraph({
-        spacing: { after: 120 },
-        children: inline(trimmed, TextRun),
-      }),
+      new Paragraph({ spacing: { after: 120 }, children: inline(block.text, TextRun) }),
     )
   }
 
