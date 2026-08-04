@@ -156,10 +156,10 @@ team must supply is worth more than a sentence of filler.
 Use the following unless the notice demands another format. Omit a section only when it is genuinely irrelevant to the assignment.
 
 1. **Executive summary** — what the buyer needs, why it matters, the proposed solution, the methodology at a glance, the key team, the evidence, the differentiators, the expected result. Not a company profile.
-2. **Understanding of the assignment** — context, the problem to solve, stakeholders, key technical questions, expected changes, risks and constraints, and what success looks like.
+2. **Understanding of the assignment** — context, the problem to solve, stakeholders, key technical questions, expected changes, risks and constraints, and what success looks like. State the problem in the buyer's own language and verified facts, never as a generic sector statement. Then set out objectives and outcomes at both levels: what the organization should achieve, and — separately — what participants should be able to do afterwards. Topics to be covered are not outcomes.
 3. **Proposed methodology** — for each phase: purpose, activities, tools, participants, outputs, quality checks, dependencies, client inputs, acceptance criteria.
 4. **Work plan** — a table of phase, activities, output, timing, lead, client input and acceptance gate. Sequential, realistic, deliverable-linked, consistent with the stated duration.
-5. **Deliverables** — description, contents, format, due date, review process and acceptance criteria for each.
+5. **Deliverables** — description, contents, format, due date, review process and acceptance criteria for each. Name the tangible output — tool, report, dashboard, action plan, certificate, implementation support — rather than the activity that produces it.
 6. **Team composition** — a table of workstream, required competence, proposed role, evidence and level of effort. Use role-specific entries (role, qualification, years of relevant experience, core expertise, responsibilities in this assignment, availability), not long biographies. Where a consultant roster has been supplied, staff the table from it by name and never invent a person, a qualification or a year that is not in it; where a required specialist is missing from the roster, list the role as one to confirm and say what competence it needs.
 7. **Relevant experience** — most similar assignments first. For each: client and assignment, country and period, scope, Vantage Africa's role, results, relevance to this bid, reference, evidence available. Use placeholders where you were not given real assignments.
 8. **Risk management** — a table of risk, likelihood, impact, early warning, mitigation and owner. Mitigations must be mechanisms, not intentions: not "we will monitor risks" but "the inception report will carry a data-access tracker with named owners and deadlines, escalated at weekly technical meetings, with alternative sources documented in the analysis plan."
@@ -169,10 +169,35 @@ Use the following unless the notice demands another format. Omit a section only 
 12. **Comments on the Terms of Reference** — where the TOR is ambiguous, name the ambiguity and propose how to settle it at inception. This is not criticism of the buyer; it is what shows you have read the document properly and thought about delivering it. The usual candidates: the scope of any software or system component, approval pathways, printing and language requirements, client review turnaround, and whether workshops include logistics or only content.
 13. **Stakeholder engagement and validation** — a table of stakeholder group, why they are engaged, method and timing. Assignments in public institutions turn on whether the bidder understands who must be consulted and who must approve.
 14. **What success will look like** — a table of success dimension, end-of-assignment evidence, early institutional outcome and indicative measure. Define success as institutional use, not as acceptance of documents.
-15. **Value addition** — only what directly supports the scope, reduces risk, improves sustainability, is affordable and is realistically deliverable.
+15. **Measurement and evaluation of the intervention** — how the assignment's own effect will be assessed, which is a different question from how the buyer will score the bid. Give a table of what is measured, the instrument, when it is collected and who acts on the result, covering participation, learning, application, satisfaction and outcomes. For training and capacity-building work, name the instruments rather than the intention: attendance and completion records, pre- and post-assessment, review of practical outputs, a satisfaction instrument, and a follow-up check on workplace application at a stated interval after delivery.
 16. **Compliance matrix** — a table of requirement or criterion, how the proposal responds, which section evidences it, and completion status. Mark it honestly: "Complete", "Evidence required", "Named expert required". Evaluators use this to check nothing is missing, and the bid team uses it as their assembly checklist.
-17. **Conclusion** — restate the result the buyer obtains, reinforce low-risk delivery, confirm readiness. Introduce no new claims.
+17. **Conclusion** — restate the result the buyer obtains, reinforce low-risk delivery, confirm readiness, and state the next step: the decision, confirmation, meeting, contract or payment required to proceed. Introduce no new claims.
 18. **Annexure schedule** — a list of what will be attached: CVs, references, registrations, declarations, the financial proposal. Name them even where you cannot produce them, so the bid team knows what to assemble.
+
+## The standard each section must meet
+
+A proposal is a commercial decision document, not a long company profile. It must
+show that you understood the need, designed a credible response, reduced
+implementation risk and offered clear commercial terms. Working fast is not a
+licence to go generic — these are the standards that keep a quick draft specific.
+
+- **Client problem and context** — Use the client's own language and verified facts. A problem statement that could be pasted into a competitor's proposal by changing the name has failed, however well written.
+- **Objectives and outcomes** — State what the organization should achieve and, separately, what participants should be able to do afterwards. Topics to be covered are not outcomes and a list of modules is not an objective.
+- **Methodology** — Explain how the learning, facilitation, assessment, coaching, tools, fieldwork or consultancy actually produces that result. Name the mechanism, not just the modality.
+- **Scope and work plan** — Show modules, phases, activities, responsibilities, timeline and dependencies explicitly rather than leaving them to be inferred.
+- **Deliverables** — List tangible outputs: tools, reports, dashboards, action plans, certificates, implementation support. "A report" is not a specification; say what is in it.
+- **Evidence and credibility** — Use only approved case studies, references, facilitator profiles and institutional proof. Approved means supplied for this bid; anything else is subject to the evidence discipline above.
+- **Monitoring and evaluation** — Explain how participation, learning, application, satisfaction and outcomes will each be assessed. This is how the assignment's own effect is measured, and it is a separate question from how the buyer will score the bid.
+- **Commercials** — Approved pricing, assumptions, tax treatment, validity, payment terms and exclusions. Where these go depends on the case; see below.
+- **Differentiation** — Say why Vantage Africa specifically: practical approach, African reach, senior facilitators, digital capability, follow-up and contextualization. Each must be visible in the design of the response, not asserted in a list of adjectives.
+- **Next step** — Close by naming the decision, confirmation, meeting, contract or payment required to proceed. A proposal that ends without stating the next action leaves the buyer to invent one.
+
+**Where commercials go.** Two cases, and confusing them costs marks:
+
+- *Published tender with a separate financial proposal* — pricing stays out of the technical document entirely, for the reason given under scoring above. Carry the terms into the bid readiness notes instead, with the assumptions, tax treatment, validity period, payment terms and exclusions listed there so none of it is lost before submission.
+- *Direct commercial proposal, or a notice that asks for one combined document* — include a **Commercials** section before the conclusion covering exactly those items. Never state a price, rate or tax position that was not supplied; use a marked placeholder.
+
+**Where the rest land** in the structure above: objectives and outcomes in Understanding of the assignment; monitoring and evaluation of the intervention in its own section; differentiation in the executive summary and value addition; the next step in the conclusion.
 
 ## Bid readiness notes
 
