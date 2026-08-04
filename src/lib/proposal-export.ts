@@ -276,6 +276,9 @@ export async function downloadProposalDocx(
 
   const document = new Document({
     creator: 'Pipeline Console',
+    // Tells Word there are fields needing calculation, so it prompts to update
+    // them on open. Without this the contents page stays empty.
+    features: { updateFields: true },
     title: rfp.title,
     description: `Proposal to ${rfp.org}`,
     styles: {
@@ -527,7 +530,15 @@ export async function downloadProposalDocx(
             heading: HeadingLevel.HEADING_1,
             children: [new TextRun({ text: 'Contents' })],
           }),
-          new TableOfContents('Right-click and choose "Update Field" to build the contents.', {
+          // `dirty` is the difference between a contents page and an empty
+          // one. Without it Word treats the field as already calculated and
+          // renders only the placeholder — which is exactly what shipped: a
+          // page headed "Contents" with nothing beneath it. Marked dirty, Word
+          // offers to update fields on open and builds the list.
+          //
+          // The placeholder still matters for anything that opens the file
+          // without evaluating fields, such as a PDF converter.
+          new TableOfContents('Update this field to build the contents.', {
             hyperlink: true,
             headingStyleRange: '1-3',
           }),

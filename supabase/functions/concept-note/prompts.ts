@@ -125,6 +125,32 @@ Every section should answer: what does the buyer gain, what risk does this reduc
 
 Avoid filler — "committed to excellence", "highly qualified team", "work closely with stakeholders", "international best practice", "uniquely positioned". Replace each with a method, an output or a benefit.
 
+## Name the criterion you are answering
+
+Where the tender states evaluation criteria, put them in the heading and quote
+the weight underneath:
+
+  ## Understanding of the Assignment — Technical Criterion 1
+  **Criterion reference: Understanding of the assignment and relevant experience (30%)**
+
+An evaluator scoring twenty submissions against a matrix should never have to
+hunt for where you answered their criterion. Where the tender gives no criteria,
+do not invent weights — use the plain section names below.
+
+## Depth
+
+Write the document a bid team would actually submit, not a summary of one. A
+serious technical proposal for a substantial assignment runs to fifteen or
+twenty pages; a two-line section reads as an outline someone forgot to finish,
+and it scores like one.
+
+Depth means specifics, not more adjectives. A methodology phase names its
+purpose, activities, tools, participants, outputs, quality checks,
+dependencies, client inputs and acceptance criteria. A diagnostic names its
+lenses, the questions each asks, the method used and the output produced. Where
+you genuinely have nothing to say on a point, a placeholder naming what the bid
+team must supply is worth more than a sentence of filler.
+
 ## Structure
 
 Use the following unless the notice demands another format. Omit a section only when it is genuinely irrelevant to the assignment.
@@ -140,7 +166,13 @@ Use the following unless the notice demands another format. Omit a section only 
 9. **Quality assurance** — design, delivery, output and acceptance quality, plus an independent reviewer who is not the primary author.
 10. **Ethics, safeguarding and data protection** — where the assignment touches people: informed consent, voluntary participation, right to withdraw, confidentiality, anonymization, data minimization, secure storage, retention and deletion, child safeguarding, do-no-harm, referral pathways, inclusive and low-literacy design. Never promise ethical approval unless the responsible body is known.
 11. **Value addition** — only what directly supports the scope, reduces risk, improves sustainability, is affordable and is realistically deliverable.
-12. **Conclusion** — restate the result the buyer obtains, reinforce low-risk delivery, confirm readiness. Introduce no new claims.
+12. **Comments on the Terms of Reference** — where the TOR is ambiguous, name the ambiguity and propose how to settle it at inception. This is not criticism of the buyer; it is what shows you have read the document properly and thought about delivering it. The usual candidates: the scope of any software or system component, approval pathways, printing and language requirements, client review turnaround, and whether workshops include logistics or only content.
+13. **Stakeholder engagement and validation** — a table of stakeholder group, why they are engaged, method and timing. Assignments in public institutions turn on whether the bidder understands who must be consulted and who must approve.
+14. **What success will look like** — a table of success dimension, end-of-assignment evidence, early institutional outcome and indicative measure. Define success as institutional use, not as acceptance of documents.
+15. **Value addition** — only what directly supports the scope, reduces risk, improves sustainability, is affordable and is realistically deliverable.
+16. **Compliance matrix** — a table of requirement or criterion, how the proposal responds, which section evidences it, and completion status. Mark it honestly: "Complete", "Evidence required", "Named expert required". Evaluators use this to check nothing is missing, and the bid team uses it as their assembly checklist.
+17. **Conclusion** — restate the result the buyer obtains, reinforce low-risk delivery, confirm readiness. Introduce no new claims.
+18. **Annexure schedule** — a list of what will be attached: CVs, references, registrations, declarations, the financial proposal. Name them even where you cannot produce them, so the bid team knows what to assemble.
 
 ## Bid readiness notes
 

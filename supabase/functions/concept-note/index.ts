@@ -32,6 +32,17 @@ import { selectPlaybooks } from './playbooks.ts'
 const PROPOSAL_MODEL = 'gpt-4o'
 const CONCEPT_NOTE_MODEL = 'gpt-4o-mini'
 
+/**
+ * Output ceiling for a proposal.
+ *
+ * Raised from 8,000, which was capping documents at roughly eight pages while
+ * the proposals actually sent run to eighteen. The model was not being brief;
+ * it was being cut off. 16,000 is just under gpt-4o's 16,384-token maximum
+ * output, and output tokens bill only when produced, so a ceiling that is
+ * rarely reached costs nothing.
+ */
+const PROPOSAL_MAX_TOKENS = 16_000
+
 interface DraftContext {
   kind?: unknown
   org?: unknown
@@ -431,7 +442,7 @@ ${details}`
               { role: 'user', content: task },
             ],
             temperature: 0.7,
-            max_tokens: isProposal ? 8000 : 2000,
+            max_tokens: isProposal ? PROPOSAL_MAX_TOKENS : 2000,
             stream: true,
           })
 
@@ -498,7 +509,7 @@ ${details}`
       // A full technical proposal with work plan, team, risk and QA tables runs
       // well past the 700 words the old outline aimed at. Output tokens are
       // only billed when produced, so the ceiling costs nothing unused.
-      max_tokens: isProposal ? 8000 : 2000,
+      max_tokens: isProposal ? PROPOSAL_MAX_TOKENS : 2000,
     })
 
     const choice = completion.choices[0]
