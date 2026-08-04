@@ -91,6 +91,8 @@ export type RfpRow = {
   opportunity_type: string
   kenya: boolean
   service_areas: string
+  /** Capability fit 0-100; see migration 0012. */
+  fit_score: number
   /** Text extracted from the tender PDF in the browser; see migration 0011. */
   tender_text: string
   tender_file_name: string
@@ -175,6 +177,7 @@ export type Database = {
           | 'opportunity_type'
           | 'kenya'
           | 'service_areas'
+          | 'fit_score'
           | 'tender_text'
           | 'tender_file_name'
         >

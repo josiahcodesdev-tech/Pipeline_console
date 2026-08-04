@@ -84,6 +84,12 @@ export function parseRfpImport(raw: string): ImportResult {
       tenderText: '',
 
       tenderFileName: '',
+
+      // Hand-pasted rows are not scored — the ranking exists to sort what the
+
+      // sync brought in, and someone who typed a row in already judged it.
+
+      fitScore: 0,
     })
   })
 

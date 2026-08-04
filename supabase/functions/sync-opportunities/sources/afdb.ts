@@ -35,6 +35,7 @@ import {
   type Notice,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stripTags,
   withinLookback,
@@ -97,6 +98,7 @@ export function parseAfdb(html: string, now = new Date()): {
       source: "AfDB",
       opportunityType: "rfp",
       serviceAreas: serviceAreasFor(subject),
+      fitScore: scoreFit(subject),
     })
   }
 

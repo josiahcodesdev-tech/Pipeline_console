@@ -30,6 +30,7 @@ const EMPTY: RfpDraft = {
   serviceAreas: '',
   tenderText: '',
   tenderFileName: '',
+  fitScore: 0,
 }
 
 function toDraft(rfp: Rfp): RfpDraft {

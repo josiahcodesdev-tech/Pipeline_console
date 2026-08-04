@@ -31,6 +31,8 @@ export interface Notice {
   opportunityType: string
   /** Comma-joined service areas, e.g. "Monitoring & Evaluation, Training". */
   serviceAreas: string
+  /** How well it fits what this firm does, 0-100. See scoreFit. */
+  fitScore: number
 }
 
 export function text(value: unknown): string {
@@ -216,10 +218,11 @@ export function mentionsKenya(...parts: string[]): boolean {
  *
  * `label` is what appears in the tracker's service-area filter.
  */
-const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> = [
+const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readonly string[] }> = [
   {
     // The flagship. Eval 360, VAMEPA and most of the case studies sit here.
     label: "Monitoring & Evaluation",
+    weight: 10,
     terms: [
       "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
       "meal ", "evaluation", "evaluator", "baseline", "endline", "midterm",
@@ -230,6 +233,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Leadership & Governance",
+    weight: 9,
     terms: [
       "leadership", "governance", "board development", "board training",
       "executive development", "executive education", "management development",
@@ -238,6 +242,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Project Management",
+    weight: 6,
     terms: [
       "project management", "programme management", "program management",
       "project planning", "project cycle", "contract management",
@@ -251,6 +256,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
     // environmental impact assessment. Baseline and endline surveys are still
     // caught — by Monitoring & Evaluation, where they belong.
     label: "Data & Analysis",
+    weight: 6,
     terms: [
       "data analysis", "data analytics", "data science", "business intelligence",
       "dashboard", "data visualisation", "data visualization",
@@ -261,6 +267,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Proposal Writing & Fundraising",
+    weight: 6,
     terms: [
       "proposal writing", "fundraising", "fund raising", "resource mobilisation",
       "resource mobilization", "grant writing", "grant management",
@@ -269,6 +276,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Digital & AI Skills",
+    weight: 5,
     terms: [
       "digital skills", "digital literacy", "artificial intelligence",
       "ai-augmented", "e-learning", "elearning", "learning management system",
@@ -277,6 +285,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Institutional Capacity Building",
+    weight: 8,
     terms: [
       "capacity building", "capacity development", "capacity-building",
       "capacity assessment", "capacity strengthening", "institutional strengthening",
@@ -287,6 +296,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Strategy & Performance",
+    weight: 7,
     terms: [
       "strategic plan", "strategy development", "strategic management",
       "performance management", "performance improvement", "appraisal",
@@ -296,6 +306,7 @@ const CAPABILITIES: ReadonlyArray<{ label: string; terms: readonly string[] }> =
   },
   {
     label: "Training & Facilitation",
+    weight: 10,
     terms: [
       "training", "curriculum", "workshop", "facilitation", "facilitator",
       "trainer", "train the trainer", "training of trainers",
@@ -315,6 +326,47 @@ export function matchCapabilities(...parts: string[]): string[] {
   return CAPABILITIES.filter((capability) =>
     capability.terms.some((term) => haystack.includes(term)),
   ).map((capability) => capability.label)
+}
+
+/**
+ * The weight at which a notice counts as a perfect fit.
+ *
+ * Calibrated against a live run rather than reasoned about. The first attempt
+ * used 25 — roughly three capabilities — and produced 26 "Partial" out of 27,
+ * including a Monitoring and Evaluation Specialist role, which is as central to
+ * this firm as an opportunity gets. The fault was assuming notices name several
+ * capabilities; a tender title is a dozen words and usually names one.
+ *
+ * At 18, one flagship capability (weight 10) lands near 56 and reads as a good
+ * fit, two together reach 100 and read as strong, and a peripheral match like
+ * project management alone sits around 33 and reads as partial. That matches
+ * how these opportunities actually differ.
+ */
+const PERFECT_FIT = 18
+
+/**
+ * How well an opportunity fits, 0-100, for ranking the tracker.
+ *
+ * Filtering already answers "can we do this at all?"; every row that survives
+ * is biddable. This answers the next question — which of them first — because
+ * a week's worth arriving as an undifferentiated list still leaves the triage
+ * to be done by hand.
+ *
+ * The score sums the weights of the capabilities matched, so it rewards both
+ * strength of fit (an evaluation outranks a digital-skills course, because
+ * evaluation is what this firm is known for) and breadth (a tender wanting
+ * evaluation AND training AND capacity building outranks one wanting only the
+ * first). It is a ranking heuristic, not a probability of winning, and it
+ * deliberately ignores deadline and value — those are separate questions the
+ * tracker already sorts and shows.
+ */
+export function scoreFit(...parts: string[]): number {
+  const haystack = parts.join(" ").toLowerCase()
+  if (!haystack.trim()) return 0
+  const total = CAPABILITIES.filter((capability) =>
+    capability.terms.some((term) => haystack.includes(term)),
+  ).reduce((sum, capability) => sum + capability.weight, 0)
+  return Math.min(100, Math.round((total / PERFECT_FIT) * 100))
 }
 
 /**

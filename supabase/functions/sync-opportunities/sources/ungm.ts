@@ -24,6 +24,7 @@ import {
   type Notice,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stillOpen,
   stripTags,
@@ -116,6 +117,7 @@ export function parseUngm(html: string, now = new Date()): {
       source: agency ? `UNGM — ${agency}` : "UNGM",
       opportunityType: "rfp",
       serviceAreas: serviceAreasFor(title),
+      fitScore: scoreFit(title),
     })
   }
 

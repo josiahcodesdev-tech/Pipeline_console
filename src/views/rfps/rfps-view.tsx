@@ -56,6 +56,73 @@ function areasOf(rfp: Rfp): string[] {
     .filter(Boolean)
 }
 
+type SortKey = 'fit' | 'deadline' | 'newest'
+
+const SORTS: ReadonlyArray<{ key: SortKey; label: string; title: string }> = [
+  { key: 'fit', label: 'Best fit', title: 'How well it matches what Vantage Africa delivers' },
+  { key: 'deadline', label: 'Deadline', title: 'Soonest closing first' },
+  { key: 'newest', label: 'Newest', title: 'Most recently published first' },
+]
+
+function SortToggle({
+  value,
+  onChange,
+}: {
+  value: SortKey
+  onChange: (next: SortKey) => void
+}) {
+  return (
+    <div className="flex rounded-lg border border-border bg-card p-0.5">
+      {SORTS.map((option) => (
+        <button
+          key={option.key}
+          type="button"
+          onClick={() => onChange(option.key)}
+          title={option.title}
+          className={cn(
+            'cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
+            value === option.key
+              ? 'bg-brand-soft text-primary'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The fit score as a readable band.
+ *
+ * A bare number invites false precision — 62 is not meaningfully better than
+ * 58, and showing both as "Good" says what the score can actually support. The
+ * number stays in the tooltip for anyone who wants it.
+ */
+function FitBadge({ score }: { score: number }) {
+  if (score <= 0) {
+    return <span className="text-[11px] text-faint">—</span>
+  }
+  const band =
+    score >= 80
+      ? { label: 'Strong', className: 'bg-success-soft text-success' }
+      : score >= 50
+        ? { label: 'Good', className: 'bg-brand-soft text-primary' }
+        : { label: 'Partial', className: 'bg-surface-2 text-muted-foreground' }
+  return (
+    <span
+      title={`Fit score ${score}/100 — how well this matches what Vantage Africa delivers`}
+      className={cn(
+        'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+        band.className,
+      )}
+    >
+      {band.label}
+    </span>
+  )
+}
+
 /** "just now" / "14 minutes ago" / "3 hours ago" — enough for a status line. */
 function relativeTime(epochMs: number): string {
   const seconds = Math.round((Date.now() - epochMs) / 1000)
@@ -97,6 +164,8 @@ export function RfpsView({
   const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
   // Which kind of work: corporate training, M&E, research and so on.
   const [areaFilter, setAreaFilter] = useState<string>('all')
+  // Best fit first: the filter says what is biddable, this says what to read.
+  const [sort, setSort] = useState<'fit' | 'deadline' | 'newest'>('fit')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -157,20 +226,27 @@ export function RfpsView({
         }
         return true
       })
-      // Deadline first while closed ones are hidden: everything on screen is
-      // still biddable, so the useful question is what closes soonest. Undated
-      // notices sort last — they cannot claim urgency they have not stated.
       .sort((a, b) => {
-        if (hideExpired) {
+        // Best fit by default. The capability filter already decided everything
+        // here is biddable, so the next question is which to read first, and a
+        // week arriving as an undifferentiated list leaves that to be done by
+        // hand. Ties fall through to the soonest deadline, because between two
+        // equally good opportunities the closer one is the more urgent.
+        if (sort === 'fit' && a.fitScore !== b.fitScore) {
+          return b.fitScore - a.fitScore
+        }
+        if (sort !== 'newest') {
           const left = daysUntil(a.deadline)
           const right = daysUntil(b.deadline)
+          // Undated notices sort last — they cannot claim urgency they have
+          // not stated.
           if (left === null && right !== null) return 1
           if (right === null && left !== null) return -1
           if (left !== null && right !== null && left !== right) return left - right
         }
         return b.createdAt.localeCompare(a.createdAt)
       })
-  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter])
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, sort])
 
   async function handleImport() {
     setImporting(true)
@@ -364,6 +440,7 @@ export function RfpsView({
             </button>
           ))}
         </div>
+        <SortToggle value={sort} onChange={setSort} />
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-[11.5px] text-muted-foreground">
           <input
             type="checkbox"
@@ -391,6 +468,7 @@ export function RfpsView({
               <TableHead>Title</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Segment</TableHead>
+              <TableHead>Fit</TableHead>
               <TableHead>Deadline</TableHead>
               <TableHead className="text-right">Value (KES)</TableHead>
               <TableHead>Source</TableHead>
@@ -450,6 +528,9 @@ export function RfpsView({
                   <span className="inline-block whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                     {rfp.segment}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <FitBadge score={rfp.fitScore} />
                 </TableCell>
                 <TableCell
                   className={cn(

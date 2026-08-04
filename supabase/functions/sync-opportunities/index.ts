@@ -145,6 +145,7 @@ function toRow(notice: Notice, userId: string, stamp: string) {
     opportunity_type: notice.opportunityType,
     kenya: mentionsKenya(notice.title, notice.org, notice.location),
     service_areas: notice.serviceAreas,
+    fit_score: notice.fitScore,
     external_id: notice.externalId,
     user_id: userId,
     sourced: true,

@@ -24,6 +24,7 @@ import {
   decodeEntities,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stillOpen,
   text,
@@ -108,6 +109,7 @@ export function parseUndp(xml: string, now = new Date()): Notice[] {
       source: "UNDP",
       opportunityType: "rfp",
       serviceAreas: serviceAreasFor(title, description),
+      fitScore: scoreFit(title, description),
     })
   }
 

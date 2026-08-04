@@ -147,6 +147,7 @@ function toRfp(row: RfpRow): Rfp {
     opportunityType: row.opportunity_type ?? '',
     kenya: row.kenya ?? false,
     serviceAreas: row.service_areas ?? '',
+    fitScore: row.fit_score ?? 0,
     tenderText: row.tender_text ?? '',
     tenderFileName: row.tender_file_name ?? '',
     externalId: row.external_id,
@@ -220,6 +221,7 @@ function rfpFields(draft: RfpDraft) {
     opportunity_type: draft.opportunityType,
     kenya: draft.kenya,
     service_areas: draft.serviceAreas,
+    fit_score: draft.fitScore,
     tender_text: draft.tenderText,
     tender_file_name: draft.tenderFileName,
   }

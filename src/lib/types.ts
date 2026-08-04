@@ -180,6 +180,13 @@ export interface Rfp {
   /** Filename the tender text came from, so its provenance is visible. */
   tenderFileName: string
   /**
+   * How well this fits what the firm delivers, 0-100, scored at sync time from
+   * weighted capability matches. A ranking heuristic, not a probability of
+   * winning. Manually added RFPs and rows synced before the score existed sit
+   * at 0 and sort last under "Best fit".
+   */
+  fitScore: number
+  /**
    * Opportunity id from the CareerCraft public feed. `null` for anything added
    * by hand or pasted in as JSON — it is what makes re-syncing idempotent.
    */

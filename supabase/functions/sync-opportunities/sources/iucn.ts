@@ -24,6 +24,7 @@ import {
   decodeEntities,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stillOpen,
   stripTags,
@@ -94,6 +95,7 @@ export function parseIucn(html: string, now = new Date()): Notice[] {
       source: "IUCN",
       opportunityType: "rfp",
       serviceAreas: serviceAreasFor(title),
+      fitScore: scoreFit(title),
     })
   }
 

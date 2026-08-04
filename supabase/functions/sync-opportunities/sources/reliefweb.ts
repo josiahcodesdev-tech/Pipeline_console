@@ -28,6 +28,7 @@ import {
   decodeEntities,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stillOpen,
   text,
@@ -102,6 +103,7 @@ export function parseReliefWeb(payload: unknown, now = new Date()): Notice[] {
       // the feed's own framing rather than second-guessing it.
       opportunityType: "job",
       serviceAreas: serviceAreasFor(title, categories.join(" "), themes.join(" ")),
+      fitScore: scoreFit(title, categories.join(" "), themes.join(" ")),
     })
   }
 

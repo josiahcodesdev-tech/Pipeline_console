@@ -21,6 +21,7 @@ import {
   decodeEntities,
   isRelevant,
   parseDate,
+  scoreFit,
   serviceAreasFor,
   stillOpen,
   text,
@@ -98,6 +99,7 @@ export function parseWorldBank(payload: unknown, now = new Date()): Notice[] {
       // tagging against it made almost everything look like Training — these
       // areas are a filter facet, so a false positive costs more than a miss.
       serviceAreas: serviceAreasFor(title),
+      fitScore: scoreFit(title),
     })
   }
 
