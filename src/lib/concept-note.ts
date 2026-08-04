@@ -86,9 +86,10 @@ export interface DraftResult {
 }
 
 /**
- * Calls the `concept-note` Edge Function. The OpenAI key lives only in that
- * function's secrets — the browser never sees it and never talks to
- * api.openai.com directly.
+ * Calls the `concept-note` Edge Function. The model key lives only in that
+ * function's secrets — the browser never sees it and never talks to a model
+ * provider directly. Which provider writes the draft is the function's choice,
+ * not this caller's.
  */
 export async function draftConceptNote(
   context: ConceptNoteContext,
@@ -103,7 +104,7 @@ export async function draftConceptNote(
   if (error) {
     const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
     throw new Error(
-      `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and OPENAI_API_KEY is set.`,
+      `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and a drafting key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.`,
     )
   }
   if (data?.error) throw new Error(data.error)
@@ -165,7 +166,7 @@ export async function draftConceptNoteStreaming(
       .catch(() => null)
     throw new Error(
       detail ??
-        `Could not draft the ${what} (${response.status}). Check that the concept-note function is deployed and OPENAI_API_KEY is set.`,
+        `Could not draft the ${what} (${response.status}). Check that the concept-note function is deployed and a drafting key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.`,
     )
   }
 

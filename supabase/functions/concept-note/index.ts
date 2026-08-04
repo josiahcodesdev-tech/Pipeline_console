@@ -2,10 +2,12 @@
  * Edge Function: concept-note
  *
  * Drafts either a concept note (for a lead) or a proposal (for an RFP). This
- * exists so the OpenAI API key stays server-side — the browser sends
- * structured context, never a prompt and never a key.
+ * exists so the model API key stays server-side — the browser sends structured
+ * context, never a prompt and never a key.
  *
- * Deploy:
+ * Deploy with either key. Anthropic writes the better proposal and is used when
+ * present; OpenAI is the fallback. See ./drafters.ts.
+ *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
  *   supabase secrets set OPENAI_API_KEY=sk-proj-...
  *   supabase functions deploy concept-note
  *
@@ -20,28 +22,9 @@
  * regardless.
  */
 
-import OpenAI from 'npm:openai@6.45.0'
 import { CONCEPT_NOTE_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
 import { selectPlaybooks } from './playbooks.ts'
-
-/**
- * Proposals go into live bids against a full compliance-and-scoring doctrine,
- * so they get the stronger model; concept notes are short outreach and do not
- * justify the cost. Both are one-word changes.
- */
-const PROPOSAL_MODEL = 'gpt-4o'
-const CONCEPT_NOTE_MODEL = 'gpt-4o-mini'
-
-/**
- * Output ceiling for a proposal.
- *
- * Raised from 8,000, which was capping documents at roughly eight pages while
- * the proposals actually sent run to eighteen. The model was not being brief;
- * it was being cut off. 16,000 is just under gpt-4o's 16,384-token maximum
- * output, and output tokens bill only when produced, so a ceiling that is
- * rarely reached costs nothing.
- */
-const PROPOSAL_MAX_TOKENS = 16_000
+import { selectDrafter } from './drafters.ts'
 
 interface DraftContext {
   kind?: unknown
@@ -298,9 +281,12 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Method not allowed' }, 405)
   }
 
-  const apiKey = Deno.env.get('OPENAI_API_KEY')
-  if (!apiKey) {
-    return json({ error: 'OPENAI_API_KEY is not set on this function.' }, 500)
+  const drafter = selectDrafter()
+  if (!drafter) {
+    return json(
+      { error: 'No drafting key is set on this function. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.' },
+      500,
+    )
   }
 
   let context: DraftContext
@@ -406,7 +392,10 @@ You have the published notice only — not the full RFP document, evaluation mat
 ${details}`
     : `Draft a ${what} using this context:\n\n${details}`
 
-  const client = new OpenAI({ apiKey })
+  const job = { system: systemPrompt, task, heavy: isProposal }
+
+  const refusedMessage =
+    'The drafting service declined this request. Try rephrasing the notes on this record.'
 
   /**
    * Streaming is opt-in via `stream: true` in the request body.
@@ -435,36 +424,22 @@ ${details}`
             playbooks: playbooks.map((playbook) => playbook.label),
           }))
 
-          const completion = await client.chat.completions.create({
-            model: isProposal ? PROPOSAL_MODEL : CONCEPT_NOTE_MODEL,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: task },
-            ],
-            temperature: 0.7,
-            max_tokens: isProposal ? PROPOSAL_MAX_TOKENS : 2000,
-            stream: true,
-          })
-
-          let finishReason: string | null = null
+          let truncated = false
+          let refused = false
           let produced = false
 
-          for await (const chunk of completion) {
-            const choice = chunk.choices[0]
-            const delta = choice?.delta?.content
-            if (delta) {
+          for await (const event of drafter.run(job)) {
+            if (event.type === 'text') {
               produced = true
-              controller.enqueue(line({ type: 'delta', text: delta }))
+              controller.enqueue(line({ type: 'delta', text: event.text }))
+            } else {
+              truncated = event.truncated
+              refused = event.refused
             }
-            if (choice?.finish_reason) finishReason = choice.finish_reason
           }
 
-          if (finishReason === 'content_filter') {
-            controller.enqueue(line({
-              type: 'error',
-              message:
-                'The drafting service declined this request. Try rephrasing the notes on this record.',
-            }))
+          if (refused) {
+            controller.enqueue(line({ type: 'error', message: refusedMessage }))
           } else if (!produced) {
             controller.enqueue(line({
               type: 'error',
@@ -473,10 +448,10 @@ ${details}`
           } else {
             // Truncation is reported rather than hidden — a proposal that stops
             // mid-sentence should be visibly incomplete, not quietly wrong.
-            controller.enqueue(line({ type: 'done', truncated: finishReason === 'length' }))
+            controller.enqueue(line({ type: 'done', truncated }))
           }
         } catch (cause) {
-          console.error('concept-note stream failed', cause)
+          console.error(`concept-note stream failed (${drafter.label})`, cause)
           const detail = cause instanceof Error ? cause.message : String(cause)
           // Reported in-band. The response status was already committed as 200
           // the moment the first byte went out, so a thrown error here would
@@ -499,31 +474,27 @@ ${details}`
   }
 
   try {
-    const completion = await client.chat.completions.create({
-      model: isProposal ? PROPOSAL_MODEL : CONCEPT_NOTE_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: task },
-      ],
-      temperature: 0.7,
-      // A full technical proposal with work plan, team, risk and QA tables runs
-      // well past the 700 words the old outline aimed at. Output tokens are
-      // only billed when produced, so the ceiling costs nothing unused.
-      max_tokens: isProposal ? PROPOSAL_MAX_TOKENS : 2000,
-    })
+    // The same generator the streaming path uses, collected. Driving both from
+    // one source is what stops a buffered draft from behaving differently to a
+    // streamed one; the model is streamed either way because a 16,000-token
+    // document is long enough to hit an idle timeout on a single response.
+    const chunks: string[] = []
+    let truncated = false
+    let refused = false
 
-    const choice = completion.choices[0]
-
-    if (choice?.finish_reason === 'content_filter') {
-      return json(
-        {
-          error: `The drafting service declined this request. Try rephrasing the notes on this record.`,
-        },
-        422,
-      )
+    for await (const event of drafter.run(job)) {
+      if (event.type === 'text') chunks.push(event.text)
+      else {
+        truncated = event.truncated
+        refused = event.refused
+      }
     }
 
-    const draft = choice?.message?.content?.trim() ?? ''
+    if (refused) {
+      return json({ error: refusedMessage }, 422)
+    }
+
+    const draft = chunks.join('').trim()
     if (!draft) {
       return json({ error: `The drafting service returned an empty ${what}.` }, 502)
     }
@@ -533,7 +504,7 @@ ${details}`
     return json(
       {
         text: draft,
-        truncated: choice?.finish_reason === 'length',
+        truncated,
         // Surfaced so the author can see which method the draft was written
         // against, and correct the tender's service areas if it picked wrong.
         playbooks: playbooks.map((playbook) => playbook.label),
@@ -541,7 +512,7 @@ ${details}`
       200,
     )
   } catch (cause) {
-    console.error('concept-note failed', cause)
+    console.error(`concept-note failed (${drafter.label})`, cause)
     const detail = cause instanceof Error ? cause.message : String(cause)
     return json({ error: `Drafting failed: ${detail}` }, 502)
   }
