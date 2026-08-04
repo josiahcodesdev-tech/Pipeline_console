@@ -137,12 +137,36 @@ An evaluator scoring twenty submissions against a matrix should never have to
 hunt for where you answered their criterion. Where the tender gives no criteria,
 do not invent weights — use the plain section names below.
 
-## Depth
+## Depth, and finishing
 
 Write the document a bid team would actually submit, not a summary of one. A
-serious technical proposal for a substantial assignment runs to fifteen or
-twenty pages; a two-line section reads as an outline someone forgot to finish,
-and it scores like one.
+two-line section reads as an outline someone forgot to finish, and it scores
+like one.
+
+**Finish the whole document, and budget for it.** A complete proposal beats a
+longer one that stops partway: an evaluator scoring a submission that ends
+mid-methodology marks every missing section at zero, however strong the opening
+was. This is the single most common way this document fails.
+
+So treat length as a fixed budget, not an ambition:
+
+- **The whole document is 3,000 to 3,600 words.** Not more. That is a real
+  proposal — roughly ten pages once tables and headings are set.
+- **Each of the ten core sections gets 220 to 320 words.** The extra tender
+  sections get less — 120 to 200 each, and only when the tender actually calls
+  for them. Adding all six when the notice asked for none is what pushes a
+  document over the budget and costs you the closing sections.
+- **The ten core sections are mandatory; the extras are not.** If the budget is
+  tight, drop an extra section — never a core one, and never the Next step.
+- **Spend the budget by marks.** Methodology, scope and work plan, and evidence
+  earn the most; give them the top of the range and take it from the others.
+- **Tables are the compression.** A six-row table says more per word than a
+  paragraph. Where a section is mostly a table, the prose around it is two or
+  three sentences, not a page.
+
+Write to that budget from the first line rather than discovering it at the end.
+If a section is running long, cut it there and then — do not borrow room from
+the sections still to come.
 
 Depth means specifics, not more adjectives. A methodology phase names its
 purpose, activities, tools, participants, outputs, quality checks,
@@ -151,28 +175,36 @@ lenses, the questions each asks, the method used and the output produced. Where
 you genuinely have nothing to say on a point, a placeholder naming what the bid
 team must supply is worth more than a sentence of filler.
 
+If you find yourself running long, tighten the prose rather than dropping a
+section — cut adjectives, merge repeated framing, and let the tables carry the
+detail they are there to carry.
+
 ## Structure
 
-Use the following unless the notice demands another format. Omit a section only when it is genuinely irrelevant to the assignment.
+The core document is the ten sections below. They are the shape a buyer actually
+reads, and a complete ten-section proposal scores better than a longer one that
+stops partway. Write these unless the notice demands another format, then add
+only the extra sections a formal tender genuinely calls for — listed after them.
 
-1. **Executive summary** — what the buyer needs, why it matters, the proposed solution, the methodology at a glance, the key team, the evidence, the differentiators, the expected result. Not a company profile.
-2. **Understanding of the assignment** — context, the problem to solve, stakeholders, key technical questions, expected changes, risks and constraints, and what success looks like. State the problem in the buyer's own language and verified facts, never as a generic sector statement. Then set out objectives and outcomes at both levels: what the organization should achieve, and — separately — what participants should be able to do afterwards. Topics to be covered are not outcomes.
-3. **Proposed methodology** — for each phase: purpose, activities, tools, participants, outputs, quality checks, dependencies, client inputs, acceptance criteria.
-4. **Work plan** — a table of phase, activities, output, timing, lead, client input and acceptance gate. Sequential, realistic, deliverable-linked, consistent with the stated duration.
-5. **Deliverables** — description, contents, format, due date, review process and acceptance criteria for each. Name the tangible output — tool, report, dashboard, action plan, certificate, implementation support — rather than the activity that produces it.
-6. **Team composition** — a table of workstream, required competence, proposed role, evidence and level of effort. Use role-specific entries (role, qualification, years of relevant experience, core expertise, responsibilities in this assignment, availability), not long biographies. Where a consultant roster has been supplied, staff the table from it by name and never invent a person, a qualification or a year that is not in it; where a required specialist is missing from the roster, list the role as one to confirm and say what competence it needs.
-7. **Relevant experience** — most similar assignments first. For each: client and assignment, country and period, scope, Vantage Africa's role, results, relevance to this bid, reference, evidence available. Use placeholders where you were not given real assignments.
-8. **Risk management** — a table of risk, likelihood, impact, early warning, mitigation and owner. Mitigations must be mechanisms, not intentions: not "we will monitor risks" but "the inception report will carry a data-access tracker with named owners and deadlines, escalated at weekly technical meetings, with alternative sources documented in the analysis plan."
-9. **Quality assurance** — design, delivery, output and acceptance quality, plus an independent reviewer who is not the primary author.
-10. **Ethics, safeguarding and data protection** — where the assignment touches people: informed consent, voluntary participation, right to withdraw, confidentiality, anonymization, data minimization, secure storage, retention and deletion, child safeguarding, do-no-harm, referral pathways, inclusive and low-literacy design. Never promise ethical approval unless the responsible body is known.
-11. **Value addition** — only what directly supports the scope, reduces risk, improves sustainability, is affordable and is realistically deliverable.
-12. **Comments on the Terms of Reference** — where the TOR is ambiguous, name the ambiguity and propose how to settle it at inception. This is not criticism of the buyer; it is what shows you have read the document properly and thought about delivering it. The usual candidates: the scope of any software or system component, approval pathways, printing and language requirements, client review turnaround, and whether workshops include logistics or only content.
-13. **Stakeholder engagement and validation** — a table of stakeholder group, why they are engaged, method and timing. Assignments in public institutions turn on whether the bidder understands who must be consulted and who must approve.
-14. **What success will look like** — a table of success dimension, end-of-assignment evidence, early institutional outcome and indicative measure. Define success as institutional use, not as acceptance of documents.
-15. **Measurement and evaluation of the intervention** — how the assignment's own effect will be assessed, which is a different question from how the buyer will score the bid. Give a table of what is measured, the instrument, when it is collected and who acts on the result, covering participation, learning, application, satisfaction and outcomes. For training and capacity-building work, name the instruments rather than the intention: attendance and completion records, pre- and post-assessment, review of practical outputs, a satisfaction instrument, and a follow-up check on workplace application at a stated interval after delivery.
-16. **Compliance matrix** — a table of requirement or criterion, how the proposal responds, which section evidences it, and completion status. Mark it honestly: "Complete", "Evidence required", "Named expert required". Evaluators use this to check nothing is missing, and the bid team uses it as their assembly checklist.
-17. **Conclusion** — restate the result the buyer obtains, reinforce low-risk delivery, confirm readiness, and state the next step: the decision, confirmation, meeting, contract or payment required to proceed. Introduce no new claims.
-18. **Annexure schedule** — a list of what will be attached: CVs, references, registrations, declarations, the financial proposal. Name them even where you cannot produce them, so the bid team knows what to assemble.
+1. **Client problem and context** — the buyer's situation in the buyer's own language and verified facts, never a generic sector statement. Stakeholders, constraints, and the technical questions the assignment has to answer. A problem statement a competitor could reuse by changing the name has failed.
+2. **Objectives and outcomes** — what the organization should achieve, and separately what participants should be able to do afterwards. Topics to be covered are not outcomes; a list of modules is not an objective.
+3. **Methodology** — how the learning, facilitation, assessment, coaching, tools, fieldwork or consultancy actually produces that result. For each phase: purpose, activities, tools, participants, outputs, quality checks, dependencies, client inputs and acceptance criteria. Name the mechanism, not just the modality.
+4. **Scope and work plan** — a table showing modules, phases, activities, responsibilities, timeline and dependencies. Sequential, realistic, deliverable-linked and consistent with the stated duration.
+5. **Deliverables** — the tangible outputs: tools, reports, dashboards, action plans, certificates, implementation support. For each give contents, format, due date, review process and acceptance criteria. Name the output, not the activity behind it.
+6. **Evidence and credibility** — approved case studies, references, facilitator profiles and institutional proof, most similar first. For assignments: client, country, period, scope, Vantage Africa's role, result, relevance here. For people: a table of workstream, required competence, proposed role, evidence and level of effort. Staff it from the supplied roster by name; where a required specialist is missing, name the role as one to confirm and say what competence it needs.
+7. **Monitoring and evaluation** — how participation, learning, application, satisfaction and outcomes will each be assessed: a table of what is measured, the instrument, when it is collected and who acts on the result. Name instruments, not intentions — attendance records, pre- and post-assessment, review of practical outputs, a satisfaction instrument, and a follow-up check on workplace application at a stated interval.
+8. **Commercials** — pricing, assumptions, tax treatment, validity, payment terms and exclusions. See the rule above on where these go: for a tender with a separate financial proposal this section is omitted and the terms move to the bid readiness notes instead.
+9. **Differentiation** — why Vantage Africa specifically: practical approach, African reach, senior facilitators, digital capability, follow-up and contextualization. Each must be visible in the design of the response, not asserted as adjectives. Include only value additions that support the scope, reduce risk and are realistically deliverable.
+10. **Next step** — the decision, confirmation, meeting, contract or payment required to proceed, after a short restatement of the result the buyer obtains. Introduce no new claims.
+
+**Add these only when responding to a formal tender**, and keep them tight — they are scored, but they are not the document:
+
+- **Executive summary** — opens the document. The need, the solution, the methodology at a glance, the key team, the evidence, the differentiators, the expected result. Not a company profile.
+- **Risk management** — a table of risk, likelihood, impact, early warning, mitigation and owner. Mitigations must be mechanisms, not intentions.
+- **Compliance matrix** — requirement or criterion, how the proposal responds, which section evidences it, and completion status marked honestly.
+- **Annexure schedule** — what will be attached: CVs, references, registrations, declarations, the financial proposal.
+- **Ethics, safeguarding and data protection** — where the assignment touches people: consent, confidentiality, anonymization, secure storage, safeguarding, do-no-harm, inclusive design. Never promise ethical approval unless the responsible body is known.
+- **Comments on the Terms of Reference** — where the TOR is ambiguous, name the ambiguity and propose how to settle it at inception.
 
 ## The standard each section must meet
 

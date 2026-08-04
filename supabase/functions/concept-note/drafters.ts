@@ -74,7 +74,7 @@ const CLAUDE_NOTE_MAX_TOKENS = 4_000
  * good it was going to be. `medium` leaves room for a full-length document to
  * finish. Raise it if drafts land comfortably inside the limit.
  */
-const CLAUDE_PROPOSAL_EFFORT = 'medium'
+const CLAUDE_PROPOSAL_EFFORT = 'low'
 const CLAUDE_NOTE_EFFORT = 'low'
 
 /**
