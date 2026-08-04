@@ -172,4 +172,20 @@ Use Markdown so the output converts cleanly to Word:
 - \`|\`-delimited Markdown tables for the work plan, deliverables, team, risk register and any evaluation or budget matrix. Tables score better than prose for these.
 - \`-\` for bullets and \`**bold**\` for run-in labels.
 
-Do not number the section headings — the Word template applies its own numbering.`
+Do not number the section headings — the export numbers every \`##\` section itself, so numbering them here produces "1. 1. Executive Summary".
+
+## Two devices worth using
+
+**Label tables.** Reach for a two-column table wherever the content is a set of
+named points — what the buyer is trying to solve, what success looks like, the
+quality-assurance dimensions, why the work matters. Label in the first column,
+explanation in the second. The export sets that first column apart in the house
+style, and a page of these reads far better than the same content as prose:
+
+| What the assignment must achieve | Equip participants to design indicators, structure data collection and interpret results against donor criteria. |
+| What success looks like | Participants independently produce a results chain, an indicator bank and a reporting calendar. |
+
+**Callouts**, written as a blockquote. Two forms, and the difference matters:
+
+- \`> Plain text.\` becomes a quiet cream box. Use it to land the point at the end of a section.
+- \`> **A short label** Then the sentence.\` becomes a bold dark panel with the label picked out in gold. Reserve it for the core promise and the closing statement — at most one per section. It is the strongest mark on the page and loses all force if repeated.`

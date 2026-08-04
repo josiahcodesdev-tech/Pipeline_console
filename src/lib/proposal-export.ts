@@ -153,6 +153,7 @@ export async function downloadProposalDocx(
 
   const lines = content.split('\n').map((line) => line.trimEnd())
   const body: (InstanceType<typeof Paragraph> | InstanceType<typeof Table>)[] = []
+  let sectionNumber = 0
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
@@ -199,13 +200,24 @@ export async function downloadProposalDocx(
                       // Maroon header, then cream and white alternating —
                       // banded rows are what keep a long work plan or risk
                       // register readable across a page break.
+                      //
+                      // The first column of every body row is set apart on tan:
+                      // in the sent proposals almost every table is a label
+                      // against a description ("Delivery quality | Use
+                      // experienced facilitators..."), and even the ones that
+                      // are not — the day-by-day schedule — emphasise their
+                      // first column the same way. It is the single device that
+                      // most makes a table look like theirs rather than
+                      // Word's default.
                       shading: {
                         fill:
                           rowIndex === 0
                             ? BRAND.maroon
-                            : rowIndex % 2 === 1
-                              ? BRAND.white
-                              : BRAND.cream,
+                            : column === 0 && width > 1
+                              ? BRAND.tan
+                              : rowIndex % 2 === 1
+                                ? BRAND.white
+                                : BRAND.cream,
                       },
                       margins: { top: 80, bottom: 80, left: 120, right: 120 },
                       children: [
@@ -214,8 +226,13 @@ export async function downloadProposalDocx(
                           spacing: { before: 20, after: 20 },
                           children: inline(cell, TextRun, {
                             size: 18,
-                            bold: rowIndex === 0,
-                            color: rowIndex === 0 ? BRAND.white : BRAND.ink,
+                            bold: rowIndex === 0 || (column === 0 && width > 1),
+                            color:
+                              rowIndex === 0
+                                ? BRAND.white
+                                : column === 0 && width > 1
+                                  ? BRAND.maroon
+                                  : BRAND.ink,
                           }),
                         }),
                       ],
@@ -235,13 +252,29 @@ export async function downloadProposalDocx(
     const heading = /^(#{1,4})\s+(.*)$/.exec(trimmed)
     if (heading) {
       const level = heading[1].length
+      let label = heading[2]
+
+      // Number the sections, as every sent proposal does — "1. Executive
+      // Summary", "2. Understanding of the Assignment". The doctrine already
+      // told the drafter not to number them itself, on the grounds that the
+      // template would; nothing actually did, so they came out bare and the
+      // contents page listed them bare too.
+      //
+      // Level TWO, not one. In the doctrine `#` is the document title and the
+      // bid-readiness appendix, and `##` is a section — numbering level one
+      // would have put "1." in front of the document's own title.
+      if (level === 2) {
+        sectionNumber += 1
+        label = `${sectionNumber}. ${label}`
+      }
+
       body.push(
         new Paragraph({
           heading: HEADINGS[level - 1],
           spacing: { before: level === 1 ? 360 : 240, after: 120 },
           // The internal section is a hard stop, not another chapter.
           pageBreakBefore: level === 1 && body.length > 0,
-          children: inline(heading[2], TextRun),
+          children: inline(label, TextRun),
         }),
       )
       continue
@@ -275,11 +308,41 @@ export async function downloadProposalDocx(
       continue
     }
 
-    // Blockquote — the drafter uses these for positioning statements. The
-    // template renders the equivalent as a cream box with a gold keyline and
-    // maroon italic text, used to close a section with its point.
+    // Blockquotes are the sent proposals' two callout devices, and which one
+    // you get depends on whether the quote opens with a bold label.
+    //
+    //   > A point worth pausing on.            → cream box, maroon italic
+    //   > **Core value proposition** Text...   → dark maroon box, gold label
+    //
+    // The dark box is what those documents use to close a section or state the
+    // promise, and it is the strongest thing on the page. Keying it to a bold
+    // lead-in gives the drafter a way to ask for it in plain Markdown, rather
+    // than inventing syntax nobody would remember.
     const quote = /^\s*>\s?(.*)$/.exec(line)
     if (quote) {
+      const labelled = /^\*\*(.+?)\*\*\s*(.*)$/.exec(quote[1].trim())
+
+      if (labelled) {
+        const [, label, rest] = labelled
+        body.push(
+          new Paragraph({
+            spacing: { before: 200, after: 60 },
+            shading: { fill: BRAND.maroon },
+            children: [
+              new TextRun({ text: label, bold: true, size: 21, color: BRAND.gold }),
+            ],
+          }),
+        )
+        body.push(
+          new Paragraph({
+            spacing: { after: 220 },
+            shading: { fill: BRAND.maroon },
+            children: [new TextRun({ text: rest, size: 20, color: BRAND.white })],
+          }),
+        )
+        continue
+      }
+
       body.push(
         new Paragraph({
           spacing: { before: 160, after: 200 },
