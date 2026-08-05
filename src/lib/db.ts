@@ -283,11 +283,26 @@ async function loadTable<Row, T>(
   }
 }
 
+/**
+ * The signed-in member's own working set.
+ *
+ * Scoped to `user_id` explicitly, even though row-level security would let an
+ * admin read everyone's. Those are different questions: the policy decides what
+ * an admin *may* see, this decides what the console *asks for*, and the console
+ * wants one working set rather than the whole firm's.
+ *
+ * Without it an admin loaded every member's copy of every scraped tender —
+ * 1,195 rows for 263 actual tenders across five accounts, so the tracker showed
+ * each opportunity about five times and got slower with every member added.
+ * Oversight is a separate view, not a thing that silently multiplies the
+ * default one.
+ */
 export async function fetchAll(): Promise<PipelineSnapshot> {
+  const mine = await currentUserId()
   const [leads, rfps, tasks, reports, activities, proposals, consultants] = await Promise.all([
     loadTable(
       'leads',
-      supabase.from('leads').select('*').order('created_at', { ascending: false }),
+      supabase.from('leads').select('*').eq('user_id', mine).order('created_at', { ascending: false }),
       toLead,
       'migration 0001',
     ),
@@ -295,7 +310,7 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       'rfps',
       supabase
         .from('rfps')
-        .select('*')
+        .select('*').eq('user_id', mine)
         // Newest first — the views sort too, but this keeps the raw
         // snapshot in the same order they present.
         .order('created_at', { ascending: false }),
@@ -306,7 +321,7 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       'tasks',
       supabase
         .from('tasks')
-        .select('*')
+        .select('*').eq('user_id', mine)
         .order('due', { ascending: true, nullsFirst: false }),
       toTask,
       'migration 0001',
@@ -315,7 +330,7 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       'weekly reports',
       supabase
         .from('weekly_reports')
-        .select('*')
+        .select('*').eq('user_id', mine)
         .order('week_start', { ascending: false }),
       toWeeklyReport,
       'migration 0001',
@@ -324,7 +339,7 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
       'activities',
       supabase
         .from('activities')
-        .select('*')
+        .select('*').eq('user_id', mine)
         .order('occurred_on', { ascending: false })
         .order('created_at', { ascending: false }),
       toActivity,
@@ -332,13 +347,13 @@ export async function fetchAll(): Promise<PipelineSnapshot> {
     ),
     loadTable(
       'proposals',
-      supabase.from('proposals').select('*').order('created_at', { ascending: false }),
+      supabase.from('proposals').select('*').eq('user_id', mine).order('created_at', { ascending: false }),
       toProposal,
       'migration 0007',
     ),
     loadTable(
       'consultants',
-      supabase.from('consultants').select('*').order('name', { ascending: true }),
+      supabase.from('consultants').select('*').eq('user_id', mine).order('name', { ascending: true }),
       toConsultant,
       'migration 0010',
     ),
