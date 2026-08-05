@@ -16,7 +16,7 @@ export function AppSidebar({
   onCollapse: () => void
 }) {
   const { session, signOut, can, role } = useAuth()
-  const items = navItemsFor(can.seeEveryone)
+  const items = navItemsFor(can.manageMembers)
 
   return (
     // Sticky rather than fixed: it stays put while the page scrolls without
@@ -37,9 +37,9 @@ export function AppSidebar({
             Pipeline Console
           </h1>
           <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            Josiah Mwangi
+            {/* Josiah Mwangi
             <br />
-            Corporate Dept · BDE
+            Corporate Dept · BDE */}
           </div>
         </div>
         <button

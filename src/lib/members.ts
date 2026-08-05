@@ -205,6 +205,61 @@ export function setMemberActive(id: string, active: boolean): Promise<unknown> {
 }
 
 /** Destroys everything the member owns. The flag is the server's requirement. */
+/**
+ * Issues a member a new one-time password.
+ *
+ * For the locked-out case. The sign-in page has no "forgot password" link
+ * because the project has no mail configured, so the super user hands out a
+ * replacement the same way they handed out the first one. Returned once and
+ * stored nowhere.
+ */
+export async function resetMemberPassword(
+  id: string,
+): Promise<{ email: string; password: string }> {
+  const result = (await call({ action: 'reset-password', id })) as {
+    email?: string
+    password?: string
+  }
+  if (!result.password) {
+    throw new Error('The reset succeeded but returned no password. Try again.')
+  }
+  return { email: result.email ?? '', password: result.password }
+}
+
+/**
+ * Changes the signed-in member's own password.
+ *
+ * The current password is checked first by signing in with it, which Supabase
+ * does not require — `updateUser` will change the password of any live session.
+ * Without the check, a laptop left unlocked for a minute is an account taken
+ * over permanently, because the person at the keyboard never has to prove they
+ * are the owner. The re-authentication is what makes it a change rather than a
+ * takeover.
+ */
+export async function changeOwnPassword(
+  email: string,
+  current: string,
+  next: string,
+): Promise<void> {
+  if (next.length < 8) {
+    throw new Error('Use at least 8 characters.')
+  }
+  if (next === current) {
+    throw new Error('That is the password you already have.')
+  }
+
+  const { error: checkError } = await supabase.auth.signInWithPassword({
+    email,
+    password: current,
+  })
+  if (checkError) {
+    throw new Error('That is not your current password.')
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: next })
+  if (error) throw new Error(`Could not change the password: ${error.message}`)
+}
+
 export function removeMember(id: string): Promise<unknown> {
   return call({ action: 'delete', id, confirmDataLoss: true })
 }

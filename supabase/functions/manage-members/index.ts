@@ -222,6 +222,38 @@ Deno.serve(async (request: Request) => {
   }
 
   // ------------------------------------------------------------------ remove
+  // ---------------------------------------------------------- reset password
+  //
+  // For the member who is locked out. There is no "forgot password" link on
+  // the sign-in page because the project has no SMTP configured, so a reset
+  // email would be sent into a void — the super user issues a new one-time
+  // password the same way they issued the first.
+  //
+  // Deliberately available for the super user's *own* account too, unlike
+  // set-role and delete: changing your own password is not a way to lock
+  // yourself out, it is the way back in.
+  if (action === 'reset-password') {
+    const id = text(body.id, 64)
+    if (!id) return json({ error: 'A member id is required.' }, 400)
+
+    const password = temporaryPassword()
+    const { data: updated, error } = await admin.auth.admin.updateUserById(id, {
+      password,
+    })
+
+    if (error || !updated?.user) {
+      return json(
+        { error: `Could not reset the password: ${error?.message ?? 'Unknown error'}` },
+        502,
+      )
+    }
+
+    // Returned once and never stored. Everything else about the account is
+    // untouched — role, access and every row they own stay exactly as they
+    // were; only the way in changes.
+    return json({ id, email: updated.user.email ?? '', password }, 200)
+  }
+
   if (action === 'delete') {
     const id = text(body.id, 64)
     if (!id) return json({ error: 'A member id is required.' }, 400)

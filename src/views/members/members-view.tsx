@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { CopyIcon, ShieldCheckIcon, TargetIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { CopyIcon, KeyRoundIcon, ShieldCheckIcon, TargetIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
@@ -21,6 +21,7 @@ import {
   fetchMembers,
   setMemberActive,
   setMemberRole,
+  resetMemberPassword,
   fetchTeamOverview,
   fetchTeamPipeline,
   type CreatedMember,
@@ -66,18 +67,24 @@ function RoleBadge({ role }: { role: MemberRole }) {
  */
 function FirstPassword({
   member,
+  reset,
   onDone,
 }: {
   member: CreatedMember
+  /** True when this replaced an existing password rather than issued a first one. */
+  reset?: boolean
   onDone: () => void
 }) {
   return (
     <div className="mb-5 rounded-xl border border-gold/50 bg-gold-soft/40 p-4">
-      <div className="eyebrow mb-1 text-clay">Account created</div>
+      <div className="eyebrow mb-1 text-clay">
+        {reset ? 'Password reset' : 'Account created'}
+      </div>
       <p className="text-xs leading-relaxed text-foreground">
-        Send <strong>{member.email}</strong> this first password. It is shown
-        once and is not stored anywhere — if it is lost, the account has to be
-        reset. Ask them to change it after signing in.
+        Send <strong>{member.email}</strong> this{' '}
+        {reset ? 'new password — their old one no longer works' : 'first password'}
+        . It is shown once and is not stored anywhere; if it is lost, reset it
+        again. Ask them to change it after signing in.
       </p>
       <div className="mt-3 flex items-center gap-2">
         <code className="flex-1 rounded-lg border border-border bg-card px-3 py-2 font-mono text-[13px] text-foreground">
@@ -108,6 +115,8 @@ export function MembersView() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<CreatedMember | null>(null)
+  // Whether the panel above is showing a reset rather than a new account.
+  const [wasReset, setWasReset] = useState(false)
   const [overview, setOverview] = useState<TeamOverview | null>(null)
   const [pipeline, setPipeline] = useState<TeamPipelineItem[]>([])
   const names = useMemberNames()
@@ -158,6 +167,7 @@ export function MembersView() {
     setBusy(true)
     try {
       const member = await createMember({ email, fullName, role })
+      setWasReset(false)
       setCreated(member)
       setEmail('')
       setFullName('')
@@ -175,6 +185,29 @@ export function MembersView() {
       await setMemberRole(member.id, next)
       toast.success(`${member.email} is now ${ROLE_LABEL[next].toLowerCase()}`)
       await load()
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  /**
+   * Issues a member a new one-time password.
+   *
+   * Confirmed first because it invalidates the one they have: doing this to
+   * someone mid-bid locks them out until the new password reaches them, and
+   * the old one is gone whether or not that goes smoothly.
+   */
+  async function resetPassword(member: Profile) {
+    const ok = window.confirm(
+      `Issue ${member.email} a new password?\n\nTheir current password stops working immediately, and the new one is shown once — you will need to pass it on.`,
+    )
+    if (!ok) return
+    try {
+      const result = await resetMemberPassword(member.id)
+      // Reuses the panel that shows a new account's first password: same thing
+      // to do with it, so it should look the same and behave the same.
+      setWasReset(true)
+      setCreated({ id: member.id, email: result.email || member.email, role: member.role, password: result.password })
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     }
@@ -216,7 +249,13 @@ export function MembersView() {
         }
       />
 
-      {created && <FirstPassword member={created} onDone={() => setCreated(null)} />}
+      {created && (
+        <FirstPassword
+          member={created}
+          reset={wasReset}
+          onDone={() => setCreated(null)}
+        />
+      )}
 
       {can.manageMembers && (
         <Panel
@@ -402,34 +441,47 @@ export function MembersView() {
                     </TableCell>
                     {can.manageMembers && (
                       <TableCell className="text-right">
-                        {isSelf ? (
-                          // Guarded on the server too. The last super user
-                          // demoting themselves leaves nobody able to put it
-                          // back without opening the database.
-                          <span className="text-[11px] text-faint">—</span>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            <select
-                              value={member.role}
-                              onChange={(e) => void changeRole(member, e.target.value as MemberRole)}
-                              aria-label={`Access level for ${member.email}`}
-                              className="h-8 cursor-pointer rounded-md border border-border bg-card px-2 text-[11px] text-foreground"
-                            >
-                              {MEMBER_ROLES.map((r) => (
-                                <option key={r} value={r}>
-                                  {ROLE_LABEL[r]}
-                                </option>
-                              ))}
-                            </select>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => void changeActive(member, !member.active)}
-                            >
-                              {member.active ? 'Switch off' : 'Restore'}
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {isSelf ? (
+                            // Role and access are guarded on the server too:
+                            // the last super user demoting themselves leaves
+                            // nobody able to put it back without opening the
+                            // database. Resetting your own password is the
+                            // opposite — it is the way back in, not a way out.
+                            <span className="text-[11px] text-faint">Your account</span>
+                          ) : (
+                            <>
+                              <select
+                                value={member.role}
+                                onChange={(e) => void changeRole(member, e.target.value as MemberRole)}
+                                aria-label={`Access level for ${member.email}`}
+                                className="h-8 cursor-pointer rounded-md border border-border bg-card px-2 text-[11px] text-foreground"
+                              >
+                                {MEMBER_ROLES.map((r) => (
+                                  <option key={r} value={r}>
+                                    {ROLE_LABEL[r]}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void changeActive(member, !member.active)}
+                              >
+                                {member.active ? 'Switch off' : 'Restore'}
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            title={`Issue ${member.email} a new one-time password`}
+                            onClick={() => void resetPassword(member)}
+                          >
+                            <KeyRoundIcon className="size-3.5" aria-hidden />
+                            Reset password
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
