@@ -81,7 +81,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setProposalExemplar,
     addPastProposal,
   } = usePipeline()
-  const { profile } = useAuth()
+  const { profile, can } = useAuth()
   const memberNames = useMemberNames()
 
   /**
@@ -96,6 +96,21 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     claim && claim.claimedBy !== profile?.id
       ? (memberNames.get(claim.claimedBy) ?? 'another member')
       : null
+
+  /**
+   * A tender someone else has taken is read-only for everybody, including the
+   * admin and the super user.
+   *
+   * The whole point of an exclusive claim is that one person owns the response.
+   * Two people drafting against the same notice, or one quietly editing the
+   * other's tender document mid-bid, is exactly the confusion the claim exists
+   * to prevent — and it would be worse than the duplicate bidding it replaced,
+   * because it happens invisibly.
+   *
+   * An admin who genuinely needs to act releases the claim first, which is a
+   * deliberate act that shows up rather than a silent edit.
+   */
+  const viewOnly = heldByOther !== null
 
   const [editing, setEditing] = useState(false)
   const [drafting, setDrafting] = useState(false)
@@ -405,10 +420,16 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <RfpStatusSelect
-              value={rfp.status}
-              onChange={(next) => setRfpStatus(rfp.id, next)}
-            />
+            {viewOnly ? (
+              <span className="rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-muted-foreground">
+                {rfp.status}
+              </span>
+            ) : (
+              <RfpStatusSelect
+                value={rfp.status}
+                onChange={(next) => setRfpStatus(rfp.id, next)}
+              />
+            )}
             {/* Taken by a colleague: shown as a fact rather than a disabled
                 button, because there is nothing here for the reader to do. */}
             {heldByOther ? (
@@ -429,17 +450,37 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 {rfp.inPipeline ? 'In pipeline' : 'Add to pipeline'}
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <PencilIcon />
-              Edit
-            </Button>
+            {!viewOnly && (
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <PencilIcon />
+                Edit
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
+      {viewOnly && (
+        // Said once, plainly, at the top. Everything below is missing its
+        // controls and a reader who does not know why will assume the page is
+        // broken before they assume it is deliberate.
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <LockIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <div className="text-xs leading-relaxed text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {heldByOther} is bidding this tender.
+            </span>{' '}
+            You can read everything here, but not draft, edit, attach a document
+            or log against it — one proposal per tender is what stops two of
+            ours reaching the same buyer. If it should be yours, ask them to
+            hand it back{can.seeEveryone ? ', or release it from the tracker' : ''}.
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
-          {PROPOSAL_DRAFTING && (
+          {PROPOSAL_DRAFTING && !viewOnly && (
           <>
           {/* Above the drafter on purpose: attaching the tender is what makes
               the draft worth having, so it should be read first. */}
@@ -568,7 +609,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                     <div className="flex shrink-0 items-center gap-1">
                       {/* Only text can be imitated — a stored .docx is opaque
                           to the drafter, so it cannot be a model answer. */}
-                      {PROPOSAL_DRAFTING && proposal.content.trim() && (
+                      {PROPOSAL_DRAFTING && !viewOnly && proposal.content.trim() && (
                         <button
                           type="button"
                           onClick={() => void toggleExemplar(proposal)}
@@ -617,14 +658,19 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                           Word
                         </Button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => void removeProposal(proposal)}
-                        aria-label="Delete this proposal"
-                        className="cursor-pointer px-1 text-faint transition-colors hover:text-danger"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </button>
+                      {/* Reading a colleague's proposal is fine and useful;
+                          deleting it is not yours to do. Downloading stays
+                          available either way. */}
+                      {!viewOnly && (
+                        <button
+                          type="button"
+                          onClick={() => void removeProposal(proposal)}
+                          aria-label="Delete this proposal"
+                          className="cursor-pointer px-1 text-faint transition-colors hover:text-danger"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -643,6 +689,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             )}
           </Panel>
 
+          {!viewOnly && (
           <Panel
             title="Upload a sent proposal"
             description="Keep the version that actually went to the buyer, for the record."
@@ -668,10 +715,11 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               </p>
             )}
           </Panel>
+          )}
 
           {/* An uploaded file is storage; pasted text is training material.
               This is how a past winning bid becomes a model answer. */}
-          {PROPOSAL_DRAFTING && (
+          {PROPOSAL_DRAFTING && !viewOnly && (
           <Panel
             title="Paste a past proposal"
             description="Text you paste here can be starred as a model answer and shown to the drafter. An uploaded file cannot — it is just an attachment."
@@ -767,7 +815,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             title="Activity"
             description="Calls, emails and meetings against this tender."
           >
-            <ActivityComposer rfpId={rfp.id} onLog={logActivity} />
+            {!viewOnly && <ActivityComposer rfpId={rfp.id} onLog={logActivity} />}
             <div className="mt-2 max-h-[420px] overflow-y-auto">
               {ownActivities.length === 0 ? (
                 <p className="py-3 text-center text-[11.5px] text-faint">
