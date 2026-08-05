@@ -16,6 +16,7 @@ import {
   EMPTY_SETTINGS,
   type LeadStatus,
   type Rfp,
+  type RfpClaim,
   type RfpStatus,
   type Consultant,
   type Task,
@@ -681,7 +682,88 @@ export async function updateRfpStatus(
 }
 
 /** Takes an RFP into, or out of, the live proposal pipeline. */
-export async function setRfpPipeline(id: string, inPipeline: boolean): Promise<Rfp> {
+/**
+ * Raised when a tender was taken by someone else between the list rendering
+ * and the button being pressed. Carries the winner so the message can name
+ * them rather than just refusing.
+ */
+export class RfpAlreadyClaimed extends Error {
+  // Assigned in the body rather than declared as a constructor parameter
+  // property: the project compiles with `erasableSyntaxOnly`, which rejects
+  // any TypeScript that has to emit code rather than just be stripped.
+  claimedBy: string | null
+
+  constructor(claimedBy: string | null) {
+    super('Another member has already taken this tender.')
+    this.name = 'RfpAlreadyClaimed'
+    this.claimedBy = claimedBy
+  }
+}
+
+export async function fetchRfpClaims(): Promise<RfpClaim[]> {
+  const { data, error } = await supabase
+    .from('rfp_claims')
+    .select('external_id, claimed_by, claimed_at, title')
+  if (error) throw new Error(`Could not load who has taken what: ${error.message}`)
+  return (data ?? []).map((row) => ({
+    externalId: row.external_id,
+    claimedBy: row.claimed_by,
+    claimedAt: row.claimed_at,
+    title: row.title,
+  }))
+}
+
+/**
+ * Takes a tender on, or hands it back.
+ *
+ * The claim is written before the local flag, and deliberately not in a
+ * transaction with it — there is no cross-table transaction available from the
+ * client, so the order is chosen to fail safe. Claim first: if someone else has
+ * it, the primary key refuses and nothing local has changed. Doing it the other
+ * way round would show the tender in your pipeline for the moment before the
+ * refusal arrived.
+ *
+ * Hand-added RFPs have no external id and so no claim — nobody else can see
+ * them to take.
+ */
+export async function setRfpPipeline(
+  id: string,
+  inPipeline: boolean,
+  externalId: string | null,
+): Promise<Rfp> {
+  const userId = await currentUserId()
+
+  if (externalId && inPipeline) {
+    const { error } = await supabase
+      .from('rfp_claims')
+      .insert({ external_id: externalId, claimed_by: userId, title: '' })
+
+    // 23505 is a unique-violation: the tender already has a claim. Anything
+    // else is a real failure and should not read as "someone beat you to it".
+    if (error) {
+      if (error.code !== '23505') {
+        throw new Error(`Could not take this tender on: ${error.message}`)
+      }
+      const { data } = await supabase
+        .from('rfp_claims')
+        .select('claimed_by')
+        .eq('external_id', externalId)
+        .maybeSingle()
+      throw new RfpAlreadyClaimed(data?.claimed_by ?? null)
+    }
+  }
+
+  if (externalId && !inPipeline) {
+    // Only your own claim comes off — the delete policy sees to that, so an
+    // attempt on someone else's simply removes nothing.
+    const { error } = await supabase
+      .from('rfp_claims')
+      .delete()
+      .eq('external_id', externalId)
+      .eq('claimed_by', userId)
+    if (error) throw new Error(`Could not hand this tender back: ${error.message}`)
+  }
+
   const row = unwrap(
     await supabase
       .from('rfps')

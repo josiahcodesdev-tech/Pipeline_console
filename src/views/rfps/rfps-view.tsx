@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   ClipboardListIcon,
   ExternalLinkIcon,
+  LockIcon,
   PlusIcon,
   RefreshCwIcon,
   SearchXIcon,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/lib/types'
 import { OPPORTUNITY_SYNC } from '@/lib/features'
 import { useAuth } from '@/hooks/use-auth'
+import { useMemberNames } from '@/lib/members'
 import { RfpDialog } from './rfp-dialog'
 import { parseRfpImport } from './import-rfps'
 
@@ -147,6 +149,7 @@ export function RfpsView({
     removeRfp,
     setRfpStatus,
     setRfpPipeline,
+    claims,
     importRfps,
     syncOpportunities,
     autoSync,
@@ -169,7 +172,22 @@ export function RfpsView({
   const [sort, setSort] = useState<'fit' | 'deadline' | 'newest'>('fit')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
-  const { can } = useAuth()
+  const { can, profile } = useAuth()
+  const members = useMemberNames()
+
+  /**
+   * Who holds this tender, if it is someone other than the reader.
+   *
+   * Returns null for an unclaimed tender and for one the reader holds
+   * themselves — the caller already renders those two cases differently.
+   */
+  const takenBy = (rfp: Rfp): string | null => {
+    if (!rfp.externalId) return null
+    const claim = claims.get(rfp.externalId)
+    if (!claim || claim.claimedBy === profile?.id) return null
+    return members.get(claim.claimedBy) ?? 'Another member'
+  }
+
   const [syncing, setSyncing] = useState(false)
   const [editing, setEditing] = useState<Rfp | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -568,17 +586,28 @@ export function RfpsView({
                     <button
                       type="button"
                       onClick={() => void setRfpPipeline(rfp.id, false)}
-                      title="Remove from the proposal pipeline"
+                      title="Hand this tender back so someone else can take it"
                       className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full bg-success-soft px-2 py-1 text-[11px] font-semibold text-success transition-opacity hover:opacity-75"
                     >
                       <CheckIcon className="size-3" />
                       In pipeline
                     </button>
+                  ) : takenBy(rfp) ? (
+                    // Taken by a colleague. Shown rather than hidden: knowing a
+                    // tender is covered is as useful as being able to take it,
+                    // and a row that quietly vanished would read as a bug.
+                    <span
+                      title={`${takenBy(rfp)} is bidding this. One proposal per tender — ask them if you should be on it.`}
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                    >
+                      <LockIcon className="size-3" aria-hidden />
+                      {takenBy(rfp)}
+                    </span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => void setRfpPipeline(rfp.id, true)}
-                      title="Take this on as a live proposal"
+                      title="Take this on as a live proposal — nobody else will be able to"
                       className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary"
                     >
                       <PlusIcon className="size-3" />

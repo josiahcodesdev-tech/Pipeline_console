@@ -172,7 +172,21 @@ Deno.serve(async (request: Request) => {
       )
     }
 
-    return json({ id: created.user.id, email, role, password }, 200)
+    // Give them the current tender pool. Without it the tracker is empty until
+    // the next 05:00 run, and a console handed over showing nothing reads as
+    // broken rather than as new. A failure here is not worth undoing the
+    // account for — tomorrow's sync fills it either way.
+    let seeded = 0
+    const { data: seedCount, error: seedError } = await admin.rpc('seed_member_rfps', {
+      target: created.user.id,
+    })
+    if (seedError) {
+      console.error('Could not seed the tender pool for the new member', seedError)
+    } else if (typeof seedCount === 'number') {
+      seeded = seedCount
+    }
+
+    return json({ id: created.user.id, email, role, password, seeded }, 200)
   }
 
   // ------------------------------------------------------------------ update

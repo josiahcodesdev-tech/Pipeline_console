@@ -150,7 +150,6 @@ export type ConsultantRow = {
   updated_at: string
 }
 
-/** Columns the database fills in when omitted. */
 /**
  * A team member's access. Mirrors `supabase/migrations/0013_roles.sql`.
  *
@@ -168,6 +167,14 @@ export type ProfileRow = {
   updated_at: string
 }
 
+export type RfpClaimRow = {
+  external_id: string
+  claimed_by: string
+  claimed_at: string
+  title: string
+}
+
+/** Columns the database fills in when omitted. */
 type Generated = 'id' | 'created_at' | 'updated_at'
 
 type Insertable<Row, Optional extends keyof Row> = Omit<Row, Optional> &
@@ -229,6 +236,12 @@ export type Database = {
         Row: ActivityRow
         Insert: Insertable<ActivityRow, Generated | 'occurred_on'>
         Update: Partial<ActivityRow>
+        Relationships: []
+      }
+      rfp_claims: {
+        Row: RfpClaimRow
+        Insert: Insertable<RfpClaimRow, "claimed_at" | "title">
+        Update: Partial<RfpClaimRow>
         Relationships: []
       }
       profiles: {

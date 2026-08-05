@@ -24,6 +24,22 @@ export const ROLE_DESCRIPTION: Record<MemberRole, string> = {
     'Works their own pipeline. Cannot delete records or run the sync by hand.',
 }
 
+/**
+ * A tender someone has taken on, firm-wide.
+ *
+ * Scraped opportunities are stored per member, so "is anyone else bidding
+ * this?" cannot be answered from a member's own rows. One claim per tender
+ * across the whole firm answers it, and stops two people writing competing
+ * proposals for the same buyer.
+ */
+export interface RfpClaim {
+  /** The source's id for the notice — what every member's copy shares. */
+  externalId: string
+  claimedBy: string
+  claimedAt: string
+  title: string
+}
+
 /** A team member. One row per account, created with the account. */
 export interface Profile {
   id: string

@@ -7,6 +7,7 @@ import {
   PencilIcon,
   SparklesIcon,
   StarIcon,
+  LockIcon,
   TargetIcon,
   TrashIcon,
   UploadIcon,
@@ -18,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Panel, EmptyState } from '@/components/panel'
 import { RfpStatusSelect } from '@/components/status-select'
 import { ActivityComposer, ActivityRow } from '@/components/activity-log'
+import { useAuth } from '@/hooks/use-auth'
+import { useMemberNames } from '@/lib/members'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { proposalFileUrl } from '@/lib/db'
 import { PROPOSAL_DRAFTING } from '@/lib/features'
@@ -66,6 +69,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     removeRfp,
     setRfpStatus,
     setRfpPipeline,
+    claims,
     logActivity,
     removeActivity,
     settings,
@@ -77,6 +81,21 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setProposalExemplar,
     addPastProposal,
   } = usePipeline()
+  const { profile } = useAuth()
+  const memberNames = useMemberNames()
+
+  /**
+   * The colleague holding this tender, if it is not the reader.
+   *
+   * Falls back to a generic label rather than a user id when the member list
+   * has not loaded — "Taken by another member" is still the useful half of the
+   * sentence, and a uuid is none of it.
+   */
+  const claim = rfp.externalId ? claims.get(rfp.externalId) : undefined
+  const heldByOther =
+    claim && claim.claimedBy !== profile?.id
+      ? (memberNames.get(claim.claimedBy) ?? 'another member')
+      : null
 
   const [editing, setEditing] = useState(false)
   const [drafting, setDrafting] = useState(false)
@@ -390,14 +409,26 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               value={rfp.status}
               onChange={(next) => setRfpStatus(rfp.id, next)}
             />
-            <Button
-              variant={rfp.inPipeline ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => void setRfpPipeline(rfp.id, !rfp.inPipeline)}
-            >
-              <TargetIcon />
-              {rfp.inPipeline ? 'In pipeline' : 'Add to pipeline'}
-            </Button>
+            {/* Taken by a colleague: shown as a fact rather than a disabled
+                button, because there is nothing here for the reader to do. */}
+            {heldByOther ? (
+              <span
+                title="One proposal per tender. Ask them if you should be on this bid."
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-muted-foreground"
+              >
+                <LockIcon className="size-3.5" aria-hidden />
+                Taken by {heldByOther}
+              </span>
+            ) : (
+              <Button
+                variant={rfp.inPipeline ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => void setRfpPipeline(rfp.id, !rfp.inPipeline)}
+              >
+                <TargetIcon />
+                {rfp.inPipeline ? 'In pipeline' : 'Add to pipeline'}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <PencilIcon />
               Edit

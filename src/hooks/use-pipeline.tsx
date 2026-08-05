@@ -21,6 +21,7 @@ import type {
   UserSettings,
   LeadStatus,
   Rfp,
+  RfpClaim,
   RfpStatus,
   Task,
   WeeklyReport,
@@ -78,6 +79,8 @@ export interface SyncOutcome {
 interface PipelineValue {
   leads: Lead[]
   rfps: Rfp[]
+  /** Who has taken which tender, firm-wide. Keyed by external id. */
+  claims: Map<string, RfpClaim>
   tasks: Task[]
   reports: WeeklyReport[]
   activities: Activity[]
@@ -145,6 +148,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const { session, can } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [rfps, setRfps] = useState<Rfp[]>([])
+  const [claims, setClaims] = useState<RfpClaim[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -182,6 +186,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setActivities(snapshot.activities)
       setProposals(snapshot.proposals)
       setConsultants(snapshot.consultants)
+      // Claims are read separately and allowed to fail on their own. Losing
+      // them should cost the tracker its "taken by" labels, not the tracker.
+      try {
+        setClaims(await db.fetchRfpClaims())
+      } catch {
+        setClaims([])
+      }
       // Settings are small and read on their own; a failure here should not
       // cost the snapshot, so it degrades to the empty defaults.
       try {
@@ -292,17 +303,26 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const setRfpPipeline = useCallback(async (id: string, inPipeline: boolean) => {
     const current = rfps.find((rfp) => rfp.id === id)
     try {
-      const saved = await db.setRfpPipeline(id, inPipeline)
+      const saved = await db.setRfpPipeline(id, inPipeline, current?.externalId ?? null)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
       if (inPipeline && current?.status === 'Watching') {
         const promoted = await db.updateRfpStatus(id, 'Preparing')
         setRfps((list) => list.map((rfp) => (rfp.id === id ? promoted : rfp)))
       }
+      // Refreshed either way: taking one on adds a claim, handing it back
+      // removes one, and both change what everyone else may take.
+      setClaims(await db.fetchRfpClaims())
       toast.success(inPipeline ? 'Added to the pipeline' : 'Removed from the pipeline')
     } catch (cause) {
+      if (cause instanceof db.RfpAlreadyClaimed) {
+        // Someone took it between the page rendering and the click. Pull the
+        // claims so the row updates to show who, rather than leaving a button
+        // that will keep failing.
+        setClaims(await db.fetchRfpClaims().catch(() => claims))
+      }
       toast.error(message(cause))
     }
-  }, [rfps])
+  }, [rfps, claims])
 
   const saveRfp = useCallback(async (draft: db.RfpDraft, existing: Rfp | null) => {
     const saved = existing
@@ -534,6 +554,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     () => ({
       leads,
       rfps,
+      // A map because every row in the tracker asks "is this one taken?" — a
+      // linear scan per row turns the render quadratic on a few hundred rows.
+      claims: new Map(claims.map((claim) => [claim.externalId, claim])),
       tasks,
       reports,
       activities,
@@ -572,6 +595,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     }),
     [
       leads,
+      claims,
       rfps,
       tasks,
       reports,
