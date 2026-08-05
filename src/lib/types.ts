@@ -19,7 +19,7 @@ export const ROLE_DESCRIPTION: Record<MemberRole, string> = {
   super_user:
     'Full access, plus adding members and setting their access. Sees every pipeline.',
   admin:
-    'Sees every pipeline, can delete records and run the sync. Cannot manage members.',
+    'Everything the super user has except two things: cannot add or manage members, and cannot delete records. Sees every pipeline, every activity and the firm-wide figures, and can run the sync.',
   user:
     'Works their own pipeline. Cannot delete records or run the sync by hand.',
 }

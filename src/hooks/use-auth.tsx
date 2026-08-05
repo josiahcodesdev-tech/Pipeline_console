@@ -21,7 +21,15 @@ import { isMemberRole } from '@/lib/types'
  * hidden button is not a permission check.
  */
 export interface Permissions {
-  /** Delete records. Admins and the super user only. */
+  /**
+   * Delete records. The super user alone.
+   *
+   * The admin has everything else the super user has — they read every
+   * member's pipeline, run the sync, and see the firm-wide figures. Deletion
+   * is held back because it is the one action in the console with no undo:
+   * removing an RFP takes its activities and proposals with it by cascade,
+   * and there is nothing to restore from.
+   */
   remove: boolean
   /** Trigger the opportunity sync by hand. The 5 AM run is unaffected. */
   sync: boolean
@@ -67,10 +75,11 @@ const NO_PERMISSIONS: Permissions = {
 function permissionsFor(role: MemberRole, active: boolean): Permissions {
   if (!active) return NO_PERMISSIONS
   const admin = role === 'super_user' || role === 'admin'
+  const superUser = role === 'super_user'
   return {
-    remove: admin,
+    remove: superUser,
     sync: admin,
-    manageMembers: role === 'super_user',
+    manageMembers: superUser,
     seeEveryone: admin,
   }
 }
