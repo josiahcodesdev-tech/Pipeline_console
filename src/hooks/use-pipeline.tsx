@@ -178,7 +178,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true)
     try {
-      const snapshot = await db.fetchAll()
+      const snapshot = await db.fetchAll(can.seeEveryone)
       setLeads(snapshot.leads)
       setRfps(snapshot.rfps)
       setTasks(snapshot.tasks)
@@ -208,7 +208,12 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [session])
+    // `can.seeEveryone` belongs here as much as `session` does. The profile
+    // that carries the role arrives a moment after the session, so the first
+    // load always runs as a plain user; without this the snapshot would stay
+    // that way and an admin would sit looking at an empty tracker until they
+    // reloaded the page.
+  }, [session, can.seeEveryone])
 
   useEffect(() => {
     void refresh()

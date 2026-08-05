@@ -284,22 +284,113 @@ async function loadTable<Row, T>(
   }
 }
 
+/** PostgREST stops at 1,000 rows a request, so anything larger is paged. */
+const PAGE = 1000
+
 /**
- * The signed-in member's own working set.
+ * Reads a table in full, a page at a time.
  *
- * Scoped to `user_id` explicitly, even though row-level security would let an
- * admin read everyone's. Those are different questions: the policy decides what
- * an admin *may* see, this decides what the console *asks for*, and the console
- * wants one working set rather than the whole firm's.
- *
- * Without it an admin loaded every member's copy of every scraped tender —
- * 1,195 rows for 263 actual tenders across five accounts, so the tracker showed
- * each opportunity about five times and got slower with every member added.
- * Oversight is a separate view, not a thing that silently multiplies the
- * default one.
+ * Only needed on the oversight path: a single member's working set is well
+ * under the limit, but every member's copy of every tender is not — and a
+ * truncated read is the worst kind, because it looks like a complete one.
  */
-export async function fetchAll(): Promise<PipelineSnapshot> {
+async function loadEveryPage<Row>(
+  table: 'rfps' | 'leads' | 'activities' | 'proposals' | 'tasks',
+  order: string,
+): Promise<Row[]> {
+  const rows: Row[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order(order, { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    const page = (data ?? []) as Row[]
+    rows.push(...page)
+    if (page.length < PAGE) return rows
+  }
+}
+
+/**
+ * Collapses every member's copy of a tender down to one row.
+ *
+ * Scraped opportunities are stored per member, so an admin reading across the
+ * firm gets the same tender once per member — five copies of each with five
+ * accounts. The tracker should show an opportunity once.
+ *
+ * The copy that is in somebody's pipeline wins, so the admin sees the live
+ * state rather than an untouched duplicate of a tender already being bid.
+ * Hand-added RFPs are keyed by their own id: two members each entering one by
+ * hand really are two records, not a duplicate.
+ */
+function onePerTender(rfps: Rfp[]): Rfp[] {
+  const byTender = new Map<string, Rfp>()
+  for (const rfp of rfps) {
+    const key = rfp.externalId ?? `own:${rfp.id}`
+    const held = byTender.get(key)
+    if (!held || (rfp.inPipeline && !held.inPipeline)) byTender.set(key, rfp)
+  }
+  return [...byTender.values()]
+}
+
+/**
+ * The working set for the signed-in member.
+ *
+ * Normally scoped to their own rows. An admin or the super user gets the whole
+ * firm's instead — that is the point of the role, and without it the console
+ * asked only for rows the reader owned, so an admin account that owns nothing
+ * opened an empty tracker while row-level security would happily have shown
+ * them everything.
+ *
+ * The breadth costs two things, both handled here: the read has to be paged
+ * past PostgREST's 1,000-row limit, and the tenders have to be collapsed to one
+ * row each or the tracker shows every member's copy.
+ */
+export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
   const mine = await currentUserId()
+
+  if (seeEveryone) {
+    // The oversight read. Deliberately a separate path rather than a flag
+    // threaded through the one below: it pages, it collapses tenders, and it
+    // has different failure characteristics, and interleaving the two made
+    // both harder to follow than writing them out.
+    const [leads, rfps, tasks, activities, proposals] = await Promise.all([
+      loadEveryPage<LeadRow>('leads', 'created_at'),
+      loadEveryPage<RfpRow>('rfps', 'created_at'),
+      loadEveryPage<TaskRow>('tasks', 'created_at'),
+      loadEveryPage<ActivityRow>('activities', 'occurred_on'),
+      loadEveryPage<ProposalRow>('proposals', 'created_at'),
+    ])
+    // Reports and consultants stay the reader's own: a weekly report is a
+    // personal submission, and the consultant roster is per-account by design.
+    const [reports, consultants] = await Promise.all([
+      loadTable(
+        'weekly_reports',
+        supabase.from('weekly_reports').select('*').eq('user_id', mine).order('week_start', { ascending: false }),
+        toWeeklyReport,
+        'migration 0001',
+      ),
+      loadTable(
+        'consultants',
+        supabase.from('consultants').select('*').eq('user_id', mine).order('name', { ascending: true }),
+        toConsultant,
+        'migration 0010',
+      ),
+    ])
+
+    return {
+      leads: leads.map(toLead),
+      rfps: onePerTender(rfps.map(toRfp)),
+      tasks: tasks.map(toTask),
+      reports: reports.rows,
+      activities: activities.map(toActivity),
+      proposals: proposals.map(toProposal),
+      consultants: consultants.rows,
+      errors: [reports, consultants].flatMap((result) => result.error ?? []),
+    }
+  }
+
   const [leads, rfps, tasks, reports, activities, proposals, consultants] = await Promise.all([
     loadTable(
       'leads',
