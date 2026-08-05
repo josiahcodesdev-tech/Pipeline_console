@@ -151,6 +151,23 @@ export type ConsultantRow = {
 }
 
 /** Columns the database fills in when omitted. */
+/**
+ * A team member's access. Mirrors `supabase/migrations/0013_roles.sql`.
+ *
+ * `id` is the auth user's id rather than a generated key — one profile per
+ * account, created by a trigger with the account, so there is never a signed-in
+ * user without a role.
+ */
+export type ProfileRow = {
+  id: string
+  email: string
+  full_name: string
+  role: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
 type Generated = 'id' | 'created_at' | 'updated_at'
 
 type Insertable<Row, Optional extends keyof Row> = Omit<Row, Optional> &
@@ -212,6 +229,18 @@ export type Database = {
         Row: ActivityRow
         Insert: Insertable<ActivityRow, Generated | 'occurred_on'>
         Update: Partial<ActivityRow>
+        Relationships: []
+      }
+      profiles: {
+        Row: ProfileRow
+        // Rows are created by the on_auth_user_created trigger, not by this
+        // client — the only field the app ever writes is a display name, and
+        // role changes go through the manage-members function.
+        Insert: Insertable<
+          ProfileRow,
+          'created_at' | 'updated_at' | 'email' | 'full_name' | 'role' | 'active'
+        >
+        Update: Partial<ProfileRow>
         Relationships: []
       }
       consultants: {

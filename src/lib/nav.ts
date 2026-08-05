@@ -8,6 +8,7 @@ import {
   TargetIcon,
   TrendingUpIcon,
   UserRoundIcon,
+  ShieldIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ export const NAV_ITEMS = [
   { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
   { id: 'report', label: 'Reports', icon: FileTextIcon },
   { id: 'consultants', label: 'Consultants', icon: UserRoundIcon },
+  { id: 'members', label: 'Members', icon: ShieldIcon },
   { id: 'settings', label: 'Guidance', icon: SettingsIcon },
 ] as const satisfies readonly {
   id: string
@@ -31,6 +33,9 @@ export const NAV_ITEMS = [
 }[]
 
 export type ViewId = (typeof NAV_ITEMS)[number]['id']
+
+/** Views only the super user has any use for. */
+const SUPER_USER_ONLY: readonly ViewId[] = ['members']
 
 /**
  * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
@@ -42,9 +47,22 @@ export type ViewId = (typeof NAV_ITEMS)[number]['id']
  */
 const DRAFTING_ONLY: readonly ViewId[] = ['settings', 'consultants']
 
-export const VISIBLE_NAV_ITEMS = NAV_ITEMS.filter(
+const FLAGGED_NAV_ITEMS = NAV_ITEMS.filter(
   (item) => !DRAFTING_ONLY.includes(item.id) || PROPOSAL_DRAFTING,
 )
+
+/**
+ * What this member should see in the sidebar.
+ *
+ * Hiding Members from everyone else is tidiness, not security — the page reads
+ * `profiles`, which every member may read anyway, and every action on it is
+ * refused by the server for anyone but the super user.
+ */
+export function navItemsFor(canManageMembers: boolean) {
+  return FLAGGED_NAV_ITEMS.filter(
+    (item) => !SUPER_USER_ONLY.includes(item.id) || canManageMembers,
+  )
+}
 
 export function isViewId(value: string): value is ViewId {
   return NAV_ITEMS.some((item) => item.id === value)

@@ -28,6 +28,7 @@ import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/lib/types'
 import { OPPORTUNITY_SYNC } from '@/lib/features'
+import { useAuth } from '@/hooks/use-auth'
 import { RfpDialog } from './rfp-dialog'
 import { parseRfpImport } from './import-rfps'
 
@@ -168,6 +169,7 @@ export function RfpsView({
   const [sort, setSort] = useState<'fit' | 'deadline' | 'newest'>('fit')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
+  const { can } = useAuth()
   const [syncing, setSyncing] = useState(false)
   const [editing, setEditing] = useState<Rfp | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -352,16 +354,21 @@ export function RfpsView({
               ) : syncedAt ? (
                 <span className="text-faint">Updated {relativeTime(syncedAt)}</span>
               ) : null}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleSync()}
-                disabled={busy}
-                title="Check every source for new opportunities now"
-              >
-                <RefreshCwIcon />
-                Check now
-              </Button>
+              {/* The 5am run is unaffected by this — it is triggered by the
+                  scheduler with the project's own key, not by a member. Only
+                  pulling the sources by hand is restricted. */}
+              {can.sync && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleSync()}
+                  disabled={busy}
+                  title="Check every source for new opportunities now"
+                >
+                  <RefreshCwIcon />
+                  Check now
+                </Button>
+              )}
             </div>
           )
         }
@@ -373,7 +380,9 @@ export function RfpsView({
               : 'Syncing is off — RFPs are added by hand.'
             : syncedCount > 0
               ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from World Bank, UNDP, UNGM, IUCN or AfDB. New ones arrive every morning at 5am.`
-              : 'Nothing synced yet. Sources are checked every morning at 5am — or press Check now.'}
+              : can.sync
+                ? 'Nothing synced yet. Sources are checked every morning at 5am — or press Check now.'
+                : 'Nothing synced yet. Sources are checked every morning at 5am.'}
         </p>
       </Panel>
 

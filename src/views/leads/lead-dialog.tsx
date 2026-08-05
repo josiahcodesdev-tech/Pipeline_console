@@ -21,6 +21,7 @@ import {
   type Lead,
 } from '@/lib/types'
 import { DRAFT_LABELS, type ConceptNoteContext } from '@/lib/concept-note'
+import { useAuth } from '@/hooks/use-auth'
 
 const EMPTY: LeadDraft = {
   org: '',
@@ -60,6 +61,7 @@ export function LeadDialog({
   onSave: (draft: LeadDraft, existing: Lead | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { can } = useAuth()
   const { activities, settings, logActivity, removeActivity } = usePipeline()
   const [draft, setDraft] = useState<LeadDraft>(EMPTY)
   const [busy, setBusy] = useState(false)
@@ -294,7 +296,7 @@ export function LeadDialog({
             </div>
 
             {/* Only on an existing lead: activities need something to hang off. */}
-            {lead && (
+            {lead && can.remove && (
               <div className="mt-5 border-t border-border pt-4">
                 <div className="eyebrow mb-3 text-clay">Activity</div>
                 <ActivityComposer leadId={lead.id} onLog={logActivity} />

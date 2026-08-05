@@ -14,6 +14,7 @@ import { ConceptNoteDialog } from '@/components/concept-note-dialog'
 import type { RfpDraft } from '@/lib/db'
 import { RFP_STATUSES, SEGMENTS, type Rfp } from '@/lib/types'
 import { DRAFT_LABELS, type ConceptNoteContext } from '@/lib/concept-note'
+import { useAuth } from '@/hooks/use-auth'
 
 const EMPTY: RfpDraft = {
   title: '',
@@ -57,6 +58,7 @@ export function RfpDialog({
   onSave: (draft: RfpDraft, existing: Rfp | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { can } = useAuth()
   const [draft, setDraft] = useState<RfpDraft>(EMPTY)
   const [busy, setBusy] = useState(false)
   const [conceptOpen, setConceptOpen] = useState(false)
@@ -204,7 +206,7 @@ export function RfpDialog({
           </div>
 
           <div className="flex flex-wrap justify-end gap-2">
-            {rfp && (
+            {rfp && can.remove && (
               <Button
                 variant="destructive"
                 onClick={() => void handleDelete()}

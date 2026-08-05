@@ -178,6 +178,22 @@ async function requireCaller(
   // this returns nothing and the request is refused.
   const { data, error } = await admin.auth.getUser(token)
   if (error || !data?.user?.id) return null
+
+  // Pulling the sources by hand is an admin action. The console already hides
+  // the button from everyone else, but a hidden button is not a check — this
+  // is. The role is read from `profiles` rather than from the token, because a
+  // JWT carries whatever claims it was minted with and the profiles table is
+  // writable only by the super user.
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role, active")
+    .eq("id", data.user.id)
+    .maybeSingle()
+
+  const role = (profile as { role?: string; active?: boolean } | null)
+  if (!role || role.active !== true) return null
+  if (role.role !== "super_user" && role.role !== "admin") return null
+
   return { scope: "self", userId: data.user.id }
 }
 

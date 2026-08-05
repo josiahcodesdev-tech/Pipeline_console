@@ -2,7 +2,8 @@ import { LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import type { ViewId } from '@/lib/nav'
-import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { ROLE_LABEL } from '@/lib/types'
+import { navItemsFor } from '@/lib/nav'
 
 export function AppSidebar({
   current,
@@ -14,7 +15,8 @@ export function AppSidebar({
   /** Hides the sidebar, leaving a hamburger in the corner to bring it back. */
   onCollapse: () => void
 }) {
-  const { session, signOut } = useAuth()
+  const { session, signOut, can, role } = useAuth()
+  const items = navItemsFor(can.manageMembers)
 
   return (
     // Sticky rather than fixed: it stays put while the page scrolls without
@@ -53,7 +55,7 @@ export function AppSidebar({
 
       <nav className="flex flex-col gap-0.5">
         <div className="eyebrow mb-1.5 px-2.5 text-faint">Workspace</div>
-        {VISIBLE_NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const active = item.id === current
           const Icon = item.icon
           return (
@@ -103,11 +105,19 @@ export function AppSidebar({
 
         <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
           {session?.user.email && (
-            <span
-              className="min-w-0 truncate text-[10.5px] text-faint"
-              title={session.user.email}
-            >
-              {session.user.email}
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span
+                className="min-w-0 truncate text-[10.5px] text-faint"
+                title={session.user.email}
+              >
+                {session.user.email}
+              </span>
+              {/* Stated rather than left to be discovered by finding a button
+                  missing. A member who knows they are a user does not file a
+                  bug when Delete is not there. */}
+              <span className="text-[10px] uppercase tracking-wide text-faint/80">
+                {ROLE_LABEL[role]}
+              </span>
             </span>
           )}
           <button

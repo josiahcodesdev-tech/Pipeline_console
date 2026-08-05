@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldRow } from '@/components/field'
 import type { ConsultantDraft } from '@/lib/db'
 import { EMPTY_CONSULTANT, type Consultant } from '@/lib/types'
+import { useAuth } from '@/hooks/use-auth'
 
 function toDraft(consultant: Consultant): ConsultantDraft {
   const { id: _id, ...draft } = consultant
@@ -31,6 +32,7 @@ export function ConsultantDialog({
   onSave: (draft: ConsultantDraft, existing: Consultant | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { can } = useAuth()
   const [draft, setDraft] = useState<ConsultantDraft>(EMPTY_CONSULTANT)
   const [busy, setBusy] = useState(false)
 
@@ -225,7 +227,7 @@ export function ConsultantDialog({
         </div>
 
         <div className="mt-1 flex items-center justify-between gap-3">
-          {consultant ? (
+          {consultant && can.remove ? (
             <Button variant="ghost" onClick={() => void handleDelete()} disabled={busy}>
               Delete
             </Button>

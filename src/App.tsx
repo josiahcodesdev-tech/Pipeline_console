@@ -20,6 +20,7 @@ import { RfpProfile } from '@/views/rfps/rfp-profile'
 import { ReportView } from '@/views/report/report-view'
 import { SettingsView } from '@/views/settings/settings-view'
 import { ConsultantsView } from '@/views/consultants/consultants-view'
+import { MembersView } from '@/views/members/members-view'
 
 // Recharts is a large dependency used by this view alone — keep it out of the
 // bundle everyone downloads on first load.
@@ -166,6 +167,7 @@ function Console() {
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
           {view === 'consultants' && PROPOSAL_DRAFTING && <ConsultantsView />}
+          {view === 'members' && <MembersView />}
           {view === 'settings' && PROPOSAL_DRAFTING && <SettingsView />}
             </>
           )}
@@ -176,7 +178,7 @@ function Console() {
 }
 
 function Gate() {
-  const { session, loading } = useAuth()
+  const { session, loading, suspended, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -187,6 +189,32 @@ function Gate() {
   }
 
   if (!session) return <SignInView />
+
+  // Valid credentials, withdrawn access. Worth its own screen rather than an
+  // empty console: everything below would load and show nothing, which reads
+  // as the app being broken rather than as a decision someone made.
+  if (suspended) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-[380px] rounded-xl border border-border bg-card p-6 text-center shadow-brand-md">
+          <h1 className="font-display text-[19px] text-foreground">
+            Your access has been switched off
+          </h1>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Your sign-in still works, but this account cannot open the console.
+            Ask your administrator to restore it.
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="mt-4 cursor-pointer text-[11px] text-primary transition-colors hover:text-clay"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <PipelineProvider>

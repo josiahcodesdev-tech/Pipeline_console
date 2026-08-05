@@ -5,9 +5,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/hooks/use-auth'
 
+/**
+ * Sign in only.
+ *
+ * This screen used to offer "No account yet? Create one", which meant anyone
+ * who found the URL could give themselves an account on a console holding a
+ * live bid pipeline. Members are added by the super user on the Members page
+ * instead, which is also the only way an account arrives with a role attached.
+ */
 export function SignInView() {
-  const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -17,14 +24,7 @@ export function SignInView() {
     if (busy) return
     setBusy(true)
     try {
-      if (mode === 'sign-in') {
-        await signIn(email, password)
-      } else {
-        await signUp(email, password)
-        toast.success(
-          'Account created. If your project requires email confirmation, check your inbox.',
-        )
-      }
+      await signIn(email, password)
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -77,7 +77,7 @@ export function SignInView() {
             <Input
               id="password"
               type="password"
-              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+              autoComplete="current-password"
               required
               minLength={6}
               value={password}
@@ -87,22 +87,13 @@ export function SignInView() {
           </div>
 
           <Button type="submit" disabled={busy} className="w-full">
-            {busy
-              ? 'Working…'
-              : mode === 'sign-in'
-                ? 'Sign in'
-                : 'Create account'}
+            {busy ? 'Signing in…' : 'Sign in'}
           </Button>
 
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
-            className="mt-3 w-full cursor-pointer text-center text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {mode === 'sign-in'
-              ? 'No account yet? Create one'
-              : 'Already have an account? Sign in'}
-          </button>
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-faint">
+            Accounts are issued by your administrator. Ask them to add you if you
+            do not have one.
+          </p>
         </form>
       </div>
     </div>

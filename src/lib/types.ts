@@ -1,3 +1,44 @@
+/**
+ * Access levels, most privileged first.
+ *
+ * The database is the authority on these — every rule is a row-level security
+ * policy, and the client's copy of the role only decides what to *show*. A
+ * hidden button and a refused request are not the same protection, and only
+ * the second one survives someone opening the console.
+ */
+export const MEMBER_ROLES = ['super_user', 'admin', 'user'] as const
+export type MemberRole = (typeof MEMBER_ROLES)[number]
+
+export const ROLE_LABEL: Record<MemberRole, string> = {
+  super_user: 'Super user',
+  admin: 'Admin',
+  user: 'User',
+}
+
+export const ROLE_DESCRIPTION: Record<MemberRole, string> = {
+  super_user:
+    'Full access, plus adding members and setting their access. Sees every pipeline.',
+  admin:
+    'Sees every pipeline, can delete records and run the sync. Cannot manage members.',
+  user:
+    'Works their own pipeline. Cannot delete records or run the sync by hand.',
+}
+
+/** A team member. One row per account, created with the account. */
+export interface Profile {
+  id: string
+  email: string
+  fullName: string
+  role: MemberRole
+  /** Cleared rather than deleted when someone leaves, so their work stays owned. */
+  active: boolean
+  createdAt: string
+}
+
+export function isMemberRole(value: unknown): value is MemberRole {
+  return MEMBER_ROLES.includes(value as MemberRole)
+}
+
 export const SEGMENTS = [
   'Government',
   'NGO',

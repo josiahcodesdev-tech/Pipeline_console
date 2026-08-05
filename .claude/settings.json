@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx supabase *)",
+      "Bash(awk '{printf \"  %-18s %s policies\\\\n\", $2, $1}')"
+    ]
+  }
+}

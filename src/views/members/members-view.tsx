@@ -1,0 +1,359 @@
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { CopyIcon, ShieldCheckIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { EmptyState, Panel, ViewHeader } from '@/components/panel'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { useAuth } from '@/hooks/use-auth'
+import {
+  createMember,
+  fetchMembers,
+  setMemberActive,
+  setMemberRole,
+  type CreatedMember,
+} from '@/lib/members'
+import {
+  MEMBER_ROLES,
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+  type MemberRole,
+  type Profile,
+} from '@/lib/types'
+import { formatDate } from '@/lib/dates'
+import { cn } from '@/lib/utils'
+
+const ROLE_TONE: Record<MemberRole, string> = {
+  super_user: 'border-primary/40 bg-brand-soft text-primary',
+  admin: 'border-gold/50 bg-gold-soft text-clay',
+  user: 'border-border bg-surface-2 text-muted-foreground',
+}
+
+function RoleBadge({ role }: { role: MemberRole }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        ROLE_TONE[role],
+      )}
+    >
+      {ROLE_LABEL[role]}
+    </span>
+  )
+}
+
+/**
+ * The one-time password panel.
+ *
+ * Shown after an account is created and never again — the console does not
+ * store it, and the server generated it precisely so nobody had to invent one.
+ * It stays on screen until dismissed rather than becoming a toast, because a
+ * password that vanishes after four seconds is a password nobody wrote down.
+ */
+function FirstPassword({
+  member,
+  onDone,
+}: {
+  member: CreatedMember
+  onDone: () => void
+}) {
+  return (
+    <div className="mb-5 rounded-xl border border-gold/50 bg-gold-soft/40 p-4">
+      <div className="eyebrow mb-1 text-clay">Account created</div>
+      <p className="text-xs leading-relaxed text-foreground">
+        Send <strong>{member.email}</strong> this first password. It is shown
+        once and is not stored anywhere — if it is lost, the account has to be
+        reset. Ask them to change it after signing in.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <code className="flex-1 rounded-lg border border-border bg-card px-3 py-2 font-mono text-[13px] text-foreground">
+          {member.password}
+        </code>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            void navigator.clipboard.writeText(member.password)
+            toast.success('Password copied')
+          }}
+        >
+          <CopyIcon className="size-3.5" aria-hidden />
+          Copy
+        </Button>
+        <Button type="button" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function MembersView() {
+  const { profile, can } = useAuth()
+  const [members, setMembers] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [created, setCreated] = useState<CreatedMember | null>(null)
+
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [role, setRole] = useState<MemberRole>('user')
+
+  const load = useCallback(async () => {
+    try {
+      setMembers(await fetchMembers())
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function add(event: React.FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    try {
+      const member = await createMember({ email, fullName, role })
+      setCreated(member)
+      setEmail('')
+      setFullName('')
+      setRole('user')
+      await load()
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function changeRole(member: Profile, next: MemberRole) {
+    try {
+      await setMemberRole(member.id, next)
+      toast.success(`${member.email} is now ${ROLE_LABEL[next].toLowerCase()}`)
+      await load()
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  async function changeActive(member: Profile, next: boolean) {
+    try {
+      await setMemberActive(member.id, next)
+      toast.success(next ? `${member.email} can sign in` : `${member.email} switched off`)
+      await load()
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const counts = MEMBER_ROLES.map((r) => ({
+    role: r,
+    count: members.filter((m) => m.role === r && m.active).length,
+  }))
+
+  return (
+    <>
+      <ViewHeader
+        eyebrow="Access"
+        title="Members"
+        description="Who can sign in, and what each of them is allowed to do."
+        meta={
+          <div className="flex items-center gap-2">
+            {counts.map(({ role: r, count }) => (
+              <span
+                key={r}
+                className="rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground shadow-brand-sm"
+              >
+                {count} {ROLE_LABEL[r].toLowerCase()}
+                {count === 1 ? '' : 's'}
+              </span>
+            ))}
+          </div>
+        }
+      />
+
+      {created && <FirstPassword member={created} onDone={() => setCreated(null)} />}
+
+      {can.manageMembers && (
+        <Panel
+          title="Add a member"
+          description="Creates the account immediately and returns a first password to pass on. There is no sign-up page — this is the only way in."
+        >
+          <form onSubmit={add} className="grid gap-3 sm:grid-cols-[1fr_1fr_180px_auto] sm:items-end">
+            <div>
+              <Label htmlFor="m-email" className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted-foreground">
+                Email
+              </Label>
+              <Input
+                id="m-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@vantageafricaleaders.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="m-name" className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted-foreground">
+                Full name
+              </Label>
+              <Input
+                id="m-name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <Label htmlFor="m-role" className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted-foreground">
+                Access
+              </Label>
+              <select
+                id="m-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as MemberRole)}
+                className="h-9 w-full cursor-pointer rounded-md border border-border bg-card px-2 text-xs text-foreground"
+              >
+                {MEMBER_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" disabled={busy}>
+              <UserPlusIcon className="size-3.5" aria-hidden />
+              {busy ? 'Adding…' : 'Add'}
+            </Button>
+          </form>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-faint">
+            {ROLE_DESCRIPTION[role]}
+          </p>
+        </Panel>
+      )}
+
+      <Panel title="Team">
+        {loading ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+        ) : members.length === 0 ? (
+          <EmptyState icon={<UsersIcon className="size-5" />} hint="Members you add appear here.">
+            No members yet
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Member</TableHead>
+                <TableHead>Access</TableHead>
+                <TableHead>Added</TableHead>
+                {can.manageMembers && <TableHead className="text-right">Change</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {members.map((member) => {
+                const isSelf = member.id === profile?.id
+                return (
+                  <TableRow key={member.id} className={cn(!member.active && 'opacity-55')}>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-foreground">
+                          {member.fullName || member.email}
+                          {isSelf && <span className="ml-1.5 text-[11px] text-faint">(you)</span>}
+                        </span>
+                        {member.fullName && (
+                          <span className="text-[11px] text-muted-foreground">{member.email}</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <RoleBadge role={member.role} />
+                        {!member.active && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-danger">
+                            No access
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {formatDate(member.createdAt.slice(0, 10)) || '—'}
+                    </TableCell>
+                    {can.manageMembers && (
+                      <TableCell className="text-right">
+                        {isSelf ? (
+                          // Guarded on the server too. The last super user
+                          // demoting themselves leaves nobody able to put it
+                          // back without opening the database.
+                          <span className="text-[11px] text-faint">—</span>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            <select
+                              value={member.role}
+                              onChange={(e) => void changeRole(member, e.target.value as MemberRole)}
+                              aria-label={`Access level for ${member.email}`}
+                              className="h-8 cursor-pointer rounded-md border border-border bg-card px-2 text-[11px] text-foreground"
+                            >
+                              {MEMBER_ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {ROLE_LABEL[r]}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void changeActive(member, !member.active)}
+                            >
+                              {member.active ? 'Switch off' : 'Restore'}
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Panel>
+
+      <Panel title="What each level can do">
+        <ul className="flex flex-col gap-2.5">
+          {MEMBER_ROLES.map((r) => (
+            <li key={r} className="flex gap-3">
+              <span className="mt-0.5 shrink-0">
+                <RoleBadge role={r} />
+              </span>
+              <span className="text-xs leading-relaxed text-muted-foreground">
+                {ROLE_DESCRIPTION[r]}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 flex items-start gap-2 border-t border-border-soft pt-3 text-[11px] leading-relaxed text-faint">
+          <ShieldCheckIcon className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>
+            Every one of these rules is enforced by the database, not by this
+            page. Hiding a button is a courtesy; the refusal behind it is the
+            protection.
+          </span>
+        </p>
+      </Panel>
+    </>
+  )
+}

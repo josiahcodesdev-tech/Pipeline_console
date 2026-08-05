@@ -142,7 +142,7 @@ function upsertInto<T extends { id: string }>(list: T[], row: T): T[] {
 }
 
 export function PipelineProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuth()
+  const { session, can } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [rfps, setRfps] = useState<Rfp[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -379,6 +379,11 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!OPPORTUNITY_SYNC) return
     if (!session || loading || autoSyncStarted.current) return
+    // Standard users cannot pull the sources, and the function refuses them.
+    // Firing it anyway would greet every one of them with a failed sync on
+    // sign-in, for something they never asked for. The 05:00 scheduled run
+    // fills the tracker regardless of who is signed in.
+    if (!can.sync) return
 
     const previous = lastSyncedAt()
     if (previous && Date.now() - previous < AUTO_SYNC_INTERVAL_MS) {
@@ -409,7 +414,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [session, loading, syncOpportunities])
+  }, [session, loading, can.sync, syncOpportunities])
 
   const addTask = useCallback(async (draft: db.TaskDraft) => {
     const saved = await db.createTask(draft)
