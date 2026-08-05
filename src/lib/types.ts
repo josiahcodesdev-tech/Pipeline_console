@@ -181,6 +181,11 @@ export interface Lead {
  */
 export interface Activity {
   id: string
+  /**
+   * Who logged it. Everyone sees their own; admins and the super user see
+   * everyone's, and then need to know whose each entry is.
+   */
+  userId: string
   /** Parent lead, if any. */
   leadId: string | null
   /** Parent RFP, if any. */

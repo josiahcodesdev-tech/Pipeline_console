@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
 import { ActivityComposer, ActivityRow } from '@/components/activity-log'
+import { useAuth } from '@/hooks/use-auth'
+import { useMemberNames } from '@/lib/members'
+import { toDisplayName } from '@/lib/usernames'
 import { KpiCard } from '@/components/kpi-card'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { formatDateWithYear, today, weekEnd, weekStart } from '@/lib/dates'
@@ -17,6 +20,8 @@ import { ACTIVITY_TYPES, type ActivityType } from '@/lib/types'
  */
 export function ActivityView() {
   const { activities, leads, rfps, logActivity, removeActivity } = usePipeline()
+  const { can, profile } = useAuth()
+  const memberNames = useMemberNames()
   const [search, setSearch] = useState('')
   const [type, setType] = useState<ActivityType | 'all'>('all')
 
@@ -31,6 +36,19 @@ export function ActivityView() {
     if (leadId) return labelFor.get(`lead:${leadId}`)
     if (rfpId) return labelFor.get(`rfp:${rfpId}`)
     return undefined
+  }
+
+  /**
+   * Whose entry this is, when that is worth saying.
+   *
+   * Only for readers who can see the whole team's log, and never for their own
+   * rows: an admin reading a mixed feed needs to know who did what, but
+   * labelling their own entries with their own name is noise.
+   */
+  function attribution(userId: string): string | undefined {
+    if (!can.seeEveryone || userId === profile?.id) return undefined
+    const name = memberNames.get(userId)
+    return name ? toDisplayName(name) : 'Another member'
   }
 
   const start = weekStart(today())
@@ -149,6 +167,7 @@ export function ActivityView() {
                 key={activity.id}
                 activity={activity}
                 context={contextLabel(activity.leadId, activity.rfpId)}
+                by={attribution(activity.userId)}
                 onDelete={(id) => void handleDelete(id)}
               />
             ))}

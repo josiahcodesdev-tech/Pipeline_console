@@ -55,11 +55,18 @@ function typeTone(type: ActivityType): string {
 export function ActivityRow({
   activity,
   context,
+  by,
   onDelete,
 }: {
   activity: Activity
   /** Organisation or RFP title, when the row is shown outside its parent. */
   context?: string
+  /**
+   * Who logged it. Passed only when the reader can see other members' entries,
+   * which is admins and the super user — for everyone else the log is their
+   * own and naming themselves on every line would be noise.
+   */
+  by?: string
   onDelete?: (id: string) => void
 }) {
   const Icon = TYPE_ICON[activity.type]
@@ -80,6 +87,12 @@ export function ActivityRow({
         <p className="text-[12.5px] leading-snug text-foreground">
           {activity.summary}
         </p>
+        {by && (
+          // Above the detail line rather than buried in it: when an admin is
+          // reading the whole team's log, who did it is the first thing they
+          // are looking for, not a footnote after the date.
+          <p className="mt-0.5 text-[11px] font-medium text-clay">{by}</p>
+        )}
         {activity.outcome && (
           <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
             {activity.outcome}

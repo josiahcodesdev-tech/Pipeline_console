@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/hooks/use-auth'
+import { toSignInEmail } from '@/lib/usernames'
 
 /**
  * Sign in only.
@@ -24,7 +25,10 @@ export function SignInView() {
     if (busy) return
     setBusy(true)
     try {
-      await signIn(email, password)
+      // "admin" and "admin@vantageafricaleaders.com" are the same account.
+      // Supabase has no username concept, so the short form is completed with
+      // the organisation's domain before it goes anywhere near the API.
+      await signIn(toSignInEmail(email), password)
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -57,12 +61,15 @@ export function SignInView() {
         >
           <div className="mb-3">
             <Label htmlFor="email" className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted-foreground">
-              Email
+              Username or email
             </Label>
+            {/* Not type="email": the field now accepts a bare username, and the
+                browser's own validation would reject "admin" before the form
+                ever ran. */}
             <Input
               id="email"
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}

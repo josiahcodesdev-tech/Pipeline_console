@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx supabase *)",
-      "Bash(awk '{printf \"  %-18s %s policies\\\\n\", $2, $1}')"
+      "Bash(awk '{printf \"  %-18s %s policies\\\\n\", $2, $1}')",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);console.log\\(j.id?'   created: '+j.id:'   '+\\(j.msg||j.error_description||JSON.stringify\\(j\\).slice\\(0,120\\)\\)\\)}\\)\")"
     ]
   }
 }

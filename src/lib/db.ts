@@ -122,6 +122,7 @@ function toProposal(row: ProposalRow): Proposal {
 function toActivity(row: ActivityRow): Activity {
   return {
     id: row.id,
+    userId: row.user_id,
     leadId: row.lead_id,
     rfpId: row.rfp_id,
     type: isActivityType(row.type) ? row.type : 'Note',
@@ -550,7 +551,10 @@ export async function deleteProposal(proposal: Proposal): Promise<void> {
 
 // ---------------------------------------------------------- activities -----
 
-export type ActivityDraft = Omit<Activity, 'id'>
+// `userId` is omitted alongside `id`: both are set by the server from the
+// session, and a client that could nominate an owner could log an entry in
+// someone else's name.
+export type ActivityDraft = Omit<Activity, 'id' | 'userId'>
 
 export async function createActivity(draft: ActivityDraft): Promise<Activity> {
   const row = unwrap(
