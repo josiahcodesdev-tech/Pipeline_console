@@ -213,7 +213,12 @@ export async function draftConceptNoteStreaming(
   }
   handle(buffer)
 
-  if (failure) throw new Error(failure)
+  // A failure with nothing to show for it is an error. A failure part-way
+  // through a document is not: the text that arrived is real, and handing back
+  // twenty thousand words marked incomplete beats discarding them because the
+  // last request of the run was rejected.
+  if (failure && !text.trim()) throw new Error(failure)
+  if (failure) return { text, truncated: true, playbooks }
   // The stream ending without a `done` event means the connection dropped
   // mid-document. Whatever arrived is incomplete, and saying so beats handing
   // over a proposal that stops mid-sentence as though it were finished.

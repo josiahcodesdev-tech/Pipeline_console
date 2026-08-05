@@ -71,109 +71,74 @@ const CLAUDE_NOTE_MAX_TOKENS = 4_000
  * Reasoning depth. Higher settings write better proposals and take longer, and
  * this runs inside an Edge Function with a wall clock — a draft that is still
  * being reasoned about when the request is killed is worth nothing, however
- * good it was going to be. `medium` leaves room for a full-length document to
- * finish. Raise it if drafts land comfortably inside the limit.
+ * good it was going to be. Measured: `medium` spent 40 seconds thinking before
+ * the first word, `low` spends about 7 and leaves that time for writing
+ * instead. Raise it only if drafts start landing well inside the limit.
  */
 const CLAUDE_PROPOSAL_EFFORT = 'low'
 const CLAUDE_NOTE_EFFORT = 'low'
 
 /**
- * Server-side refusal fallback. Claude Opus 5 runs safety classifiers that can
- * decline a request outright; `"default"` lets Anthropic re-run a declined
- * request on a fallback model in the same call rather than handing the bid team
- * an error. Nothing in a training tender should ever trip a classifier, so this
- * is insurance, not a load-bearing path — a declined attempt is not billed.
+ * Two betas were tried here and both are deliberately gone. Measured against
+ * this organisation's key, not assumed — if either is reinstated, test it the
+ * same way first, because both fail in ways that look like something else.
+ *
+ * `fallbacks: "default"` (server-side refusal fallback) was insurance against a
+ * safety classifier declining a request. This organisation is not enrolled in
+ * that beta, and the rejection comes back as `overloaded_error` — "Overloaded",
+ * with no mention of fallbacks. It failed three times out of three while the
+ * identical request without the beta succeeded, so every proposal was failing
+ * and the error blamed Anthropic's capacity. Nothing in a training tender
+ * should trip a classifier anyway.
+ *
+ * `speed: "fast"` was the answer to the 150-second Edge Function ceiling. This
+ * organisation has a fast-mode quota of *zero* tokens per minute, so the
+ * request is rejected outright and the draft only ever proceeded by falling
+ * back to standard speed — one wasted round trip per proposal for no gain.
  */
-const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
-
-/**
- * Fast mode, and why a proposal needs it.
- *
- * Edge Functions are killed at roughly 150 seconds of wall clock. A full
- * eighteen-page proposal is around 30,000 characters, and at standard output
- * speed Claude does not finish one inside that budget — measured, not guessed:
- * the first run streamed 28,860 characters and was cut mid-document at 152s.
- *
- * Fast mode runs the same model at up to 2.5x the output rate, which is the
- * only lever that closes that gap without either shortening the document or
- * moving off Edge Functions. It bills at $10/$50 per million tokens rather than
- * $5/$25 — a few cents more on a document being written to win a contract.
- *
- * It has its own rate limit, separate from standard Opus, so a 429 here means
- * "no fast capacity right now" rather than "you are over your limit". That is
- * recoverable by simply asking for the standard speed, which `run` does.
- */
-const FAST_BETA = 'fast-mode-2026-02-01'
 
 function anthropicDrafter(apiKey: string): Drafter {
-  const client = new Anthropic({ apiKey })
+  // More retries than the SDK's default of two. A proposal is a single
+  // expensive request the author is watching, so riding out a busy minute is
+  // worth far more here than failing fast would be; the SDK backs off
+  // exponentially and only retries the transient statuses.
+  const client = new Anthropic({ apiKey, maxRetries: 5 })
 
   return {
     label: `Anthropic ${CLAUDE_MODEL}`,
     async *run(job: DraftJob): AsyncGenerator<DraftEvent> {
-      const open = (fast: boolean) =>
-        client.beta.messages.stream({
-          model: CLAUDE_MODEL,
-          max_tokens: job.heavy ? CLAUDE_PROPOSAL_MAX_TOKENS : CLAUDE_NOTE_MAX_TOKENS,
-          system: job.system,
-          messages: [{ role: 'user', content: job.task }],
-          // Adaptive is the default on Opus 5; stated so the intent survives a
-          // future model change. Note there is deliberately no `temperature` —
-          // Opus 5 rejects the sampling parameters outright.
-          thinking: { type: 'adaptive' },
-          output_config: {
-            effort: job.heavy ? CLAUDE_PROPOSAL_EFFORT : CLAUDE_NOTE_EFFORT,
-          },
-          ...(fast ? { speed: 'fast' as const } : {}),
-          betas: fast ? [FALLBACK_BETA, FAST_BETA] : [FALLBACK_BETA],
-          fallbacks: 'default',
-        })
+      const stream = client.messages.stream({
+        model: CLAUDE_MODEL,
+        max_tokens: job.heavy ? CLAUDE_PROPOSAL_MAX_TOKENS : CLAUDE_NOTE_MAX_TOKENS,
+        system: job.system,
+        messages: [{ role: 'user', content: job.task }],
+        // Adaptive is the default on Opus 5; stated so the intent survives a
+        // future model change. Note there is deliberately no `temperature` —
+        // Opus 5 rejects the sampling parameters outright.
+        thinking: { type: 'adaptive' },
+        output_config: {
+          effort: job.heavy ? CLAUDE_PROPOSAL_EFFORT : CLAUDE_NOTE_EFFORT,
+        },
+      })
 
-      // Only a proposal is long enough to need the extra speed, and only a
-      // proposal is worth the premium. A concept note finishes comfortably
-      // inside the budget at standard rate.
-      let fast = job.heavy
-
-      for (;;) {
-        const stream = open(fast)
-        let wrote = false
-
-        try {
-          for await (const event of stream) {
-            // Opus 5 thinks before it writes. Thinking arrives as its own delta
-            // type and is not part of the document — only text_delta is. Every
-            // other event still proves the model is working, and is forwarded
-            // as a contentless progress tick so the connection is never idle
-            // long enough for the runtime to kill it mid-reasoning.
-            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-              wrote = true
-              yield { type: 'text', text: event.delta.text }
-            } else {
-              yield { type: 'progress' }
-            }
-          }
-
-          const message = await stream.finalMessage()
-          yield {
-            type: 'end',
-            truncated: message.stop_reason === 'max_tokens',
-            refused: message.stop_reason === 'refusal',
-          }
-          return
-        } catch (cause) {
-          // Fast capacity is a separate pool from standard Opus, so being
-          // turned away from it is not a reason to fail the draft — it is a
-          // reason to wait a little longer for the same model. Retried only
-          // before the first word: once the document has started, restarting
-          // would duplicate everything already sent.
-          const status = (cause as { status?: number })?.status
-          if (fast && !wrote && status === 429) {
-            console.warn('fast mode unavailable (429); retrying at standard speed')
-            fast = false
-            continue
-          }
-          throw cause
+      for await (const event of stream) {
+        // Opus 5 thinks before it writes. Thinking arrives as its own delta
+        // type and is not part of the document — only text_delta is. Every
+        // other event still proves the model is working, and is forwarded as a
+        // contentless progress tick so the connection is never idle long
+        // enough for the runtime to kill it mid-reasoning.
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          yield { type: 'text', text: event.delta.text }
+        } else {
+          yield { type: 'progress' }
         }
+      }
+
+      const message = await stream.finalMessage()
+      yield {
+        type: 'end',
+        truncated: message.stop_reason === 'max_tokens',
+        refused: message.stop_reason === 'refusal',
       }
     },
   }
@@ -225,6 +190,48 @@ function openaiDrafter(apiKey: string): Drafter {
       }
     },
   }
+}
+
+// ------------------------------------------------------------------- Failures
+
+/**
+ * Turns a provider failure into something the bid team can act on.
+ *
+ * Without this the SDK's own message reaches the screen, and that message is
+ * the raw JSON error body — `{"type":"error","error":{"type":"overloaded_error"
+ * ...}}` — which tells the author nothing except that something broke. What
+ * they need to know is whether to press the button again, wait, or fix a
+ * setting.
+ */
+export function describeDraftFailure(cause: unknown): string {
+  const status = (cause as { status?: number })?.status
+
+  switch (status) {
+    case 429:
+      return 'The drafting service is rate-limited right now. Wait a minute and draft again.'
+    case 529:
+    case 500:
+    case 502:
+    case 503:
+      return 'The drafting service is busy right now. Wait a moment and draft again. Anything already written is kept.'
+    case 401:
+    case 403:
+      return 'The drafting service rejected the API key. Check the key set on the concept-note function.'
+    case 400:
+      return 'The drafting service rejected the request. This is usually an over-long tender document — try removing the attachment and drafting again.'
+  }
+
+  // Anthropic reports an overloaded upstream inside the body on some paths,
+  // where there is no status to switch on.
+  const raw = cause instanceof Error ? cause.message : String(cause)
+  if (/overloaded/i.test(raw)) {
+    return 'The drafting service is busy right now. Wait a moment and draft again. Anything already written is kept.'
+  }
+  if (/timeout|aborted|timed out/i.test(raw)) {
+    return 'The draft took too long and was cut off. Try again, or attach a shorter tender document.'
+  }
+
+  return `Drafting failed: ${raw}`
 }
 
 // ------------------------------------------------------------------ Choosing

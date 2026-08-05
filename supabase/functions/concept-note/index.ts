@@ -24,7 +24,7 @@
 
 import { CONCEPT_NOTE_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
 import { selectPlaybooks } from './playbooks.ts'
-import { selectDrafter } from './drafters.ts'
+import { describeDraftFailure, selectDrafter } from './drafters.ts'
 
 interface DraftContext {
   kind?: unknown
@@ -458,11 +458,10 @@ ${details}`
           }
         } catch (cause) {
           console.error(`concept-note stream failed (${drafter.label})`, cause)
-          const detail = cause instanceof Error ? cause.message : String(cause)
           // Reported in-band. The response status was already committed as 200
           // the moment the first byte went out, so a thrown error here would
           // otherwise reach the client as nothing but a truncated document.
-          controller.enqueue(line({ type: 'error', message: detail }))
+          controller.enqueue(line({ type: 'error', message: describeDraftFailure(cause) }))
         } finally {
           controller.close()
         }
@@ -524,7 +523,6 @@ ${details}`
     )
   } catch (cause) {
     console.error(`concept-note failed (${drafter.label})`, cause)
-    const detail = cause instanceof Error ? cause.message : String(cause)
-    return json({ error: `Drafting failed: ${detail}` }, 502)
+    return json({ error: describeDraftFailure(cause) }, 502)
   }
 })
