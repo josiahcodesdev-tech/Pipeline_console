@@ -283,7 +283,22 @@ export type Database = {
     // `{ [_ in never]: never }` is the shape `supabase gen types` emits for an
     // empty group; `Record<string, never>` does not satisfy `GenericSchema`.
     Views: { [_ in never]: never }
-    Functions: { [_ in never]: never }
+    Functions: {
+      /**
+       * Firm-wide tender counts, deduplicated across members. Admin only —
+       * see migration 0020. Counting happens in the database because summing
+       * per-member figures counts each tender once per member.
+       */
+      team_overview: {
+        Args: Record<string, never>
+        Returns: {
+          open_tenders: number
+          all_tenders: number
+          in_pipeline: number
+          unclaimed_open: number
+        }
+      }
+    }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
   }

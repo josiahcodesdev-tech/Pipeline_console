@@ -67,6 +67,77 @@ export function useMemberNames(): Map<string, string> {
   return names
 }
 
+/**
+ * Firm-wide tender counts.
+ *
+ * Read from the database rather than summed from what members can see: each
+ * member holds their own copy of every scraped tender, so adding those up
+ * counts one opportunity once per member and the total grows when you hire.
+ */
+export interface TeamOverview {
+  /** Distinct tenders still open, however many copies exist. */
+  openTenders: number
+  allTenders: number
+  /** Tenders someone has taken on. Already one per tender, firm-wide. */
+  inPipeline: number
+  /** Open tenders nobody has taken — the work still on the table. */
+  unclaimedOpen: number
+}
+
+export async function fetchTeamOverview(): Promise<TeamOverview> {
+  const { data, error } = await supabase.rpc('team_overview')
+  if (error) throw new Error(`Could not load the firm-wide figures: ${error.message}`)
+  const row = (data ?? {}) as Record<string, number>
+  return {
+    openTenders: row.open_tenders ?? 0,
+    allTenders: row.all_tenders ?? 0,
+    inPipeline: row.in_pipeline ?? 0,
+    unclaimedOpen: row.unclaimed_open ?? 0,
+  }
+}
+
+/** One tender someone has taken on, with who is on it. */
+export interface TeamPipelineItem {
+  id: string
+  title: string
+  org: string
+  deadline: string
+  status: string
+  ownerId: string
+  fitScore: number
+  value: number | null
+}
+
+/**
+ * Everything the firm is currently bidding, across every member.
+ *
+ * No deduplication needed: a scraped tender can only be in one member's
+ * pipeline because the claim is exclusive, and a hand-added one only ever
+ * appears in its author's list. So one row here really is one live bid.
+ *
+ * Relies on the admin read policy — a standard user calling this gets their
+ * own rows back, which is harmless but not useful, so the caller gates it.
+ */
+export async function fetchTeamPipeline(): Promise<TeamPipelineItem[]> {
+  const { data, error } = await supabase
+    .from('rfps')
+    .select('id, title, org, deadline, status, user_id, fit_score, value')
+    .eq('in_pipeline', true)
+    .order('deadline', { ascending: true, nullsFirst: false })
+
+  if (error) throw new Error(`Could not load the team pipeline: ${error.message}`)
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    org: row.org ?? '',
+    deadline: row.deadline ?? '',
+    status: row.status,
+    ownerId: row.user_id,
+    fitScore: row.fit_score ?? 0,
+    value: row.value === null ? null : Number(row.value),
+  }))
+}
+
 /** Anyone may set their own display name; nobody may set their own role. */
 export async function saveOwnName(id: string, fullName: string): Promise<void> {
   const { error } = await supabase

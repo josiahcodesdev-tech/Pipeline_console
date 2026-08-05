@@ -34,8 +34,15 @@ export const NAV_ITEMS = [
 
 export type ViewId = (typeof NAV_ITEMS)[number]['id']
 
-/** Views only the super user has any use for. */
-const SUPER_USER_ONLY: readonly ViewId[] = ['members']
+/**
+ * Views a standard user has no use for.
+ *
+ * Members is shown to admins as well as the super user: the page carries the
+ * firm-wide figures and who is bidding what, which is oversight rather than
+ * administration. Only the add-a-member form and the access controls within it
+ * are super-user-only, and those gate themselves.
+ */
+const OVERSIGHT_ONLY: readonly ViewId[] = ['members']
 
 /**
  * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
@@ -58,9 +65,9 @@ const FLAGGED_NAV_ITEMS = NAV_ITEMS.filter(
  * `profiles`, which every member may read anyway, and every action on it is
  * refused by the server for anyone but the super user.
  */
-export function navItemsFor(canManageMembers: boolean) {
+export function navItemsFor(canSeeEveryone: boolean) {
   return FLAGGED_NAV_ITEMS.filter(
-    (item) => !SUPER_USER_ONLY.includes(item.id) || canManageMembers,
+    (item) => !OVERSIGHT_ONLY.includes(item.id) || canSeeEveryone,
   )
 }
 

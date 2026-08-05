@@ -16,7 +16,7 @@ export function AppSidebar({
   onCollapse: () => void
 }) {
   const { session, signOut, can, role } = useAuth()
-  const items = navItemsFor(can.manageMembers)
+  const items = navItemsFor(can.seeEveryone)
 
   return (
     // Sticky rather than fixed: it stays put while the page scrolls without

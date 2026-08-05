@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { CopyIcon, ShieldCheckIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { CopyIcon, ShieldCheckIcon, TargetIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { Button } from '@/components/ui/button'
+import { KpiCard } from '@/components/kpi-card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -16,10 +17,15 @@ import {
 import { useAuth } from '@/hooks/use-auth'
 import {
   createMember,
+  useMemberNames,
   fetchMembers,
   setMemberActive,
   setMemberRole,
+  fetchTeamOverview,
+  fetchTeamPipeline,
   type CreatedMember,
+  type TeamOverview,
+  type TeamPipelineItem,
 } from '@/lib/members'
 import {
   MEMBER_ROLES,
@@ -102,6 +108,9 @@ export function MembersView() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<CreatedMember | null>(null)
+  const [overview, setOverview] = useState<TeamOverview | null>(null)
+  const [pipeline, setPipeline] = useState<TeamPipelineItem[]>([])
+  const names = useMemberNames()
 
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
@@ -116,6 +125,28 @@ export function MembersView() {
       setLoading(false)
     }
   }, [])
+
+  // The firm-wide half of the page, loaded separately. A standard user is
+  // refused both of these by the server, so they are only asked for when the
+  // reader is entitled to them — and a failure costs the two oversight panels,
+  // not the member list above them.
+  const loadOverview = useCallback(async () => {
+    if (!can.seeEveryone) return
+    try {
+      const [figures, live] = await Promise.all([
+        fetchTeamOverview(),
+        fetchTeamPipeline(),
+      ])
+      setOverview(figures)
+      setPipeline(live)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }, [can.seeEveryone])
+
+  useEffect(() => {
+    void loadOverview()
+  }, [loadOverview])
 
   useEffect(() => {
     void load()
@@ -243,6 +274,83 @@ export function MembersView() {
           <p className="mt-3 text-[11px] leading-relaxed text-faint">
             {ROLE_DESCRIPTION[role]}
           </p>
+        </Panel>
+      )}
+
+      {can.seeEveryone && (
+        <Panel
+          title="Across the team"
+          description="Counted once per tender, not once per member. Every member holds their own copy of each scraped opportunity, so adding up what their dashboards show would count the same tender several times over — and the total would grow every time you hire."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="Open tenders"
+              value={overview?.openTenders ?? '—'}
+              hint="Distinct opportunities still accepting bids"
+            />
+            <KpiCard
+              label="Being bid"
+              value={overview?.inPipeline ?? '—'}
+              hint="Taken on by someone, one member each"
+              tone={overview && overview.inPipeline > 0 ? 'good' : 'neutral'}
+            />
+            <KpiCard
+              label="Nobody on it"
+              value={overview?.unclaimedOpen ?? '—'}
+              hint="Open, and no one has taken it"
+              tone={overview && overview.unclaimedOpen > 0 ? 'warn' : 'good'}
+            />
+            <KpiCard
+              label="Tenders held"
+              value={overview?.allTenders ?? '—'}
+              hint="Everything scraped, open and closed"
+            />
+          </div>
+        </Panel>
+      )}
+
+      {can.seeEveryone && (
+        <Panel
+          title="Who is bidding what"
+          description="Every tender the firm currently has in a pipeline, and the member on it. One member per tender — taking one on locks it."
+        >
+          {pipeline.length === 0 ? (
+            <EmptyState
+              icon={<TargetIcon className="size-5" />}
+              hint="A tender appears here as soon as someone adds it to their pipeline."
+            >
+              Nothing is being bid yet
+            </EmptyState>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tender</TableHead>
+                  <TableHead>Organization</TableHead>
+                  <TableHead>On it</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Deadline</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipeline.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="max-w-[380px] font-medium">{item.title}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.org || '—'}</TableCell>
+                    <TableCell>
+                      <span className="whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-primary">
+                        {names.get(item.ownerId) ?? 'Unknown member'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{item.status}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {formatDate(item.deadline) || '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Panel>
       )}
 
