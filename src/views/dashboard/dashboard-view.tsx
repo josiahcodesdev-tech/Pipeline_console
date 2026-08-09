@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
-import { KpiCard } from '@/components/kpi-card'
-import { Meter, Sparkline, type MeterTone } from '@/components/metric-marks'
+import { type MeterTone } from '@/components/metric-marks'
+import { AreaTile, Bars, HeroStat, RailHeading, Ring } from './panels'
 import { SubjectIcon } from '@/components/subject-icon'
 import { PipelineBar } from '@/components/pipeline-bar'
 import { RfpStatusSelect } from '@/components/status-select'
@@ -20,8 +20,8 @@ import {
   addDays,
   daysUntil,
   formatDateWithYear,
+  formatKes,
   formatToday,
-  recentWeekStarts,
   today,
   weekEnd,
   weekStart,
@@ -133,17 +133,9 @@ export function DashboardView({
     return left !== null && left < 0
   }).length
 
-  // Only the two figures with a real history get a sparkline. Active RFPs and
-  // tasks due are current-state counts — there is no honest series behind them,
-  // and inventing one would be a decoration that reads as data.
-  const qualifiedTrend = useMemo(
-    () =>
-      recentWeekStarts(TREND_POINTS).map((weekFrom) =>
-        qualifiedInWeek(leads, weekFrom, weekEnd(weekFrom)),
-      ),
-    [leads],
-  )
-
+  // The only figure with an honest daily series behind it. Active RFPs, tasks
+  // due and the rest are current-state counts — drawing a trend for those would
+  // be a decoration that reads as data.
   const loggedTrend = useMemo(() => {
     const from = today()
     return Array.from({ length: TREND_POINTS }, (_, index) => {
@@ -151,6 +143,47 @@ export function DashboardView({
       return communicationsInRange(activities, day, day)
     })
   }, [activities])
+
+  /** Money committed to bids currently being worked. */
+  const pipelineValue = useMemo(
+    () =>
+      rfps
+        .filter((rfp) => rfp.inPipeline)
+        .reduce((sum, rfp) => sum + (rfp.value ?? 0), 0),
+    [rfps],
+  )
+
+  const beingBid = useMemo(() => rfps.filter((rfp) => rfp.inPipeline).length, [rfps])
+
+  /**
+   * Where the open opportunities actually sit, by service area.
+   *
+   * Counted from live tenders only — a closed one cannot be bid, so including
+   * it would describe the shape of last quarter rather than this week.
+   */
+  const topAreas = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const rfp of rfps) {
+      const days = daysUntil(rfp.deadline)
+      if (days !== null && days < 0) continue
+      for (const area of rfp.serviceAreas.split(',')) {
+        const name = area.trim()
+        if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([area, count]) => ({ area, count }))
+  }, [rfps])
+
+  const recentActivity = useMemo(
+    () =>
+      [...activities]
+        .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
+        .slice(0, 4),
+    [activities],
+  )
 
   return (
     <>
@@ -165,202 +198,279 @@ export function DashboardView({
         }
       />
 
-      <PipelineBar leads={leads} onSelectStage={onOpenLeadStage} />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiCard
-          label="Qualified this week"
-          subject="qualified"
-          value={qualified}
-          hint="Leads reaching Qualified or beyond"
-          onClick={() => onNavigate('leads')}
-          linkLabel="Leads"
-          mark={
-            <Sparkline
-              values={qualifiedTrend}
-              label={`Leads qualified in each of the last ${TREND_POINTS} weeks`}
+      {/* Two columns from xl: the working page, and a summary rail that answers
+          "how are we doing" without being read in sequence. Below xl the rail
+          falls underneath, which is the right order on a narrow screen — you
+          act first and review second. */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="min-w-0">
+          <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            <HeroStat
+              label="Active RFPs"
+              value={activeRfps}
+              hint="Watching, Preparing or Submitted"
+              subject="rfps"
+              onClick={() => onNavigate('rfps')}
             />
-          }
-        />
-        <KpiCard
-          label="Follow-up discipline"
-          subject="discipline"
-          value={`${discipline}%`}
-          hint="Active leads with a next action booked"
-          tone={disciplineTone(discipline)}
-          onClick={() => onNavigate('leads')}
-          linkLabel="Leads"
-          // A share of a whole, so it gets a meter rather than a trend: the
-          // question is how close to 100 it is, not which way it moved.
-          mark={
-            <Meter
-              value={discipline}
-              tone={disciplineTone(discipline)}
-              label={`${discipline}% of active leads have a next action booked`}
+            <HeroStat
+              label="Being bid"
+              value={beingBid}
+              hint="Taken on as live proposals"
+              subject="pipeline"
+              onClick={() => onNavigate('pipeline')}
             />
-          }
-        />
-        <KpiCard
-          label="Active RFPs"
-          subject="rfps"
-          value={activeRfps}
-          hint="Watching, Preparing or Submitted"
-          onClick={() => onNavigate('rfps')}
-          linkLabel="RFPs"
-        />
-        <KpiCard
-          label="Logged today"
-          subject="logged"
-          value={loggedToday}
-          hint="Calls, emails, messages, meetings"
-          tone={loggedToday > 0 ? 'good' : 'warn'}
-          onClick={() => onNavigate('activity')}
-          linkLabel="Activity"
-          mark={
-            <Sparkline
-              values={loggedTrend}
-              label={`Communications logged on each of the last ${TREND_POINTS} days`}
+            <HeroStat
+              label="Qualified this week"
+              value={qualified}
+              hint="Leads reaching Qualified or beyond"
+              subject="qualified"
+              onClick={() => onNavigate('leads')}
             />
-          }
-        />
-        <KpiCard
-          label="Tasks due / overdue"
-          subject="tasks"
-          value={dueTasks.length}
-          hint={dueTasks.length > 0 ? 'Needs clearing today' : 'Nothing outstanding'}
-          tone={dueTasks.length > 0 ? 'warn' : 'good'}
-          onClick={() => onNavigate('tasks')}
-          linkLabel="Tasks"
-        />
-      </div>
-
-      <Panel
-        title="Due today & overdue"
-        action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
-      >
-        {dueTasks.length === 0 ? (
-          <EmptyState
-            icon={<SubjectIcon name="tasks" className="size-6" />}
-            hint="Nothing is waiting on you. New follow-ups appear here on their due date."
-          >
-            You&rsquo;re all caught up
-          </EmptyState>
-        ) : (
-          dueTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              lead={task.linkedLead ? leadsById.get(task.linkedLead) : undefined}
-              overdue
-              onToggle={(id, done) => void toggleTask(id, done)}
-            />
-          ))
-        )}
-      </Panel>
-
-      <Panel
-        title="RFP deadlines"
-        action={
-          <div className="flex items-center gap-3">
-            {overdueCount > 0 ? (
-              <span className="text-[11px] font-semibold text-danger">
-                {overdueCount} overdue
-              </span>
-            ) : (
-              <span className="text-[11px] text-faint">Next 7 days</span>
-            )}
-            <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
           </div>
-        }
-      >
-        {soonRfps.length === 0 ? (
-          <EmptyState
-            icon={<SubjectIcon name="deadlines" className="size-6" />}
-            hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
-          >
-            No deadlines in the next 7 days
-          </EmptyState>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-10 text-right">Open</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {soonRfps.map((rfp) => (
-                <TableRow key={rfp.id}>
-                  <TableCell className="max-w-[420px] font-medium">
-                    {rfp.link ? (
-                      <a
-                        href={rfp.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group inline-flex items-start gap-1 text-primary hover:underline"
-                        title="Open the original notice in a new tab"
-                      >
-                        <span>{rfp.title}</span>
-                        <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
-                      </a>
-                    ) : (
-                      rfp.title
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {rfp.org || '—'}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <DeadlineCell deadline={rfp.deadline} />
-                  </TableCell>
-                  <TableCell>
-                    {/* Editable here too: this panel is where the urgent ones
-                        surface, so acting on them shouldn't need a detour via
-                        the RFPs view. */}
-                    <RfpStatusSelect
-                      value={rfp.status}
-                      onChange={(next) => setRfpStatus(rfp.id, next)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {/* An explicit control rather than a clickable row. The
-                        title already links out to the buyer's notice, and two
-                        different destinations on one row is how the tracker's
-                        own "open the record" affordance went unfound. */}
-                    <button
-                      type="button"
-                      onClick={() => onOpenProfile(rfp.id)}
-                      aria-label={`Open ${rfp.title}`}
-                      title="Open this RFP's record"
-                      className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <ChevronRightIcon className="size-4" aria-hidden />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Panel>
 
-      {/* Required by the Icons8 free licence: the marks above may be used at no
-          cost provided this link is visible. If the licence is ever bought,
-          this is the only thing that has to change. */}
-      <p className="pb-2 text-right text-[10px] text-faint">
-        Icons by{' '}
-        <a
-          href="https://icons8.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:text-muted-foreground"
-        >
-          Icons8
-        </a>
-      </p>
+          <PipelineBar leads={leads} onSelectStage={onOpenLeadStage} />
+
+          <div className="mb-5 grid gap-3.5 lg:grid-cols-2">
+            <Panel className="mb-0">
+              <div className="flex items-center gap-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display text-[14.5px] leading-tight text-foreground">
+                    Follow-up discipline
+                  </h3>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
+                    Share of active leads with a next action booked. The ones
+                    without are where a pipeline quietly goes cold.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('leads')}
+                    className="mt-2.5 inline-flex cursor-pointer items-center gap-0.5 text-[11px] font-medium text-primary hover:text-clay"
+                  >
+                    Work the list
+                    <ChevronRightIcon className="size-3" aria-hidden />
+                  </button>
+                </div>
+                <Ring
+                  value={discipline}
+                  tone={disciplineTone(discipline)}
+                  label={`${discipline}% of active leads have a next action booked`}
+                />
+              </div>
+            </Panel>
+
+            <Panel className="mb-0">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-[14.5px] leading-tight text-foreground">
+                    Communication
+                  </h3>
+                  <div className="mt-1 font-display text-[22px] leading-none text-foreground">
+                    {loggedToday}
+                  </div>
+                  <p className="mt-1 text-[11px] text-faint">
+                    logged today · last {TREND_POINTS} days
+                  </p>
+                </div>
+                <SubjectIcon name="logged" className="size-6" />
+              </div>
+              <Bars
+                values={loggedTrend}
+                label={`Communications logged on each of the last ${TREND_POINTS} days`}
+                className="mt-3"
+              />
+            </Panel>
+          </div>
+
+          <Panel
+            title="Due today & overdue"
+            action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
+          >
+            {dueTasks.length === 0 ? (
+              <EmptyState
+                icon={<SubjectIcon name="tasks" className="size-6" />}
+                hint="Nothing is waiting on you. New follow-ups appear here on their due date."
+              >
+                You&rsquo;re all caught up
+              </EmptyState>
+            ) : (
+              dueTasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  lead={task.linkedLead ? leadsById.get(task.linkedLead) : undefined}
+                  overdue
+                  onToggle={(id, done) => void toggleTask(id, done)}
+                />
+              ))
+            )}
+          </Panel>
+
+          <Panel
+            title="RFP deadlines"
+            action={
+              <div className="flex items-center gap-3">
+                {overdueCount > 0 ? (
+                  <span className="text-[11px] font-semibold text-danger">
+                    {overdueCount} overdue
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-faint">Next 7 days</span>
+                )}
+                <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
+              </div>
+            }
+          >
+            {soonRfps.length === 0 ? (
+              <EmptyState
+                icon={<SubjectIcon name="deadlines" className="size-6" />}
+                hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
+              >
+                No deadlines in the next 7 days
+              </EmptyState>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Deadline</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-10 text-right">Open</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {soonRfps.map((rfp) => (
+                    <TableRow key={rfp.id}>
+                      <TableCell className="max-w-[380px] font-medium">
+                        {rfp.link ? (
+                          <a
+                            href={rfp.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group inline-flex items-start gap-1 text-primary hover:underline"
+                            title="Open the original notice in a new tab"
+                          >
+                            <span>{rfp.title}</span>
+                            <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                          </a>
+                        ) : (
+                          rfp.title
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {rfp.org || '—'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <DeadlineCell deadline={rfp.deadline} />
+                      </TableCell>
+                      <TableCell>
+                        <RfpStatusSelect
+                          value={rfp.status}
+                          onChange={(next) => setRfpStatus(rfp.id, next)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => onOpenProfile(rfp.id)}
+                          aria-label={`Open ${rfp.title}`}
+                          title="Open this RFP's record"
+                          className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                          <ChevronRightIcon className="size-4" aria-hidden />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Panel>
+        </div>
+
+        {/* ------------------------------------------------------- summary */}
+        <aside className="min-w-0">
+          <div className="gold-edge mb-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
+            <div className="eyebrow text-muted-foreground">Value being bid</div>
+            <div className="mt-1.5 font-display text-[25px] leading-none text-foreground">
+              {pipelineValue > 0 ? formatKes(pipelineValue) : '—'}
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-faint">
+              {pipelineValue > 0
+                ? `Across ${beingBid} ${beingBid === 1 ? 'tender' : 'tenders'} currently in a pipeline. Only tenders with a stated value are counted.`
+                : 'No value recorded yet on the tenders being bid — add one on an RFP and it totals here.'}
+            </p>
+          </div>
+
+          <div className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
+            <RailHeading
+              action={<PanelLink label="See all" onClick={() => onNavigate('activity')} />}
+            >
+              Activity
+            </RailHeading>
+            {recentActivity.length === 0 ? (
+              <p className="text-[11.5px] text-faint">
+                Nothing logged yet. Calls, emails and meetings appear here as
+                they are recorded.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11.5px] leading-snug text-foreground">
+                        {activity.summary}
+                      </p>
+                      <p className="mt-0.5 text-[10.5px] text-faint">
+                        {activity.type} · {formatDateWithYear(activity.occurredOn)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
+            <RailHeading>Where the work is</RailHeading>
+            <p className="mb-3 text-[11px] leading-relaxed text-faint">
+              The service areas the open tenders fall under. What the market is
+              asking for right now.
+            </p>
+            {topAreas.length === 0 ? (
+              <p className="text-[11.5px] text-faint">
+                No open tenders are tagged with a service area yet.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {topAreas.map((entry, index) => (
+                  <AreaTile
+                    key={entry.area}
+                    area={entry.area}
+                    count={entry.count}
+                    index={index}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Required by the Icons8 free licence: the marks above may be used
+              at no cost provided this link is visible. */}
+          <p className="mt-3 text-right text-[10px] text-faint">
+            Icons by{' '}
+            <a
+              href="https://icons8.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-muted-foreground"
+            >
+              Icons8
+            </a>
+          </p>
+        </aside>
+      </div>
     </>
   )
 }
