@@ -280,112 +280,6 @@ export function DashboardView({
               />
             </Panel>
           </div>
-
-          <Panel
-            title="Due today & overdue"
-            action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
-          >
-            {dueTasks.length === 0 ? (
-              <EmptyState
-                icon={<SubjectIcon name="tasks" className="size-6" />}
-                hint="Nothing is waiting on you. New follow-ups appear here on their due date."
-              >
-                You&rsquo;re all caught up
-              </EmptyState>
-            ) : (
-              dueTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  lead={task.linkedLead ? leadsById.get(task.linkedLead) : undefined}
-                  overdue
-                  onToggle={(id, done) => void toggleTask(id, done)}
-                />
-              ))
-            )}
-          </Panel>
-
-          <Panel
-            title="RFP deadlines"
-            action={
-              <div className="flex items-center gap-3">
-                {overdueCount > 0 ? (
-                  <span className="text-[11px] font-semibold text-danger">
-                    {overdueCount} overdue
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-faint">Next 7 days</span>
-                )}
-                <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
-              </div>
-            }
-          >
-            {soonRfps.length === 0 ? (
-              <EmptyState
-                icon={<SubjectIcon name="deadlines" className="size-6" />}
-                hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
-              >
-                No deadlines in the next 7 days
-              </EmptyState>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Deadline</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-10 text-right">Open</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {soonRfps.map((rfp) => (
-                    <TableRow key={rfp.id}>
-                      <TableCell className="max-w-[380px] font-medium">
-                        {rfp.link ? (
-                          <a
-                            href={rfp.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group inline-flex items-start gap-1 text-primary hover:underline"
-                            title="Open the original notice in a new tab"
-                          >
-                            <span>{rfp.title}</span>
-                            <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
-                          </a>
-                        ) : (
-                          rfp.title
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {rfp.org || '—'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <DeadlineCell deadline={rfp.deadline} />
-                      </TableCell>
-                      <TableCell>
-                        <RfpStatusSelect
-                          value={rfp.status}
-                          onChange={(next) => setRfpStatus(rfp.id, next)}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <button
-                          type="button"
-                          onClick={() => onOpenProfile(rfp.id)}
-                          aria-label={`Open ${rfp.title}`}
-                          title="Open this RFP's record"
-                          className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        >
-                          <ChevronRightIcon className="size-4" aria-hidden />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Panel>
         </div>
 
         {/* ------------------------------------------------------- summary */}
@@ -471,6 +365,116 @@ export function DashboardView({
           </p>
         </aside>
       </div>
+
+      {/* Full width, below the two-column region. These two carry long
+          tender titles and five columns; in a 1fr column beside the rail
+          the titles wrapped to three lines while half the page sat empty.
+          A table this wide is not a sidebar companion. */}
+      <Panel
+        title="Due today & overdue"
+        action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
+      >
+        {dueTasks.length === 0 ? (
+          <EmptyState
+            icon={<SubjectIcon name="tasks" className="size-6" />}
+            hint="Nothing is waiting on you. New follow-ups appear here on their due date."
+          >
+            You&rsquo;re all caught up
+          </EmptyState>
+        ) : (
+          dueTasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              lead={task.linkedLead ? leadsById.get(task.linkedLead) : undefined}
+              overdue
+              onToggle={(id, done) => void toggleTask(id, done)}
+            />
+          ))
+        )}
+      </Panel>
+
+      <Panel
+        title="RFP deadlines"
+        action={
+          <div className="flex items-center gap-3">
+            {overdueCount > 0 ? (
+              <span className="text-[11px] font-semibold text-danger">
+                {overdueCount} overdue
+              </span>
+            ) : (
+              <span className="text-[11px] text-faint">Next 7 days</span>
+            )}
+            <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
+          </div>
+        }
+      >
+        {soonRfps.length === 0 ? (
+          <EmptyState
+            icon={<SubjectIcon name="deadlines" className="size-6" />}
+            hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
+          >
+            No deadlines in the next 7 days
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Deadline</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-10 text-right">Open</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {soonRfps.map((rfp) => (
+                <TableRow key={rfp.id}>
+                  <TableCell className="max-w-[380px] font-medium">
+                    {rfp.link ? (
+                      <a
+                        href={rfp.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group inline-flex items-start gap-1 text-primary hover:underline"
+                        title="Open the original notice in a new tab"
+                      >
+                        <span>{rfp.title}</span>
+                        <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                      </a>
+                    ) : (
+                      rfp.title
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rfp.org || '—'}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <DeadlineCell deadline={rfp.deadline} />
+                  </TableCell>
+                  <TableCell>
+                    <RfpStatusSelect
+                      value={rfp.status}
+                      onChange={(next) => setRfpStatus(rfp.id, next)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => onOpenProfile(rfp.id)}
+                      aria-label={`Open ${rfp.title}`}
+                      title="Open this RFP's record"
+                      className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <ChevronRightIcon className="size-4" aria-hidden />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Panel>
     </>
   )
 }
