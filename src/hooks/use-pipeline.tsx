@@ -122,6 +122,12 @@ interface PipelineValue {
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
   addPastProposal: (rfpId: string, title: string, content: string) => Promise<void>
   saveConsultant: (draft: db.ConsultantDraft, existing: Consultant | null) => Promise<void>
+  /** Attaches a photo or CV, or clears one when `file` is null. */
+  setConsultantFile: (
+    consultant: Consultant,
+    kind: 'photo' | 'cv',
+    file: File | null,
+  ) => Promise<void>
   removeConsultant: (id: string) => Promise<void>
   saveSettings: (next: UserSettings) => Promise<void>
 
@@ -506,6 +512,36 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  /**
+   * Attaches a photo or CV, or clears one.
+   *
+   * Separate from `saveConsultant` because uploading is not editing: it needs
+   * a row that already exists to hang the file off, and it should not be
+   * undone by someone cancelling out of the form afterwards.
+   */
+  const setConsultantFile = useCallback(
+    async (consultant: Consultant, kind: 'photo' | 'cv', file: File | null) => {
+      try {
+        const saved = file
+          ? kind === 'photo'
+            ? await db.setConsultantPhoto(consultant.id, file)
+            : await db.setConsultantCv(consultant.id, file)
+          : await db.clearConsultantFile(consultant, kind)
+        setConsultants((current) =>
+          upsertInto(current, saved).sort((a, b) => a.name.localeCompare(b.name)),
+        )
+        toast.success(
+          file
+            ? kind === 'photo' ? 'Photo updated' : 'CV attached'
+            : kind === 'photo' ? 'Photo removed' : 'CV removed',
+        )
+      } catch (cause) {
+        toast.error(message(cause))
+      }
+    },
+    [],
+  )
+
   const removeConsultant = useCallback(async (id: string) => {
     await db.deleteConsultant(id)
     setConsultants((current) => current.filter((person) => person.id !== id))
@@ -593,6 +629,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setProposalExemplar,
       addPastProposal,
       saveConsultant,
+      setConsultantFile,
       removeConsultant,
       saveSettings,
       logActivity,

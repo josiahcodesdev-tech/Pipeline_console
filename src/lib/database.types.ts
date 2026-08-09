@@ -146,6 +146,10 @@ export type ConsultantRow = {
   availability: string
   short_bio: string
   long_bio: string
+  photo_path: string
+  cv_path: string
+  cv_file_name: string
+  cv_size: number | null
   created_at: string
   updated_at: string
 }
@@ -275,6 +279,10 @@ export type Database = {
           | 'availability'
           | 'short_bio'
           | 'long_bio'
+          | 'photo_path'
+          | 'cv_path'
+          | 'cv_file_name'
+          | 'cv_size'
         >
         Update: Partial<ConsultantRow>
         Relationships: []

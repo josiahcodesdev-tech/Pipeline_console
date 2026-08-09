@@ -402,6 +402,16 @@ export interface Consultant {
   shortBio: string
   /** ~150 words, for a CV annex or a detailed technical proposal. */
   longBio: string
+
+  /** Storage path of the profile photo. Empty when none is attached. */
+  photoPath: string
+  /**
+   * Storage path of the CV. Almost every tender asks for one as an annex, so
+   * this is the file the bid team actually attaches rather than a summary of it.
+   */
+  cvPath: string
+  cvFileName: string
+  cvSize: number | null
 }
 
 export const EMPTY_CONSULTANT: Omit<Consultant, 'id'> = {
@@ -418,4 +428,8 @@ export const EMPTY_CONSULTANT: Omit<Consultant, 'id'> = {
   availability: '',
   shortBio: '',
   longBio: '',
+  photoPath: '',
+  cvPath: '',
+  cvFileName: '',
+  cvSize: null,
 }

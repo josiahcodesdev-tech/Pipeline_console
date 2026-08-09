@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Panel, EmptyState, ViewHeader } from '@/components/panel'
 import { usePipeline } from '@/hooks/use-pipeline'
 import type { Consultant } from '@/lib/types'
+import { ConsultantFiles } from './consultant-files'
 import { ConsultantDialog } from './consultant-dialog'
 
 /** Comma-separated free text rendered as chips. */
@@ -34,7 +35,8 @@ function Tags({ value }: { value: string }) {
  * bios, project experience — and a table of those is unreadable at any width.
  */
 export function ConsultantsView() {
-  const { consultants, saveConsultant, removeConsultant } = usePipeline()
+  const { consultants, saveConsultant, setConsultantFile, removeConsultant } =
+    usePipeline()
   const [editing, setEditing] = useState<Consultant | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -136,6 +138,13 @@ export function ConsultantsView() {
                   {[person.sectors, person.countries].filter(Boolean).join(' · ')}
                 </p>
               )}
+
+              {/* On the card rather than in the edit dialog: a file needs a
+                  saved row to attach to, and uploading is not something that
+                  should be undone by cancelling out of a form. */}
+              <div className="mt-4">
+                <ConsultantFiles consultant={person} onSet={setConsultantFile} />
+              </div>
             </Panel>
           ))}
         </div>
