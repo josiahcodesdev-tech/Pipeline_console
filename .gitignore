@@ -35,3 +35,10 @@ supabase/.env
 
 # Filled-in copies of migrations that carry secrets. Never commit these.
 *.local.sql
+
+# Local agent settings. Untracked because the permission allowlist records
+# whole commands, and a command that carried a credential put a live Supabase
+# token into a commit — GitHub's push protection caught it on the way out.
+# Nothing in here is needed to build or run the console.
+.claude/settings.json
+.claude/settings.local.json
