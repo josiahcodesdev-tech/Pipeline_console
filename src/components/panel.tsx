@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-/** The console's one container: a bordered card with an optional heading. */
+/**
+ * The console's one container: a card with an optional heading.
+ *
+ * The border is a hairline of the softest border token rather than the solid
+ * one. On a cream page a full-strength border draws a box around everything and
+ * the eye reads the boxes before the content; a hairline plus the shadow is
+ * enough to separate a card from the page, and lets the content win.
+ */
 export function Panel({
   title,
   description,
@@ -20,7 +27,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        'mb-5 rounded-xl border border-border bg-card px-5 py-4 shadow-brand-sm',
+        'mb-5 rounded-2xl border border-border-soft bg-card px-5 py-4.5 shadow-brand-sm',
         className,
       )}
     >
@@ -67,7 +74,10 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
       {icon && (
-        <span className="mb-1 grid size-10 place-items-center rounded-full bg-surface-2 text-faint">
+        // A tinted disc rather than a grey one: an empty state is a normal
+        // condition — nothing is due, nothing has closed — and grey reads as a
+        // fault. The brand tint says "this is fine and this is the place".
+        <span className="mb-1 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-soft to-gold-soft text-clay">
           {icon}
         </span>
       )}

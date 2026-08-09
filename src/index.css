@@ -19,8 +19,14 @@
 :root {
   color-scheme: light;
 
-  /* Site radius convention: 12px cards, pill-shaped chips. */
-  --radius: 0.75rem;
+  /*
+    Site radius convention: 16px cards, pill-shaped chips.
+    Raised from 12px so the console matches the softer card language it was
+    redesigned to. Everything derives from this one value — panels, buttons,
+    inputs, selects, dialogs — so the whole surface moves together rather than
+    drifting a component at a time.
+  */
+  --radius: 1rem;
 
   --background: #f8f5f0;
   --foreground: #2c1810;

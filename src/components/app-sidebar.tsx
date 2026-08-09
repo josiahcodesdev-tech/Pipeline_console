@@ -1,9 +1,12 @@
-import { LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
+import { useState } from 'react'
+import { KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import type { ViewId } from '@/lib/nav'
 import { ROLE_LABEL } from '@/lib/types'
 import { navItemsFor } from '@/lib/nav'
+import { toDisplayName } from '@/lib/usernames'
+import { ChangePasswordDialog } from '@/components/change-password-dialog'
 
 export function AppSidebar({
   current,
@@ -15,8 +18,9 @@ export function AppSidebar({
   /** Hides the sidebar, leaving a hamburger in the corner to bring it back. */
   onCollapse: () => void
 }) {
-  const { session, signOut, can, role } = useAuth()
-  const items = navItemsFor(can.manageMembers)
+  const { session, signOut, can, role, profile } = useAuth()
+  const items = navItemsFor(can.seeEveryone)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   return (
     // Sticky rather than fixed: it stays put while the page scrolls without
@@ -65,25 +69,20 @@ export function AppSidebar({
               onClick={() => onNavigate(item.id)}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'group relative flex cursor-pointer items-center gap-2.5 rounded-lg py-2 pl-3 pr-2.5 text-left text-[13px] transition-all duration-150',
+                // A filled pill for the current page rather than a tinted
+                // block with a rule beside it: the pill is the shape the rest
+                // of the console now uses, and it reads at a glance without
+                // needing a second mark to carry it.
+                'group flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] transition-all duration-150',
                 active
-                  ? 'bg-brand-soft font-semibold text-primary'
+                  ? 'bg-gradient-to-r from-primary to-clay font-semibold text-white shadow-brand-sm'
                   : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
               )}
             >
-              {/* A left rule marks the current page — steadier than a dot, and
-                  it reads at a glance from the edge of the screen. */}
-              <span
-                aria-hidden
-                className={cn(
-                  'absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-200',
-                  active ? 'h-5 opacity-100' : 'h-0 opacity-0',
-                )}
-              />
               <Icon
                 className={cn(
                   'size-4 shrink-0 transition-colors',
-                  active ? 'text-primary' : 'text-faint group-hover:text-clay',
+                  active ? 'text-white' : 'text-faint group-hover:text-clay',
                 )}
               />
               {item.label}
@@ -103,34 +102,68 @@ export function AppSidebar({
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        {/* The signed-in member as a card, the way the reference pins one to
+            the foot of the rail. It carries what the console actually needs to
+            tell them apart — who they are and what they may do — rather than a
+            photograph it has no source for. */}
+        <div className="flex items-center gap-2 rounded-2xl border border-border-soft bg-surface-2/60 px-2.5 py-2.5">
           {session?.user.email && (
-            <span className="flex min-w-0 flex-col gap-0.5">
+            <>
               <span
-                className="min-w-0 truncate text-[10.5px] text-faint"
-                title={session.user.email}
+                aria-hidden
+                className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-clay text-[12px] font-semibold text-white"
               >
-                {session.user.email}
+                {/* Initials from the display name, falling back to the email —
+                    an avatar with a letter in it beats an empty grey circle. */}
+                {(profile?.fullName || session.user.email).trim().charAt(0).toUpperCase()}
               </span>
-              {/* Stated rather than left to be discovered by finding a button
-                  missing. A member who knows they are a user does not file a
-                  bug when Delete is not there. */}
-              <span className="text-[10px] uppercase tracking-wide text-faint/80">
-                {ROLE_LABEL[role]}
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span
+                  className="min-w-0 truncate text-[11px] font-medium text-foreground"
+                  title={session.user.email}
+                >
+                  {profile?.fullName || toDisplayName(session.user.email)}
+                </span>
+                {/* Stated rather than left to be discovered by finding a button
+                    missing. A member who knows they are a user does not file a
+                    bug when Delete is not there. */}
+                <span className="text-[10px] uppercase tracking-wide text-faint">
+                  {ROLE_LABEL[role]}
+                </span>
               </span>
-            </span>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            title="Sign out"
-            aria-label="Sign out"
-            className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-surface-2 hover:text-danger"
-          >
-            <LogOutIcon className="size-3.5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {/* Here rather than on the Members page: that page is oversight and
+                a standard user cannot open it, which would leave most of the
+                team no way to change their own password. */}
+            <button
+              type="button"
+              onClick={() => setChangingPassword(true)}
+              title="Change your password"
+              aria-label="Change your password"
+              className="grid size-6 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-card hover:text-foreground"
+            >
+              <KeyRoundIcon className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              title="Sign out"
+              aria-label="Sign out"
+              className="grid size-6 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-card hover:text-danger"
+            >
+              <LogOutIcon className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      <ChangePasswordDialog
+        email={session?.user.email ?? ''}
+        open={changingPassword}
+        onOpenChange={setChangingPassword}
+      />
     </aside>
   )
 }
