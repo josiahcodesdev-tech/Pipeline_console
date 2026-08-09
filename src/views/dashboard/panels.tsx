@@ -197,38 +197,3 @@ export function RailHeading({
     </div>
   )
 }
-
-/**
- * A service area with its share of the pipeline.
- *
- * Tinted tiles rather than a list: the rail is narrow, and two or four of these
- * read at a glance where the same information as rows would not.
- */
-export function AreaTile({
-  area,
-  count,
-  index,
-}: {
-  area: string
-  count: number
-  index: number
-}) {
-  // Cycled deliberately, and only four wide: these are labels, not a scale, so
-  // the colour carries no magnitude and repeating it costs nothing.
-  const tints = [
-    'bg-gold-soft text-clay',
-    'bg-brand-soft text-primary',
-    'bg-success-soft text-success',
-    'bg-surface-2 text-muted-foreground',
-  ]
-  return (
-    <div className={cn('rounded-xl px-3 py-2.5', tints[index % tints.length])}>
-      <div className="truncate text-[11.5px] font-semibold" title={area}>
-        {area}
-      </div>
-      <div className="mt-0.5 text-[10.5px] opacity-80">
-        {count} {count === 1 ? 'tender' : 'tenders'}
-      </div>
-    </div>
-  )
-}

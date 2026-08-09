@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { type MeterTone } from '@/components/metric-marks'
-import { AreaTile, Bars, HeroStat, RailHeading, Ring } from './panels'
+import { Bars, HeroStat, RailHeading, Ring } from './panels'
 import { SubjectIcon } from '@/components/subject-icon'
 import { PipelineBar } from '@/components/pipeline-bar'
 import { RfpStatusSelect } from '@/components/status-select'
@@ -155,28 +155,6 @@ export function DashboardView({
 
   const beingBid = useMemo(() => rfps.filter((rfp) => rfp.inPipeline).length, [rfps])
 
-  /**
-   * Where the open opportunities actually sit, by service area.
-   *
-   * Counted from live tenders only — a closed one cannot be bid, so including
-   * it would describe the shape of last quarter rather than this week.
-   */
-  const topAreas = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const rfp of rfps) {
-      const days = daysUntil(rfp.deadline)
-      if (days !== null && days < 0) continue
-      for (const area of rfp.serviceAreas.split(',')) {
-        const name = area.trim()
-        if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
-      }
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
-      .map(([area, count]) => ({ area, count }))
-  }, [rfps])
-
   const recentActivity = useMemo(
     () =>
       [...activities]
@@ -321,30 +299,6 @@ export function DashboardView({
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
-            <RailHeading>Where the work is</RailHeading>
-            <p className="mb-3 text-[11px] leading-relaxed text-faint">
-              The service areas the open tenders fall under. What the market is
-              asking for right now.
-            </p>
-            {topAreas.length === 0 ? (
-              <p className="text-[11.5px] text-faint">
-                No open tenders are tagged with a service area yet.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {topAreas.map((entry, index) => (
-                  <AreaTile
-                    key={entry.area}
-                    area={entry.area}
-                    count={entry.count}
-                    index={index}
-                  />
                 ))}
               </div>
             )}
