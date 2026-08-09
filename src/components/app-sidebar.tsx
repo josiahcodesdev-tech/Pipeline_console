@@ -1,12 +1,10 @@
-import { useState } from 'react'
-import { KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
+import { LogOutIcon, PanelLeftCloseIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import type { ViewId } from '@/lib/nav'
 import { ROLE_LABEL } from '@/lib/types'
 import { navItemsFor } from '@/lib/nav'
 import { toDisplayName } from '@/lib/usernames'
-import { ChangePasswordDialog } from '@/components/change-password-dialog'
 
 export function AppSidebar({
   current,
@@ -20,7 +18,6 @@ export function AppSidebar({
 }) {
   const { session, signOut, can, role, profile } = useAuth()
   const items = navItemsFor(can.seeEveryone)
-  const [changingPassword, setChangingPassword] = useState(false)
 
   return (
     // Sticky rather than fixed: it stays put while the page scrolls without
@@ -133,37 +130,17 @@ export function AppSidebar({
               </span>
             </>
           )}
-          <div className="flex shrink-0 items-center gap-0.5">
-            {/* Here rather than on the Members page: that page is oversight and
-                a standard user cannot open it, which would leave most of the
-                team no way to change their own password. */}
-            <button
-              type="button"
-              onClick={() => setChangingPassword(true)}
-              title="Change your password"
-              aria-label="Change your password"
-              className="grid size-6 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-card hover:text-foreground"
-            >
-              <KeyRoundIcon className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              title="Sign out"
-              aria-label="Sign out"
-              className="grid size-6 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-card hover:text-danger"
-            >
-              <LogOutIcon className="size-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            title="Sign out"
+            aria-label="Sign out"
+            className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-faint transition-colors hover:bg-card hover:text-danger"
+          >
+            <LogOutIcon className="size-3.5" />
+          </button>
         </div>
       </div>
-
-      <ChangePasswordDialog
-        email={session?.user.email ?? ''}
-        open={changingPassword}
-        onOpenChange={setChangingPassword}
-      />
     </aside>
   )
 }
