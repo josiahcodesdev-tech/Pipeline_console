@@ -1,13 +1,9 @@
 import { useMemo } from 'react'
-import {
-  CalendarCheckIcon,
-  CheckCheckIcon,
-  ChevronRightIcon,
-  ExternalLinkIcon,
-} from 'lucide-react'
+import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { KpiCard } from '@/components/kpi-card'
 import { Meter, Sparkline, type MeterTone } from '@/components/metric-marks'
+import { SubjectIcon } from '@/components/subject-icon'
 import { PipelineBar } from '@/components/pipeline-bar'
 import { RfpStatusSelect } from '@/components/status-select'
 import {
@@ -174,6 +170,7 @@ export function DashboardView({
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Qualified this week"
+          subject="qualified"
           value={qualified}
           hint="Leads reaching Qualified or beyond"
           onClick={() => onNavigate('leads')}
@@ -187,6 +184,7 @@ export function DashboardView({
         />
         <KpiCard
           label="Follow-up discipline"
+          subject="discipline"
           value={`${discipline}%`}
           hint="Active leads with a next action booked"
           tone={disciplineTone(discipline)}
@@ -204,6 +202,7 @@ export function DashboardView({
         />
         <KpiCard
           label="Active RFPs"
+          subject="rfps"
           value={activeRfps}
           hint="Watching, Preparing or Submitted"
           onClick={() => onNavigate('rfps')}
@@ -211,6 +210,7 @@ export function DashboardView({
         />
         <KpiCard
           label="Logged today"
+          subject="logged"
           value={loggedToday}
           hint="Calls, emails, messages, meetings"
           tone={loggedToday > 0 ? 'good' : 'warn'}
@@ -225,6 +225,7 @@ export function DashboardView({
         />
         <KpiCard
           label="Tasks due / overdue"
+          subject="tasks"
           value={dueTasks.length}
           hint={dueTasks.length > 0 ? 'Needs clearing today' : 'Nothing outstanding'}
           tone={dueTasks.length > 0 ? 'warn' : 'good'}
@@ -239,7 +240,7 @@ export function DashboardView({
       >
         {dueTasks.length === 0 ? (
           <EmptyState
-            icon={<CheckCheckIcon className="size-5" />}
+            icon={<SubjectIcon name="tasks" className="size-6" />}
             hint="Nothing is waiting on you. New follow-ups appear here on their due date."
           >
             You&rsquo;re all caught up
@@ -274,7 +275,7 @@ export function DashboardView({
       >
         {soonRfps.length === 0 ? (
           <EmptyState
-            icon={<CalendarCheckIcon className="size-5" />}
+            icon={<SubjectIcon name="deadlines" className="size-6" />}
             hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
           >
             No deadlines in the next 7 days
@@ -345,6 +346,21 @@ export function DashboardView({
           </Table>
         )}
       </Panel>
+
+      {/* Required by the Icons8 free licence: the marks above may be used at no
+          cost provided this link is visible. If the licence is ever bought,
+          this is the only thing that has to change. */}
+      <p className="pb-2 text-right text-[10px] text-faint">
+        Icons by{' '}
+        <a
+          href="https://icons8.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-muted-foreground"
+        >
+          Icons8
+        </a>
+      </p>
     </>
   )
 }

@@ -6,6 +6,7 @@ import {
   OctagonAlertIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SubjectIcon, type SubjectName } from '@/components/subject-icon'
 
 export type KpiTone = 'neutral' | 'good' | 'warn' | 'bad'
 
@@ -49,6 +50,7 @@ export function KpiCard({
   hint,
   tone = 'neutral',
   mark,
+  subject,
   onClick,
   linkLabel,
   className,
@@ -63,6 +65,8 @@ export function KpiCard({
    * arrives already sized rather than being wrapped in padding here.
    */
   mark?: ReactNode
+  /** Which subject mark to show beside the label. */
+  subject?: SubjectName
   /** Makes the whole card the way through to where this figure is worked on. */
   onClick?: () => void
   /** Where the click goes, e.g. "Leads" — used in the accessible name. */
@@ -78,7 +82,12 @@ export function KpiCard({
 
       <div className="px-4 pt-4.5">
         <div className="flex items-start justify-between gap-2">
-          <div className="eyebrow text-muted-foreground">{label}</div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* What the figure is about. The tone icon beside the value says
+                how it is doing — two different questions, so two marks. */}
+            {subject && <SubjectIcon name={subject} />}
+            <div className="eyebrow truncate text-muted-foreground">{label}</div>
+          </div>
           {onClick && (
             // Always visible rather than revealed on hover: a control the
             // reader cannot see until they touch it is one they never find,
