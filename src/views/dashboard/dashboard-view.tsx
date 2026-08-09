@@ -155,11 +155,19 @@ export function DashboardView({
 
   const beingBid = useMemo(() => rfps.filter((rfp) => rfp.inPipeline).length, [rfps])
 
+  /**
+   * The rail's activity feed.
+   *
+   * Capped well above what fits so the card has something to scroll: it takes
+   * whatever height the left column leaves, which varies with how many tenders
+   * and tasks are due, and a list cut to four would leave that space blank on a
+   * tall page. The cap exists only to stop a long history rendering in full.
+   */
   const recentActivity = useMemo(
     () =>
       [...activities]
         .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
-        .slice(0, 4),
+        .slice(0, 25),
     [activities],
   )
 
@@ -261,8 +269,12 @@ export function DashboardView({
         </div>
 
         {/* ------------------------------------------------------- summary */}
-        <aside className="min-w-0">
-          <div className="gold-edge mb-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
+        {/* A flex column so the activity card can take whatever height the
+            left column leaves. As a grid item the rail already stretches to the
+            row's height; without this the cards sat at their natural size and
+            left a block of empty page below them. */}
+        <aside className="flex min-w-0 flex-col">
+          <div className="gold-edge mb-4 shrink-0 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
             <div className="eyebrow text-muted-foreground">Value being bid</div>
             <div className="mt-1.5 font-display text-[25px] leading-none text-foreground">
               {pipelineValue > 0 ? formatKes(pipelineValue) : '—'}
@@ -274,7 +286,11 @@ export function DashboardView({
             </p>
           </div>
 
-          <div className="mb-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
+          {/* Takes the remaining height. `min-h-0` is what lets it actually
+              shrink to the space available — without it a flex child refuses to
+              go below its content height and the list overflows the card
+              instead of scrolling inside it. */}
+          <div className="mb-4 flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
             <RailHeading
               action={<PanelLink label="See all" onClick={() => onNavigate('activity')} />}
             >
@@ -286,7 +302,7 @@ export function DashboardView({
                 they are recorded.
               </p>
             ) : (
-              <div className="flex flex-col gap-2.5">
+              <div className="-mr-1 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-2.5">
                     <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary" />
@@ -306,7 +322,7 @@ export function DashboardView({
 
           {/* Required by the Icons8 free licence: the marks above may be used
               at no cost provided this link is visible. */}
-          <p className="mt-3 text-right text-[10px] text-faint">
+          <p className="shrink-0 text-right text-[10px] text-faint">
             Icons by{' '}
             <a
               href="https://icons8.com"
