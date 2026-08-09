@@ -343,6 +343,124 @@ ownership, processes, reporting calendar, quality checks, technology, evidence
 repository, dashboards, leadership meetings, follow-up actions, accountability.
 Training that leaves no system behind scores poorly against sustainability.`,
   },
+
+  {
+    id: 'strategy-od',
+    label: 'Strategy, HR and organizational development',
+    triggers: [
+      'strategic plan',
+      'strategic planning',
+      'strategy development',
+      'organizational development',
+      'organisational development',
+      'institutional strengthening',
+      'institutional review',
+      'organizational review',
+      'organisational review',
+      'restructuring',
+      'human resource',
+      'hr policy',
+      'staff establishment',
+      'job evaluation',
+      'salary review',
+      'change management',
+      'governance framework',
+      'operating model',
+      'business process review',
+      'capability assessment',
+      'succession planning',
+    ],
+    body: `## Playbook: strategy, HR and organizational development
+
+The chain is diagnosis, strategy, structure, systems, capability, handover:
+institutional diagnosis → capability and workforce analysis → strategy →
+policies and tools → systems → training → implementation support and handover.
+
+Diagnostic instruments to name where they fit: document and policy review,
+institutional assessment against a stated capability model, stakeholder
+analysis and consultation, SWOT and PESTLE, functional and workload analysis,
+organizational structure and reporting-line review, staff establishment
+analysis, skills and competency audit, business process mapping, culture and
+staff engagement survey, benchmarking against comparable institutions. Name the
+lens, the questions it asks, the method and the output — not the acronym alone.
+
+Formulation work produces documents the client can adopt, not advice: vision,
+mission and values; strategic pillars, objectives and results framework with
+indicators, baselines and targets; implementation and costed action plan;
+monitoring and reporting calendar; risk register; governance and oversight
+model; organogram; job descriptions and person specifications; grading and
+remuneration structure; HR policies and SOPs; performance-management framework;
+capacity development plan.
+
+Two things separate a scoring proposal here from a generic one. First,
+consultation is a method, not a courtesy — specify who is consulted, at which
+stage, through what instrument, and how their input changes the draft. Second,
+adoption is a deliverable: name the validation workshop, the management review,
+the board or council approval step, and the support offered to reach it.
+
+Change management is explicit: communication plan, sponsorship and champions,
+transition arrangements, staff engagement, training, and how resistance is
+surfaced and handled. A structure that is approved but not staffed or funded is
+a failed assignment; say how the plan is resourced and sequenced.`,
+  },
+
+  {
+    id: 'digital-systems',
+    label: 'Digital systems and software development',
+    triggers: [
+      'software development',
+      'system development',
+      'management information system',
+      'mis development',
+      'database development',
+      'web application',
+      'mobile application',
+      'digital platform',
+      'digital solution',
+      'e-learning platform',
+      'lms',
+      'dashboard development',
+      'automation',
+      'portal',
+      'system integration',
+      'requirements gathering',
+      'user acceptance testing',
+      'digitization',
+      'digitalization',
+    ],
+    body: `## Playbook: digital systems and software development
+
+The chain is needs → process → requirements → architecture → build → test →
+deploy → adopt: user needs assessment, business process mapping, functional and
+non-functional requirements, architecture and data model, prototyping,
+iterative build, testing and UAT, data migration, training, documentation,
+deployment, and maintenance and handover.
+
+Be specific where buyers score specificity. Requirements: functional
+specification, user stories with acceptance criteria, a requirements
+traceability matrix back to the ToR. Architecture: application and data
+architecture, integration and API approach, hosting model, offline or
+low-bandwidth handling where the context demands it. Build: environments
+(development, staging, production), version control, sprint cadence and demo
+schedule, change-request procedure.
+
+Testing is named, not asserted: unit and integration testing, system testing,
+performance and load testing, security testing, accessibility, and a structured
+User Acceptance Testing cycle with the client's own testers, scripted cases,
+defect log, severity classification and exit criteria.
+
+Data protection is a scoring section, not a footnote: role-based access
+control, authentication, encryption in transit and at rest, audit logging,
+backup and disaster recovery with stated recovery objectives, data-retention
+policy, and compliance with the client's own policy and applicable local data
+protection law.
+
+Handover decides sustainability. Commit to source code and repository transfer,
+technical and administrator documentation, user manuals, training for
+administrators and end users, a defined warranty or support period with
+response times, and the licensing position on everything delivered. State
+clearly what the client owns.`,
+  },
 ]
 
 /**
