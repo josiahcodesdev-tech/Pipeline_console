@@ -121,9 +121,9 @@ export function ActivityView() {
 
       <Panel
         title="Log an interaction"
-        description="Entries can hang off a lead or an RFP from their dialogs; anything logged here stands alone — useful for market intelligence."
+        description="Pick a client to file the entry against them — that is what makes a call report possible on it. Leave it on “No client” for market intelligence that belongs to nobody in particular."
       >
-        <ActivityComposer onLog={logActivity} />
+        <ActivityComposer clients={leads} onLog={logActivity} />
       </Panel>
 
       <div className="mb-3.5 flex flex-wrap gap-2">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   CalendarPlusIcon,
   FileSignatureIcon,
@@ -28,6 +28,7 @@ import {
   CONVERSION_ACTIVITY_TYPES,
   type Activity,
   type ActivityType,
+  type Lead,
 } from '@/lib/types'
 import type { ActivityDraft } from '@/lib/db'
 
@@ -42,6 +43,13 @@ const TYPE_ICON: Record<ActivityType, typeof PhoneIcon> = {
   Registration: UserPlusIcon,
   Note: StickyNoteIcon,
 }
+
+/**
+ * The "no client" option. A real value rather than an empty string, because the
+ * Select shows placeholder styling for `''` and the trigger would read blank
+ * instead of saying what it means.
+ */
+const NO_CLIENT = 'none'
 
 /** Conversion events are tinted so they stand out in a run of ordinary calls. */
 function typeTone(type: ActivityType): string {
@@ -128,17 +136,37 @@ export function ActivityRow({
 export function ActivityComposer({
   leadId = null,
   rfpId = null,
+  clients,
   onLog,
 }: {
   leadId?: string | null
   rfpId?: string | null
+  /**
+   * Clients this entry may be filed against, for the standalone composer.
+   *
+   * Without it the log-an-interaction box on the Activity page could only
+   * produce entries belonging to nobody, and a visit logged there could never
+   * carry a call report — the report reads the client's name, location, phone
+   * and contact off the lead, so an entry with no lead has no header to print.
+   *
+   * On a lead or RFP page the parent is already settled by the page, so this is
+   * left out and no picker appears.
+   */
+  clients?: Lead[]
   onLog: (draft: ActivityDraft) => Promise<void>
 }) {
   const [type, setType] = useState<ActivityType>('Call')
   const [occurredOn, setOccurredOn] = useState(today())
   const [summary, setSummary] = useState('')
   const [outcome, setOutcome] = useState('')
+  const [client, setClient] = useState<string>(NO_CLIENT)
   const [busy, setBusy] = useState(false)
+
+  const picking = Boolean(clients?.length) && !leadId && !rfpId
+  const sorted = useMemo(
+    () => (clients ? [...clients].sort((a, b) => a.org.localeCompare(b.org)) : []),
+    [clients],
+  )
 
   async function submit() {
     if (!summary.trim()) {
@@ -148,7 +176,7 @@ export function ActivityComposer({
     setBusy(true)
     try {
       await onLog({
-        leadId,
+        leadId: leadId ?? (picking && client !== NO_CLIENT ? client : null),
         rfpId,
         type,
         occurredOn,
@@ -159,6 +187,10 @@ export function ActivityComposer({
       setOutcome('')
       setType('Call')
       setOccurredOn(today())
+      // The client is deliberately kept. Logging two entries against the same
+      // visit in a row is the common case, and re-picking each time is friction
+      // in the one component whose whole point is being faster than not
+      // bothering.
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -192,7 +224,35 @@ export function ActivityComposer({
           aria-label="When it happened"
           className="w-[150px]"
         />
+
+        {picking && (
+          <Select<string>
+            value={client}
+            onValueChange={(next) => setClient(next ?? NO_CLIENT)}
+          >
+            <SelectTrigger aria-label="Client this is about" className="min-w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_CLIENT}>No client — standalone</SelectItem>
+              {sorted.map((lead) => (
+                <SelectItem key={lead.id} value={lead.id}>
+                  {lead.org}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
+
+      {picking && client !== NO_CLIENT && (
+        // Said out loud, because the call report is the reason to pick a client
+        // at all and it is not obvious that logging a visit unlocks it.
+        <p className="mb-2 text-[11px] text-faint">
+          Filed against this client — you can write its call report from the entry
+          once logged.
+        </p>
+      )}
 
       <Input
         value={summary}
