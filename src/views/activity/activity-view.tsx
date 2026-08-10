@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { MessageSquareIcon, SearchXIcon } from 'lucide-react'
+import { FileTextIcon, MessageSquareIcon, SearchXIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { CallReportDialog } from '@/components/call-report-dialog'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
 import { ActivityComposer, ActivityRow } from '@/components/activity-log'
@@ -12,7 +14,7 @@ import { KpiCard } from '@/components/kpi-card'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { formatDateWithYear, today, weekEnd, weekStart } from '@/lib/dates'
 import { communicationsInRange, untouchedLeads } from '@/lib/metrics'
-import { ACTIVITY_TYPES, type ActivityType } from '@/lib/types'
+import { ACTIVITY_TYPES, hasCallReport, type Activity, type ActivityType, type Lead } from '@/lib/types'
 
 /**
  * The communication log — the daily evidence the KPI scorecard asks for, and
@@ -24,6 +26,8 @@ export function ActivityView() {
   const memberNames = useMemberNames()
   const [search, setSearch] = useState('')
   const [type, setType] = useState<ActivityType | 'all'>('all')
+  // Which visit's call report is open, with the client it prints from.
+  const [reporting, setReporting] = useState<{ visit: Activity; client: Lead } | null>(null)
 
   const labelFor = useMemo(() => {
     const map = new Map<string, string>()
@@ -31,6 +35,12 @@ export function ActivityView() {
     for (const rfp of rfps) map.set(`rfp:${rfp.id}`, rfp.title)
     return map
   }, [leads, rfps])
+
+  /** The client behind a lead-tied entry, for the call report. */
+  const leadById = useMemo(
+    () => new Map(leads.map((lead) => [lead.id, lead])),
+    [leads],
+  )
 
   function contextLabel(leadId: string | null, rfpId: string | null) {
     if (leadId) return labelFor.get(`lead:${leadId}`)
@@ -162,17 +172,52 @@ export function ActivityView() {
               </span>
             }
           >
-            {entries.map((activity) => (
-              <ActivityRow
-                key={activity.id}
-                activity={activity}
-                context={contextLabel(activity.leadId, activity.rfpId)}
-                by={attribution(activity.userId)}
-                onDelete={(id) => void handleDelete(id)}
-              />
-            ))}
+            {entries.map((activity) => {
+              // Only a lead-tied entry can produce one: the form's whole header
+              // block — client, location, phone, contact — comes from the lead,
+              // so an entry against an RFP or standing alone has nothing to
+              // print it from.
+              const client = activity.leadId ? leadById.get(activity.leadId) : undefined
+              return (
+                <div key={activity.id} className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <ActivityRow
+                      activity={activity}
+                      context={contextLabel(activity.leadId, activity.rfpId)}
+                      by={attribution(activity.userId)}
+                      onDelete={(id) => void handleDelete(id)}
+                    />
+                  </div>
+                  {client && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => setReporting({ visit: activity, client })}
+                      title={
+                        hasCallReport(activity)
+                          ? `Open the call report for ${client.org}`
+                          : `Write the call report for ${client.org}`
+                      }
+                    >
+                      <FileTextIcon className="size-3.5" aria-hidden />
+                      {hasCallReport(activity) ? 'Call report' : 'Write report'}
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
           </Panel>
         ))
+      )}
+
+      {reporting && (
+        <CallReportDialog
+          visit={reporting.visit}
+          client={reporting.client}
+          open
+          onOpenChange={(next) => !next && setReporting(null)}
+        />
       )}
     </>
   )

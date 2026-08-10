@@ -133,6 +133,8 @@ interface PipelineValue {
 
   logActivity: (draft: db.ActivityDraft) => Promise<void>
   removeActivity: (id: string) => Promise<void>
+  /** Writes the call report attached to one client visit. */
+  saveCallReport: (id: string, fields: db.CallReportFields) => Promise<void>
 }
 
 const PipelineContext = createContext<PipelineValue | null>(null)
@@ -586,6 +588,16 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setActivities((current) => current.filter((activity) => activity.id !== id))
   }, [])
 
+  const saveCallReport = useCallback(
+    async (id: string, fields: db.CallReportFields) => {
+      const saved = await db.saveCallReport(id, fields)
+      setActivities((current) =>
+        current.map((activity) => (activity.id === id ? saved : activity)),
+      )
+    },
+    [],
+  )
+
   const saveReport = useCallback(async (draft: db.WeeklyReportDraft) => {
     const saved = await db.saveWeeklyReport(draft)
     setReports((current) => upsertInto(current, saved))
@@ -634,6 +646,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveSettings,
       logActivity,
       removeActivity,
+      saveCallReport,
     }),
     [
       leads,
@@ -674,6 +687,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       saveSettings,
       logActivity,
       removeActivity,
+      saveCallReport,
     ],
   )
 

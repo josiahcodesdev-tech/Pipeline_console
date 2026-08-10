@@ -32,8 +32,11 @@ export function LeadsView({
    * an initial value.
    */
   initialStatus,
+  onOpenProfile,
 }: {
   initialStatus?: LeadStatus
+  /** Opens one client's page, where the call report lives. */
+  onOpenProfile?: (id: string) => void
 } = {}) {
   const { leads, saveLead, removeLead, setLeadStatus } = usePipeline()
   const [search, setSearch] = useState('')
@@ -120,9 +123,12 @@ export function LeadsView({
           </TableHeader>
           <TableBody>
             {filtered.map((lead) => (
+              // The row opens the client's page rather than the edit dialog:
+              // the page is where the call report is written, and a dialog
+              // cannot hold a form that long beside an activity log.
               <TableRow
                 key={lead.id}
-                onClick={() => open(lead)}
+                onClick={() => (onOpenProfile ? onOpenProfile(lead.id) : open(lead))}
                 className="cursor-pointer"
               >
                 <TableCell className="max-w-[280px] font-medium">{lead.org}</TableCell>

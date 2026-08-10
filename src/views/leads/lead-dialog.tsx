@@ -40,6 +40,10 @@ const EMPTY: LeadDraft = {
   budgetBand: '',
   decisionTimeline: '',
   decisionProcess: '',
+  // Asked for on the client's page instead, next to the visits that print
+  // them. Carried on the draft so saving from here cannot blank them.
+  location: '',
+  natureOfBusiness: '',
 }
 
 function toDraft(lead: Lead): LeadDraft {

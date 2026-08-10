@@ -12,6 +12,7 @@ import { SetupNotice } from '@/views/setup-notice'
 import { SignInView } from '@/views/sign-in'
 import { DashboardView } from '@/views/dashboard/dashboard-view'
 import { LeadsView } from '@/views/leads/leads-view'
+import { LeadProfile } from '@/views/leads/lead-profile'
 import { RfpsView } from '@/views/rfps/rfps-view'
 import { TasksView } from '@/views/tasks/tasks-view'
 import { ActivityView } from '@/views/activity/activity-view'
@@ -55,11 +56,13 @@ function Console() {
   // so the tracker and the Proposals page can both open one, and switching
   // section closes it.
   const [profileId, setProfileId] = useState<string | null>(null)
+  /** Which client's page is open, if any. Same idea, for leads. */
+  const [leadId, setLeadId] = useState<string | null>(null)
   // Which pipeline stage the leads register should open filtered to, when it
   // was reached by clicking one on the dashboard. Cleared by any other
   // navigation so the filter never outlives the click that asked for it.
   const [leadStage, setLeadStage] = useState<LeadStatus | undefined>(undefined)
-  const { rfps, loading, error } = usePipeline()
+  const { rfps, leads, loading, error } = usePipeline()
   const { can } = useAuth()
 
   // Derived rather than corrected in an effect: a role can change under a
@@ -72,9 +75,11 @@ function Console() {
   const profileRfp = profileId
     ? (rfps.find((rfp) => rfp.id === profileId) ?? null)
     : null
+  const profileLead = leadId ? (leads.find((lead) => lead.id === leadId) ?? null) : null
 
   function go(next: ViewId) {
     setProfileId(null)
+    setLeadId(null)
     setLeadStage(undefined)
     setView(next)
   }
@@ -82,6 +87,7 @@ function Console() {
   /** Dashboard pipeline stage → the leads register, filtered to that stage. */
   function goToLeadStage(stage: LeadStatus) {
     setProfileId(null)
+    setLeadId(null)
     setLeadStage(stage)
     setView('leads')
   }
@@ -143,6 +149,8 @@ function Console() {
               and two headers. */}
           {profileRfp ? (
             <RfpProfile rfp={profileRfp} onBack={() => setProfileId(null)} />
+          ) : profileLead ? (
+            <LeadProfile lead={profileLead} onBack={() => setLeadId(null)} />
           ) : (
             <>
           {view === 'dashboard' && (
@@ -156,7 +164,11 @@ function Console() {
               remounts the register rather than keeping the previous filter —
               `initialStatus` is genuinely initial. */}
           {view === 'leads' && (
-            <LeadsView key={leadStage ?? 'all'} initialStatus={leadStage} />
+            <LeadsView
+              key={leadStage ?? 'all'}
+              initialStatus={leadStage}
+              onOpenProfile={setLeadId}
+            />
           )}
           {view === 'rfps' && <RfpsView onOpenProfile={setProfileId} />}
           {view === 'progress' && (

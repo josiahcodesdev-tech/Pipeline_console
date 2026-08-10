@@ -170,6 +170,13 @@ export interface Lead {
   decisionTimeline: string
   decisionProcess: string
 
+  // The two call-report fields that describe the client rather than a visit,
+  // so they belong here and not on the visit. See migration 0025.
+  /** Physical location — the call report wants the address, not the country. */
+  location: string
+  /** What they actually do, as distinct from `segment`, which is our filing. */
+  natureOfBusiness: string
+
   createdOn: IsoDate
   statusUpdatedOn: IsoDate
 }
@@ -191,9 +198,35 @@ export interface Activity {
   /** Parent RFP, if any. */
   rfpId: string | null
   type: ActivityType
+  /** When it happened — and, for a visit, the call report's "Date of visit". */
   occurredOn: IsoDate
   summary: string
   outcome: string
+
+  // The call report, when this activity is a client visit. Empty on the calls
+  // and emails that make up most of the log. "Date of visit" is `occurredOn`
+  // above, and the client's name, phone and contact come from the parent lead —
+  // none of them is copied here. See migration 0025.
+  /** Vantage Africa staff who made the visit. */
+  visitingOfficers: string
+  /** Names and titles of the client officials met, one per line. */
+  officialsMet: string
+  /** When the report was written. Its presence is what makes this a report. */
+  reportDate: IsoDate
+  meetingPurpose: string
+  /** Section 1: description of the business, background, status as it is now. */
+  businessBackground: string
+  /** Section 2. Falls back to the lead's `needs` when blank. */
+  keyNeeds: string
+  /** Section 3: resolutions, way forward, action plans. */
+  wayForward: string
+  /** Section 4. */
+  otherComments: string
+}
+
+/** True once a report has been started on this visit. */
+export function hasCallReport(activity: Activity): boolean {
+  return Boolean(activity.reportDate)
 }
 
 export function isActivityType(value: unknown): value is ActivityType {

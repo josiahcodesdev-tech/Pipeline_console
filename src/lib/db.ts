@@ -108,6 +108,8 @@ function toLead(row: LeadRow): Lead {
     budgetBand: row.budget_band ?? '',
     decisionTimeline: row.decision_timeline ?? '',
     decisionProcess: row.decision_process ?? '',
+    location: row.location ?? '',
+    natureOfBusiness: row.nature_of_business ?? '',
     createdOn: row.created_on,
     statusUpdatedOn: row.status_updated_on ?? '',
   }
@@ -139,6 +141,14 @@ function toActivity(row: ActivityRow): Activity {
     occurredOn: row.occurred_on,
     summary: row.summary,
     outcome: row.outcome ?? '',
+    visitingOfficers: row.visiting_officers ?? '',
+    officialsMet: row.officials_met ?? '',
+    reportDate: row.report_date ?? '',
+    meetingPurpose: row.meeting_purpose ?? '',
+    businessBackground: row.business_background ?? '',
+    keyNeeds: row.key_needs ?? '',
+    wayForward: row.way_forward ?? '',
+    otherComments: row.other_comments ?? '',
   }
 }
 
@@ -217,6 +227,8 @@ function leadFields(draft: LeadDraft) {
     budget_band: draft.budgetBand,
     decision_timeline: draft.decisionTimeline,
     decision_process: draft.decisionProcess,
+    location: draft.location,
+    nature_of_business: draft.natureOfBusiness,
   }
 }
 
@@ -656,7 +668,54 @@ export async function deleteProposal(proposal: Proposal): Promise<void> {
 // `userId` is omitted alongside `id`: both are set by the server from the
 // session, and a client that could nominate an owner could log an entry in
 // someone else's name.
-export type ActivityDraft = Omit<Activity, 'id' | 'userId'>
+/**
+ * The call report attached to a visit. Written by its own call rather than
+ * through `ActivityDraft`: logging an activity is a four-field composer used
+ * dozens of times a week, and a report is a long form filled in once. Folding
+ * them together would make every logged call carry eight empty strings.
+ */
+export type CallReportFields = Pick<
+  Activity,
+  | 'visitingOfficers'
+  | 'officialsMet'
+  | 'reportDate'
+  | 'meetingPurpose'
+  | 'businessBackground'
+  | 'keyNeeds'
+  | 'wayForward'
+  | 'otherComments'
+>
+
+export type ActivityDraft = Omit<Activity, 'id' | 'userId' | keyof CallReportFields>
+
+export async function saveCallReport(
+  id: string,
+  fields: CallReportFields,
+): Promise<Activity> {
+  const { data, error } = await supabase
+    .from('activities')
+    .update({
+      visiting_officers: fields.visitingOfficers,
+      officials_met: fields.officialsMet,
+      report_date: dateOrNull(fields.reportDate),
+      meeting_purpose: fields.meetingPurpose,
+      business_background: fields.businessBackground,
+      key_needs: fields.keyNeeds,
+      way_forward: fields.wayForward,
+      other_comments: fields.otherComments,
+    })
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!data) {
+    // Row-level security scopes the update to your own rows, so this is an
+    // admin reading someone else's log rather than a missing record.
+    throw new Error('This visit was logged by another member, so only they can write its report.')
+  }
+  return toActivity(data)
+}
 
 export async function createActivity(draft: ActivityDraft): Promise<Activity> {
   const row = unwrap(

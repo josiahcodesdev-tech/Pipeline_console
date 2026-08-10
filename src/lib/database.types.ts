@@ -30,6 +30,9 @@ export type LeadRow = {
   budget_band: string
   decision_timeline: string
   decision_process: string
+  /** Client facts the call report asks for; see migration 0025. */
+  location: string
+  nature_of_business: string
   created_on: string
   status_updated_on: string | null
   created_at: string
@@ -70,6 +73,15 @@ export type ActivityRow = {
   occurred_on: string
   summary: string
   outcome: string
+  /** Call report, when this activity is a client visit; see migration 0025. */
+  visiting_officers: string
+  officials_met: string
+  report_date: string | null
+  meeting_purpose: string
+  business_background: string
+  key_needs: string
+  way_forward: string
+  other_comments: string
   created_at: string
   updated_at: string
 }
@@ -238,7 +250,22 @@ export type Database = {
       }
       activities: {
         Row: ActivityRow
-        Insert: Insertable<ActivityRow, Generated | 'occurred_on'>
+        // The call-report columns all carry defaults and are written by their
+        // own update, never at insert: logging a call must not have to supply
+        // eight empty strings for a report that will never be written.
+        Insert: Insertable<
+          ActivityRow,
+          | Generated
+          | 'occurred_on'
+          | 'visiting_officers'
+          | 'officials_met'
+          | 'report_date'
+          | 'meeting_purpose'
+          | 'business_background'
+          | 'key_needs'
+          | 'way_forward'
+          | 'other_comments'
+        >
         Update: Partial<ActivityRow>
         Relationships: []
       }
