@@ -12,6 +12,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { usePipeline } from '@/hooks/use-pipeline'
+import { useAuth } from '@/hooks/use-auth'
+import { useMemberNames } from '@/lib/members'
+import { toDisplayName } from '@/lib/usernames'
 import {
   daysUntil,
   formatDateWithYear,
@@ -72,6 +75,24 @@ export function PipelineView({
   onOpenProfile: (id: string) => void
 }) {
   const { rfps, activities, setRfpStatus, setRfpPipeline } = usePipeline()
+  const { can, session } = useAuth()
+
+  // Oversight reads every member's pipeline, so a row needs to say whose it is.
+  // A standard user only ever sees their own rows, and a column repeating their
+  // own name on every line is noise — so the column is theirs alone to lose.
+  const showOwner = can.seeEveryone
+  const memberNames = useMemberNames()
+
+  function ownerLabel(rfp: Rfp): string {
+    if (rfp.ownerId === session?.user.id) return 'You'
+    const known = memberNames.get(rfp.ownerId)
+    // The lookup falls back to the email when a member has set no display name,
+    // and only an email should go through toDisplayName — it lower-cases, which
+    // would turn a real name into "wahu njeri".
+    if (known) return known.includes('@') ? toDisplayName(known) : known
+    // The name lookup fails soft, and a uuid on screen tells nobody anything.
+    return 'Another member'
+  }
 
   const inPipeline = useMemo(
     () =>
@@ -130,7 +151,11 @@ export function PipelineView({
       <ViewHeader
         eyebrow="Bids in flight"
         title="Proposal pipeline"
-        description="Only the tenders you have taken on. Add one from the RFP tracker when it is worth bidding; everything else stays out of the way."
+        description={
+          showOwner
+            ? 'Every tender the firm has taken on, whoever took it. One row per opportunity — the “Taken by” column says whose it is.'
+            : 'Only the tenders you have taken on. Add one from the RFP tracker when it is worth bidding; everything else stays out of the way.'
+        }
         meta={
           <span className="text-[11px] text-muted-foreground">
             {open.length} open · {inPipeline.length} total
@@ -200,6 +225,7 @@ export function PipelineView({
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Organization</TableHead>
+                  {showOwner && <TableHead>Taken by</TableHead>}
                   <TableHead>Deadline</TableHead>
                   <TableHead className="text-right">Value (KES)</TableHead>
                   <TableHead>Last activity</TableHead>
@@ -212,6 +238,8 @@ export function PipelineView({
                   <PipelineRow
                     key={rfp.id}
                     rfp={rfp}
+                    owner={showOwner ? ownerLabel(rfp) : null}
+                    mine={rfp.ownerId === session?.user.id}
                     lastTouch={lastTouch.get(rfp.id)}
                     onStatus={setRfpStatus}
                     onOpen={onOpenProfile}
@@ -229,12 +257,17 @@ export function PipelineView({
 
 function PipelineRow({
   rfp,
+  owner,
+  mine,
   lastTouch,
   onStatus,
   onOpen,
   onRemove,
 }: {
   rfp: Rfp
+  /** Who took this on, or `null` when the viewer only ever sees their own. */
+  owner: string | null
+  mine: boolean
   lastTouch?: string
   onStatus: (id: string, status: RfpStatus) => Promise<void>
   onOpen: (id: string) => void
@@ -263,6 +296,22 @@ function PipelineRow({
       <TableCell className="max-w-[180px] text-muted-foreground">
         {rfp.org || '—'}
       </TableCell>
+      {owner !== null && (
+        <TableCell className="whitespace-nowrap">
+          {/* The viewer's own rows stay quiet; someone else's is the thing an
+              admin is actually scanning the column for. */}
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full px-2 py-0.5 text-[11px]',
+              mine
+                ? 'text-muted-foreground'
+                : 'bg-gold-soft font-medium text-clay',
+            )}
+          >
+            {owner}
+          </span>
+        </TableCell>
+      )}
       <TableCell className="whitespace-nowrap">
         <DeadlineCell deadline={rfp.deadline} />
       </TableCell>
@@ -286,15 +335,20 @@ function PipelineRow({
         />
       </TableCell>
       <TableCell>
-        <button
-          type="button"
-          onClick={() => onRemove(rfp.id)}
-          title="Remove from the pipeline (the RFP itself is kept)"
-          aria-label={`Remove ${rfp.title} from the pipeline`}
-          className="cursor-pointer px-1 text-faint transition-colors hover:text-danger"
-        >
-          <XIcon className="size-3.5" />
-        </button>
+        {/* Only your own. Row-level security scopes the update to rows you own,
+            so this button on someone else's proposal could only ever fail —
+            leaving it there offers an action the server will refuse. */}
+        {mine && (
+          <button
+            type="button"
+            onClick={() => onRemove(rfp.id)}
+            title="Remove from the pipeline (the RFP itself is kept)"
+            aria-label={`Remove ${rfp.title} from the pipeline`}
+            className="cursor-pointer px-1 text-faint transition-colors hover:text-danger"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        )}
       </TableCell>
     </TableRow>
   )

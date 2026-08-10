@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { CopyIcon, KeyRoundIcon, ShieldCheckIcon, TargetIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { CopyIcon, KeyRoundIcon, ShieldCheckIcon, TargetIcon, Trash2Icon, UserPlusIcon, UsersIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
@@ -22,6 +22,7 @@ import {
   setMemberActive,
   setMemberRole,
   resetMemberPassword,
+  removeMember,
   fetchTeamOverview,
   fetchTeamPipeline,
   type CreatedMember,
@@ -218,6 +219,47 @@ export function MembersView() {
       await setMemberActive(member.id, next)
       toast.success(next ? `${member.email} can sign in` : `${member.email} switched off`)
       await load()
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  /**
+   * Deletes the account and everything it owns.
+   *
+   * Confirmed twice, and the second one has to be typed. Every table cascades
+   * on `user_id`, so this takes the member's leads, RFPs, activities, drafts
+   * and consultants with it — including any tender they had taken on, which
+   * simply disappears from the firm's pipeline. "Switch off" is what people
+   * usually mean by removing someone, so it is offered first and this is the
+   * deliberate other thing.
+   */
+  async function remove(member: Profile) {
+    const owned = pipeline.filter((item) => item.ownerId === member.id).length
+    const warning = owned > 0
+      ? `\n\n${owned} proposal${owned === 1 ? '' : 's'} in the firm's pipeline belong${owned === 1 ? 's' : ''} to them and will be deleted with the account.`
+      : ''
+
+    const ok = window.confirm(
+      `Permanently remove ${member.email}?\n\nThis deletes their account and everything they own — leads, RFPs, activities, proposals and consultants. It cannot be undone.${warning}\n\nTo keep their work, cancel and use “Switch off” instead.`,
+    )
+    if (!ok) return
+
+    // Typed, not clicked. A second window.confirm is one more Enter keypress
+    // away from the first, and this is the one action on the page with nothing
+    // behind it.
+    const typed = window.prompt(
+      `Type REMOVE to confirm deleting ${member.email} and all of their work.`,
+    )
+    if (typed?.trim().toUpperCase() !== 'REMOVE') {
+      toast.message('Nothing removed.')
+      return
+    }
+
+    try {
+      await removeMember(member.id)
+      toast.success(`${member.email} removed`)
+      await Promise.all([load(), loadOverview()])
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     }
@@ -481,6 +523,21 @@ export function MembersView() {
                             <KeyRoundIcon className="size-3.5" aria-hidden />
                             Reset password
                           </Button>
+                          {/* Last, and the only destructive control here, so it
+                              is set apart rather than sitting in the same row of
+                              outline buttons as "Switch off" — which is the one
+                              people actually want most of the time. */}
+                          {!isSelf && (
+                            <button
+                              type="button"
+                              title={`Permanently remove ${member.email} and everything they own`}
+                              aria-label={`Permanently remove ${member.email}`}
+                              onClick={() => void remove(member)}
+                              className="ml-1 grid size-8 cursor-pointer place-items-center rounded-md border border-transparent text-faint transition-colors hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
+                            >
+                              <Trash2Icon className="size-3.5" aria-hidden />
+                            </button>
+                          )}
                         </div>
                       </TableCell>
                     )}

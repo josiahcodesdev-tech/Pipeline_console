@@ -43,9 +43,13 @@ export type LeadDraft = Omit<Lead, 'id' | 'createdOn' | 'statusUpdatedOn'>
 // `inPipeline` is deliberately not part of the draft: it is set by the
 // add/remove action, not by the edit form, so saving a dialog can never
 // silently pull something out of the pipeline.
+// `ownerId` is omitted with them: the owner comes from the session at write
+// time, so a form that could set it would be a form that could hand a tender
+// to someone else.
 export type RfpDraft = Omit<
   Rfp,
   | 'id'
+  | 'ownerId'
   | 'createdOn'
   | 'createdAt'
   | 'statusUpdatedOn'
@@ -141,6 +145,7 @@ function toActivity(row: ActivityRow): Activity {
 function toRfp(row: RfpRow): Rfp {
   return {
     id: row.id,
+    ownerId: row.user_id,
     title: row.title,
     org: row.org ?? '',
     segment: isSegment(row.segment) ? row.segment : 'Government',
@@ -880,15 +885,28 @@ export async function setRfpPipeline(
     if (error) throw new Error(`Could not hand this tender back: ${error.message}`)
   }
 
-  const row = unwrap(
-    await supabase
-      .from('rfps')
-      .update({ in_pipeline: inPipeline })
-      .eq('id', id)
-      .select()
-      .single(),
-  )
-  return toRfp(row)
+  // `maybeSingle`, not `single`. Row-level security scopes an update to your
+  // own rows, so acting on another member's copy matches nothing and updates
+  // nothing — and `single` turns that into "Cannot coerce the result to a
+  // single JSON object", which tells the reader nothing about what went wrong
+  // or what to do. An admin reading the whole firm's pipeline hits this the
+  // moment they try to tidy somebody else's row.
+  const { data, error } = await supabase
+    .from('rfps')
+    .update({ in_pipeline: inPipeline })
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!data) {
+    throw new Error(
+      inPipeline
+        ? 'This tender belongs to another member, so it cannot be added to your pipeline.'
+        : 'This proposal belongs to another member. Only they can take it out of the pipeline.',
+    )
+  }
+  return toRfp(data)
 }
 
 /**

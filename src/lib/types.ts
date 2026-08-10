@@ -206,6 +206,12 @@ export function isLeadPriority(value: unknown): value is LeadPriority {
 
 export interface Rfp {
   id: string
+  /**
+   * The member this copy belongs to — who took the tender on. Every member
+   * holds their own copy of a scraped tender, so on an oversight read this is
+   * the only thing that distinguishes two rows for the same opportunity.
+   */
+  ownerId: string
   title: string
   org: string
   segment: Segment

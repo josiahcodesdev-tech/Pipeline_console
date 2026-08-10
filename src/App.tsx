@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { PipelineProvider, usePipeline } from '@/hooks/use-pipeline'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { PROPOSAL_DRAFTING } from '@/lib/features'
-import type { ViewId } from '@/lib/nav'
+import { canOpenView, type ViewId } from '@/lib/nav'
 import type { LeadStatus } from '@/lib/types'
 import { SetupNotice } from '@/views/setup-notice'
 import { SignInView } from '@/views/sign-in'
@@ -49,7 +49,7 @@ function readSidebarCollapsed(): boolean {
 }
 
 function Console() {
-  const [view, setView] = useState<ViewId>('dashboard')
+  const [requestedView, setView] = useState<ViewId>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   // Which RFP's profile is open, if any. Kept here rather than inside a view
   // so the tracker and the Proposals page can both open one, and switching
@@ -60,6 +60,14 @@ function Console() {
   // navigation so the filter never outlives the click that asked for it.
   const [leadStage, setLeadStage] = useState<LeadStatus | undefined>(undefined)
   const { rfps, loading, error } = usePipeline()
+  const { can } = useAuth()
+
+  // Derived rather than corrected in an effect: a role can change under a
+  // signed-in session, and a view the member may no longer open should fall
+  // back to the dashboard rather than render an empty column.
+  const view = canOpenView(requestedView, can.manageMembers)
+    ? requestedView
+    : 'dashboard'
 
   const profileRfp = profileId
     ? (rfps.find((rfp) => rfp.id === profileId) ?? null)

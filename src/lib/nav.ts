@@ -35,14 +35,15 @@ export const NAV_ITEMS = [
 export type ViewId = (typeof NAV_ITEMS)[number]['id']
 
 /**
- * Views a standard user has no use for.
+ * Views only the super user has any use for.
  *
- * Members is shown to admins as well as the super user: the page carries the
- * firm-wide figures and who is bidding what, which is oversight rather than
- * administration. Only the add-a-member form and the access controls within it
- * are super-user-only, and those gate themselves.
+ * Members was once shown to admins too, on the argument that the firm-wide
+ * figures on it are oversight rather than administration. It is now super-user
+ * only: an admin who cannot add, remove, reassign or reset anyone was reading a
+ * page of controls that all refused them. The one thing they actually needed
+ * from it — who has taken which tender — is a column on Proposals instead.
  */
-const OVERSIGHT_ONLY: readonly ViewId[] = ['members']
+const SUPER_USER_ONLY: readonly ViewId[] = ['members']
 
 /**
  * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
@@ -65,10 +66,15 @@ const FLAGGED_NAV_ITEMS = NAV_ITEMS.filter(
  * `profiles`, which every member may read anyway, and every action on it is
  * refused by the server for anyone but the super user.
  */
-export function navItemsFor(canSeeEveryone: boolean) {
+export function navItemsFor(canManageMembers: boolean) {
   return FLAGGED_NAV_ITEMS.filter(
-    (item) => !OVERSIGHT_ONLY.includes(item.id) || canSeeEveryone,
+    (item) => !SUPER_USER_ONLY.includes(item.id) || canManageMembers,
   )
+}
+
+/** Whether this member may open a view at all, for the router's fallback. */
+export function canOpenView(id: ViewId, canManageMembers: boolean): boolean {
+  return !SUPER_USER_ONLY.includes(id) || canManageMembers
 }
 
 export function isViewId(value: string): value is ViewId {
