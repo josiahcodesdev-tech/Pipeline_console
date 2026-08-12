@@ -61,10 +61,19 @@ function areasOf(rfp: Rfp): string[] {
 
 type SortKey = 'fit' | 'deadline' | 'newest'
 
+/**
+ * `newest` leads, and is the default.
+ *
+ * It sorts on when the sync brought the notice in, not on when the buyer
+ * published it — the sources rarely say, and the useful question at a tracker
+ * holding a thousand rows is "what has arrived since I last looked?". Its label
+ * used to read "Most recently published first", which claimed a publication
+ * date the row does not carry.
+ */
 const SORTS: ReadonlyArray<{ key: SortKey; label: string; title: string }> = [
+  { key: 'newest', label: 'Newest', title: 'Most recently brought in by the sync' },
   { key: 'fit', label: 'Best fit', title: 'How well it matches what Vantage Africa delivers' },
   { key: 'deadline', label: 'Deadline', title: 'Soonest closing first' },
-  { key: 'newest', label: 'Newest', title: 'Most recently published first' },
 ]
 
 function SortToggle({
@@ -166,10 +175,13 @@ export function RfpsView({
   // September — so the list has to filter as well.
   const [hideExpired, setHideExpired] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
-  // Which kind of work: corporate training, M&E, research and so on.
+  // Which of the six services from the capability statement it touches.
   const [areaFilter, setAreaFilter] = useState<string>('all')
-  // Best fit first: the filter says what is biddable, this says what to read.
-  const [sort, setSort] = useState<'fit' | 'deadline' | 'newest'>('fit')
+  // Newest first. Best fit sorts the whole tracker the same way every day, so
+  // the notices that arrived overnight land wherever their score puts them —
+  // often pages down, among rows already read and passed over. What someone
+  // opening this page wants first is what is new; fit is one click away.
+  const [sort, setSort] = useState<SortKey>('newest')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const { can, profile } = useAuth()
@@ -247,11 +259,10 @@ export function RfpsView({
         return true
       })
       .sort((a, b) => {
-        // Best fit by default. The capability filter already decided everything
-        // here is biddable, so the next question is which to read first, and a
-        // week arriving as an undifferentiated list leaves that to be done by
-        // hand. Ties fall through to the soonest deadline, because between two
-        // equally good opportunities the closer one is the more urgent.
+        // The capability filter already decided everything here is biddable, so
+        // sorting only answers which to read first. Ties fall through to the
+        // soonest deadline, because between two equally good opportunities the
+        // closer one is the more urgent, and finally to date brought in.
         if (sort === 'fit' && a.fitScore !== b.fitScore) {
           return b.fitScore - a.fitScore
         }

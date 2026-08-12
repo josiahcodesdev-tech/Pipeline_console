@@ -202,7 +202,8 @@ export function mentionsKenya(...parts: string[]): boolean {
  * the tracker is unusable, so every source runs through it.
  */
 /**
- * What Vantage Africa actually delivers, taken from vantageafricaleaders.com.
+ * What Vantage Africa sells, taken from section 4 of the Corporate Capability
+ * Statement — the same six services, under their own names.
  *
  * This replaced a generic consultancy keyword list, which let in every advisory
  * assignment on earth — environmental impact studies, procurement specialists,
@@ -210,54 +211,56 @@ export function mentionsKenya(...parts: string[]): boolean {
  * this firm can bid. A tracker full of assignments you cannot deliver costs
  * more attention than it saves.
  *
+ * It then replaced a home-grown set of nine labels that had drifted from what
+ * the firm tells clients it does. Two of them — "Research & Assessment" and
+ * "Climate & Environment" — were sectors rather than services and pulled in
+ * work nobody sells; the rest were near-synonyms of a statement service under a
+ * different name, which meant the tracker and the capability statement gave a
+ * buyer two different answers to "what do you do?". The labels are now the
+ * statement's, so a service area on a tender is a heading a client has already
+ * been shown.
+ *
+ * Terms are deliberately broader than the labels. Two former categories with no
+ * service of their own were folded in rather than dropped, because dropping the
+ * words would silently narrow the search: project-management wording sits under
+ * corporate training, where it is taught, and data-analysis wording under MEL,
+ * whose whole point is evidence for decisions.
+ *
  * One list, two jobs: it decides whether a notice is worth importing at all,
  * and it supplies the service-area tag. Those were previously separate
  * vocabularies and they drifted — corporate wording was good enough to let a
  * notice in but not to tag it, so it arrived and then hid from its own filter.
  * Keeping them as one map means that cannot happen again.
  *
- * `label` is what appears in the tracker's service-area filter.
+ * `label` is what appears in the tracker's service-area filter. Changing one
+ * needs a matching remap of the rows already tagged; see migration 0026.
+ *
+ * **A label must never contain a comma.** `service_areas` is a comma-separated
+ * list and every reader splits it on that character, so the statement's own
+ * "Monitoring, Evaluation & Learning (MEL)" would arrive in the tracker as two
+ * invented services, "Monitoring" and "Evaluation & Learning". It is written
+ * here with the comma removed for that reason and no other.
  */
 const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readonly string[] }> = [
   {
-    // The flagship. Eval 360, VAMEPA and most of the case studies sit here.
-    label: "Monitoring & Evaluation",
+    // Statement 4.4. The flagship — Eval360, VAMEPA and most of the case
+    // studies sit here, so it carries the top weight alongside training.
+    label: "Monitoring & Evaluation (MEL)",
     weight: 10,
     terms: [
-      "monitoring and evaluation", "monitoring & evaluation", "m&e", "mel ",
+      // "m+e" and "m and e" are how UNDP and ReliefWeb spell it about a fifth
+      // of the time. Found by listing what a prune would have deleted and
+      // reading it — "M+E Social Coordinator" is as central as work gets here,
+      // and it failed every term in this list.
+      "monitoring and evaluation", "monitoring & evaluation", "m&e", "m+e",
+      "m and e", "mel ", "mel-", "(mel)",
       "meal ", "evaluation", "evaluator", "baseline", "endline", "midterm",
       "mid-term", "logframe", "logical framework", "theory of change",
       "results framework", "results-based", "impact evaluation", "indicator",
       "performance tracking", "learning agenda", "accountability and learning",
-    ],
-  },
-  {
-    label: "Leadership & Governance",
-    weight: 9,
-    terms: [
-      "leadership", "governance", "board development", "board training",
-      "executive development", "executive education", "management development",
-      "supervisory skills", "management training", "corporate governance",
-    ],
-  },
-  {
-    label: "Project Management",
-    weight: 6,
-    terms: [
-      "project management", "programme management", "program management",
-      "project planning", "project cycle", "contract management",
-      "prince2", "pmp ", "project implementation support",
-    ],
-  },
-  {
-    // Data work specifically, NOT research in general. A first pass had bare
-    // "survey", "study", "assessment" and "research" here and this became a
-    // catch-all: it matched 27 of 49 notices, among them a land survey and an
-    // environmental impact assessment. Baseline and endline surveys are still
-    // caught — by Monitoring & Evaluation, where they belong.
-    label: "Data & Analysis",
-    weight: 6,
-    terms: [
+      "evidence-based improvement", "track progress", "measure outcomes",
+      // Folded in from the former "Data & Analysis": the statement sells this
+      // as the evidence half of MEL, not as a separate analytics practice.
       "data analysis", "data analytics", "data science", "business intelligence",
       "dashboard", "data visualisation", "data visualization",
       "statistical analysis", "data management", "data quality",
@@ -266,46 +269,8 @@ const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readon
     ],
   },
   {
-    label: "Proposal Writing & Fundraising",
-    weight: 6,
-    terms: [
-      "proposal writing", "fundraising", "fund raising", "resource mobilisation",
-      "resource mobilization", "grant writing", "grant management",
-      "donor engagement", "concept note", "bid writing",
-    ],
-  },
-  {
-    label: "Digital & AI Skills",
-    weight: 5,
-    terms: [
-      "digital skills", "digital literacy", "artificial intelligence",
-      "ai-augmented", "e-learning", "elearning", "learning management system",
-      "digital productivity", "digital transformation",
-    ],
-  },
-  {
-    label: "Institutional Capacity Building",
-    weight: 8,
-    terms: [
-      "capacity building", "capacity development", "capacity-building",
-      "capacity assessment", "capacity strengthening", "institutional strengthening",
-      "organisational development", "organizational development",
-      "systems strengthening", "institutional support", "change management",
-      "knowledge management", "knowledge transfer",
-    ],
-  },
-  {
-    label: "Strategy & Performance",
-    weight: 7,
-    terms: [
-      "strategic plan", "strategy development", "strategic management",
-      "performance management", "performance improvement", "appraisal",
-      "balanced scorecard", "policy development", "operational review",
-      "institutional performance", "competency framework",
-    ],
-  },
-  {
-    label: "Training & Facilitation",
+    // Statement 4.1. The broadest service, and the one most notices name.
+    label: "Customized Corporate Training",
     weight: 10,
     terms: [
       "training", "curriculum", "workshop", "facilitation", "facilitator",
@@ -314,7 +279,76 @@ const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readon
       "coaching", "mentorship", "mentoring", "seminar", "induction",
       "staff training", "employee training", "professional development",
       "training needs assessment", "training manual", "training materials",
-      "refresher course", "soft skills",
+      "refresher course", "soft skills", "teamwork", "communication skills",
+      "operational efficiency", "productivity",
+      // Folded in from the former "Project Management": these are course
+      // subjects the firm teaches, not a separate consulting line.
+      "project management", "programme management", "program management",
+      "project planning", "project cycle", "contract management",
+      "prince2", "pmp ", "project implementation support",
+    ],
+  },
+  {
+    // Statement 4.2.
+    label: "Leadership & Management Development",
+    weight: 9,
+    terms: [
+      "leadership", "governance", "board development", "board training",
+      "executive development", "executive education", "management development",
+      "supervisory skills", "management training", "corporate governance",
+      "strategic thinking", "decision-making", "decision making",
+      "emotional intelligence", "emerging leaders", "succession planning",
+    ],
+  },
+  {
+    // Statement 4.3. Absorbs the former "Strategy & Performance": the statement
+    // sells strategy work as part of strengthening an institution, not apart
+    // from it.
+    label: "Capacity Building & Organizational Development",
+    weight: 8,
+    terms: [
+      "capacity building", "capacity development", "capacity-building",
+      "capacity assessment", "capacity strengthening", "institutional strengthening",
+      // Same exercise as the M&E spellings above: these were sitting in the
+      // delete list. "Enhance capacities" and "institutional development" are
+      // this service under other words.
+      "enhance capacit", "enhancing capacit", "strengthen capacit",
+      "strengthening capacit", "institutional development",
+      "organisational capacity", "organizational capacity",
+      "organisational development", "organizational development",
+      "systems strengthening", "institutional support", "change management",
+      "knowledge management", "knowledge transfer",
+      "strategic plan", "strategy development", "strategic management",
+      "performance management", "performance improvement", "appraisal",
+      "balanced scorecard", "policy development", "operational review",
+      "institutional performance", "competency framework",
+      "internal systems", "process optimization", "process optimisation",
+      "workflow", "business process", "organisational review",
+      "organizational review", "institutional review", "functional analysis",
+      "human resource", "job evaluation", "staff establishment",
+    ],
+  },
+  {
+    // Statement 4.6.
+    label: "Proposal Writing & Resource Mobilization",
+    weight: 6,
+    terms: [
+      "proposal writing", "fundraising", "fund raising", "resource mobilisation",
+      "resource mobilization", "grant writing", "grant management",
+      "donor engagement", "concept note", "bid writing", "donor mapping",
+      "competitive proposals", "donor-aligned", "partnership development",
+    ],
+  },
+  {
+    // Statement 4.5.
+    label: "Digital Learning Solutions",
+    weight: 5,
+    terms: [
+      "digital skills", "digital literacy", "artificial intelligence",
+      "ai-augmented", "e-learning", "elearning", "online learning",
+      "learning management system", "lms ", "scorm",
+      "digital productivity", "digital transformation", "blended learning",
+      "virtual training", "remote training", "digital learning",
     ],
   },
 ]
