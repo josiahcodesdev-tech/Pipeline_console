@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Building2Icon, PlusIcon, SearchXIcon } from 'lucide-react'
+import { Building2Icon, PlusIcon, SearchXIcon, Trash2Icon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -14,6 +15,7 @@ import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { FilterSelect } from '@/components/field'
 import { LeadStatusSelect } from '@/components/status-select'
 import { usePipeline } from '@/hooks/use-pipeline'
+import { useAuth } from '@/hooks/use-auth'
 import { formatDateWithYear } from '@/lib/dates'
 import {
   LEAD_STATUSES,
@@ -38,7 +40,8 @@ export function LeadsView({
   /** Opens one client's page, where the call report lives. */
   onOpenProfile?: (id: string) => void
 } = {}) {
-  const { leads, saveLead, removeLead, setLeadStatus } = usePipeline()
+  const { leads, activities, saveLead, removeLead, setLeadStatus } = usePipeline()
+  const { can } = useAuth()
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment | 'all'>('all')
   const [status, setStatus] = useState<LeadStatus | 'all'>(initialStatus ?? 'all')
@@ -64,6 +67,40 @@ export function LeadsView({
   function open(lead: Lead | null) {
     setEditing(lead)
     setDialogOpen(true)
+  }
+
+  /**
+   * Deletes a client and everything logged against them.
+   *
+   * `activities.lead_id` cascades, so this takes the visits with it — and a
+   * visit carries the call report filed for management. Those are counted in
+   * the confirmation rather than described, because "and related activity" is
+   * the wording people click through without reading.
+   */
+  async function remove(lead: Lead) {
+    const logged = activities.filter((activity) => activity.leadId === lead.id)
+    const reports = logged.filter((activity) => activity.reportDate).length
+
+    const losses = [
+      logged.length > 0 && `${logged.length} logged interaction${logged.length === 1 ? '' : 's'}`,
+      reports > 0 && `${reports} filed call report${reports === 1 ? '' : 's'}`,
+    ].filter(Boolean) as string[]
+
+    const ok = window.confirm(
+      `Delete ${lead.org}?\n\n${
+        losses.length
+          ? `This also deletes ${losses.join(' and ')}. `
+          : 'Nothing is logged against this client. '
+      }It cannot be undone.`,
+    )
+    if (!ok) return
+
+    try {
+      await removeLead(lead.id)
+      toast.success(`${lead.org} deleted`)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
   }
 
   return (
@@ -119,6 +156,7 @@ export function LeadsView({
               <TableHead>Contact</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Next action</TableHead>
+              {can.remove && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -158,6 +196,25 @@ export function LeadsView({
                     <span className="font-medium text-danger">none set</span>
                   )}
                 </TableCell>
+                {can.remove && (
+                  <TableCell className="w-8">
+                    <button
+                      type="button"
+                      // The row itself opens the profile, so a click here must
+                      // not also navigate — the confirmation would appear over
+                      // a page that was already moving.
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void remove(lead)
+                      }}
+                      title={`Delete ${lead.org} and everything logged against them`}
+                      aria-label={`Delete ${lead.org}`}
+                      className="cursor-pointer px-1 text-faint transition-colors hover:text-danger"
+                    >
+                      <Trash2Icon className="size-3.5" />
+                    </button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
