@@ -22,7 +22,7 @@
  * regardless.
  */
 
-import { CONCEPT_NOTE_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
+import { CONCEPT_NOTE_PROMPT, PERFORMANCE_REPORT_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
 
@@ -297,12 +297,22 @@ Deno.serve(async (request: Request) => {
   }
 
   const org = text(context.org)
-  if (!org) {
+  // A performance report is about the author, not about a client.
+  if (!org && text(context.kind) !== 'performance-report') {
     return json({ error: 'An organization name is required.' }, 400)
   }
 
-  const isProposal = text(context.kind) === 'proposal'
-  const what = isProposal ? 'proposal' : 'concept note'
+  const kind = text(context.kind)
+  const isProposal = kind === 'proposal'
+  // A report on the author's own period rather than a document for a client.
+  // It takes no playbook, no roster and no tender: its content is the figures
+  // block, and anything it cannot read there it must not claim.
+  const isPerformanceReport = kind === 'performance-report'
+  const what = isProposal
+    ? 'proposal'
+    : isPerformanceReport
+      ? 'performance report'
+      : 'concept note'
 
   const segment = text(context.segment) || 'Government'
   const country = text(context.country)
@@ -353,7 +363,11 @@ Deno.serve(async (request: Request) => {
   // the examples — each layer is more specific than the last, so it reads as
   // refinement rather than contradiction.
   const systemPrompt = [
-    isProposal ? PROPOSAL_PROMPT : CONCEPT_NOTE_PROMPT,
+    isPerformanceReport
+      ? PERFORMANCE_REPORT_PROMPT
+      : isProposal
+        ? PROPOSAL_PROMPT
+        : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
     houseRulesBlock(guidance, boilerplate),
     rosterBlock(roster),
@@ -390,9 +404,15 @@ ${tender}`
 You have the published notice only — not the full RFP document, evaluation matrix, company profile, CVs or reference letters. Work from what is here, mark everything else as a placeholder, and list what the bid team must supply in the bid readiness notes.
 
 ${details}`
-    : `Draft a ${what} using this context:\n\n${details}`
+    : isPerformanceReport
+      ? `Write a performance report covering the period below.
 
-  const job = { system: systemPrompt, task, heavy: isProposal }
+The figures block is the only source you have. Every number in the report must come from it. Where the block says something is not held, that is a placeholder for the author to supply — never a number to estimate.
+
+${text(context.notes, 12_000) || "No figures were supplied, which makes this report impossible to write honestly. Say so and stop."}`
+      : `Draft a ${what} using this context:\n\n${details}`
+
+  const job = { system: systemPrompt, task, heavy: isProposal || isPerformanceReport }
 
   const refusedMessage =
     'The drafting service declined this request. Try rephrasing the notes on this record.'

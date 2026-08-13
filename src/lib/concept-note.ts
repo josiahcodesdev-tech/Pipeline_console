@@ -17,7 +17,7 @@ export type ConsultantBrief = Omit<Consultant, 'id' | 'longBio'>
  * own relevance. An RFP gets a *proposal*, which answers a brief that already
  * exists, so it leads with the response rather than the introduction.
  */
-export type DraftKind = 'concept-note' | 'proposal'
+export type DraftKind = 'concept-note' | 'proposal' | 'performance-report'
 
 /**
  * How many worked examples to send. Every one is included in full on every
@@ -71,6 +71,11 @@ export const DRAFT_LABELS: Record<
     action: 'Draft proposal',
     loading: 'Drafting proposal…',
   },
+  'performance-report': {
+    title: 'Performance report',
+    action: 'Write the report',
+    loading: 'Writing the report…',
+  },
 }
 
 export interface DraftResult {
@@ -102,7 +107,12 @@ export async function draftConceptNote(
   }>('concept-note', { body: context })
 
   if (error) {
-    const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
+    const what =
+    context.kind === 'proposal'
+      ? 'proposal'
+      : context.kind === 'performance-report'
+        ? 'performance report'
+        : 'concept note'
     throw new Error(
       `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and a drafting key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.`,
     )
@@ -135,7 +145,12 @@ export async function draftConceptNoteStreaming(
 ): Promise<DraftResult> {
   const base = import.meta.env.VITE_SUPABASE_URL
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  const what = context.kind === 'proposal' ? 'proposal' : 'concept note'
+  const what =
+    context.kind === 'proposal'
+      ? 'proposal'
+      : context.kind === 'performance-report'
+        ? 'performance report'
+        : 'concept note'
 
   // The function verifies the caller, so it needs this user's token rather than
   // the anon key. invoke() would have attached it for us.

@@ -15,6 +15,7 @@ import { Field, FieldRow, SelectField } from '@/components/field'
 import { usePipeline } from '@/hooks/use-pipeline'
 import { useAuth } from '@/hooks/use-auth'
 import { SystemReportPanel } from '@/components/system-report-panel'
+import { PerformanceReportPanel } from '@/components/performance-report-panel'
 import { cn } from '@/lib/utils'
 import {
   formatDate,
@@ -266,6 +267,22 @@ export function ReportView() {
 
       {/* Super user only: it is a report on the tool rather than on the work,
           and it is the person answering for the tool who is asked for it. */}
+      {/* Everyone gets this one: it reports on the reader's own work, and it is
+
+          the person who did the work who takes it to management. */}
+
+      <PerformanceReportPanel
+
+        period={period}
+
+        offset={offset}
+
+        revenue={revenue.trim() ? Number(revenue) : null}
+
+      />
+
+      
+
       {can.manageMembers && <SystemReportPanel />}
 
       <Panel title="Copy-ready summary">
