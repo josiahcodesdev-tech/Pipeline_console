@@ -546,6 +546,24 @@ export async function setProposalExemplar(
   return toProposal(row)
 }
 
+/**
+ * Who a proposal written against this tender must belong to.
+ *
+ * The tender's owner, not the writer: oversight may draft on a member's bid,
+ * and a row owned by the admin is one the member's own select policy hides from
+ * them — help they cannot read. Enforced server-side by proposals_insert; see
+ * migration 0029. Falls back to the caller when the tender cannot be read,
+ * which is the pre-0029 behaviour and still correct for one's own rows.
+ */
+async function proposalOwner(rfpId: string): Promise<string> {
+  const { data } = await supabase
+    .from('rfps')
+    .select('user_id')
+    .eq('id', rfpId)
+    .maybeSingle()
+  return data?.user_id ?? (await currentUserId())
+}
+
 /** Records a past proposal pasted in as text, so it can be used as an example. */
 export async function savePastedProposal(
   rfpId: string,
@@ -556,7 +574,7 @@ export async function savePastedProposal(
     await supabase
       .from('proposals')
       .insert({
-        user_id: await currentUserId(),
+        user_id: await proposalOwner(rfpId),
         rfp_id: rfpId,
         kind: 'submitted',
         title,
@@ -582,7 +600,7 @@ export async function saveDraftProposal(
     await supabase
       .from('proposals')
       .insert({
-        user_id: await currentUserId(),
+        user_id: await proposalOwner(rfpId),
         rfp_id: rfpId,
         kind: 'draft',
         title,
@@ -601,16 +619,19 @@ export async function saveDraftProposal(
 /**
  * Uploads the file that actually went to the buyer.
  *
- * The object path starts with the owner's uid because the storage policies
- * compare that first segment to `auth.uid()` — get the shape wrong and the
- * upload is rejected rather than silently readable by others.
+ * The object path starts with the *tender owner's* uid, not the uploader's.
+ * Storage policies compare that first segment to `auth.uid()`, which is what
+ * keeps a submitted document private to its owner — and it is also why the
+ * folder has to name the member rather than the admin attaching it for them. A
+ * file filed under the admin is one the member cannot open. Migration 0029
+ * grants admins write access to a member's folder for exactly this.
  */
 export async function uploadSubmittedProposal(
   rfpId: string,
   file: File,
   notes: string,
 ): Promise<Proposal> {
-  const userId = await currentUserId()
+  const userId = await proposalOwner(rfpId)
   const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
   const path = `${userId}/${rfpId}/${crypto.randomUUID()}.${extension}`
 
