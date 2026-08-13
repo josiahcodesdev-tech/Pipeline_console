@@ -13,6 +13,8 @@ import { EmptyState, Panel, ViewHeader } from '@/components/panel'
 import { KpiCard } from '@/components/kpi-card'
 import { Field, FieldRow, SelectField } from '@/components/field'
 import { usePipeline } from '@/hooks/use-pipeline'
+import { useAuth } from '@/hooks/use-auth'
+import { SystemReportPanel } from '@/components/system-report-panel'
 import { cn } from '@/lib/utils'
 import {
   formatDate,
@@ -35,6 +37,7 @@ type SubmittedOption = (typeof SUBMITTED_OPTIONS)[number]
 
 export function ReportView() {
   const { leads, rfps, tasks, activities, reports, saveReport } = usePipeline()
+  const { can } = useAuth()
   const [period, setPeriod] = useState<ReportPeriod>('week')
   // Offset in whole periods from the one containing today; 0 is current.
   const [offset, setOffset] = useState(0)
@@ -260,6 +263,10 @@ export function ReportView() {
           </Button>
         </div>
       </Panel>
+
+      {/* Super user only: it is a report on the tool rather than on the work,
+          and it is the person answering for the tool who is asked for it. */}
+      {can.manageMembers && <SystemReportPanel />}
 
       <Panel title="Copy-ready summary">
         <pre className="max-h-[260px] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-surface-2 p-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
