@@ -11,6 +11,7 @@ import {
   TargetIcon,
   TrashIcon,
   UploadIcon,
+  UserRoundCogIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ import { extractPdfText, MAX_TENDER_CHARS } from '@/lib/pdf-text'
 import { daysUntil, formatDateWithYear, formatKes } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import type { Proposal, Rfp } from '@/lib/types'
+import { ReassignDialog } from '@/components/reassign-dialog'
 import { RfpDialog } from './rfp-dialog'
 import { ProposalPreview } from './proposal-preview'
 
@@ -98,21 +100,26 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       : null
 
   /**
-   * A tender someone else has taken is read-only for everybody, including the
-   * admin and the super user.
+   * A tender someone else has taken is read-only — for standard users.
    *
    * The whole point of an exclusive claim is that one person owns the response.
-   * Two people drafting against the same notice, or one quietly editing the
+   * Two members drafting against the same notice, or one quietly editing the
    * other's tender document mid-bid, is exactly the confusion the claim exists
-   * to prevent — and it would be worse than the duplicate bidding it replaced,
+   * to prevent, and it would be worse than the duplicate bidding it replaced
    * because it happens invisibly.
    *
-   * An admin who genuinely needs to act releases the claim first, which is a
-   * deliberate act that shows up rather than a silent edit.
+   * Oversight is exempt. This used to apply to admins and the super user too,
+   * on the argument that they should release the claim before acting — but
+   * releasing hands the tender back to the pool where anyone may take it, which
+   * is a much larger act than fixing a typo, and it left the person responsible
+   * for the pipeline unable to finish a bid a member had abandoned. Migration
+   * 0028 grants the same exemption in the policies, so this is not a hidden
+   * button standing in for a server rule.
    */
-  const viewOnly = heldByOther !== null
+  const viewOnly = heldByOther !== null && !can.seeEveryone
 
   const [editing, setEditing] = useState(false)
+  const [reassigning, setReassigning] = useState(false)
   const [drafting, setDrafting] = useState(false)
   const [uploadNotes, setUploadNotes] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -456,9 +463,36 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 Edit
               </Button>
             )}
+            {can.seeEveryone && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReassigning(true)}
+                title="Hand this tender, and everything attached to it, to another member"
+              >
+                <UserRoundCogIcon />
+                Reassign
+              </Button>
+            )}
           </div>
         </div>
       </div>
+
+      {heldByOther && !viewOnly && (
+        // Oversight acting on somebody else's bid. The controls are all live,
+        // so nothing on the page would otherwise say whose work this is — and
+        // editing a colleague's tender without noticing is the failure the
+        // read-only rule used to prevent by refusing outright.
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-gold/50 bg-gold-soft/60 px-4 py-3">
+          <UserRoundCogIcon className="mt-0.5 size-4 shrink-0 text-clay" aria-hidden />
+          <div className="text-xs leading-relaxed text-clay">
+            <span className="font-semibold">{heldByOther} is bidding this tender.</span>{' '}
+            You can edit, draft and log against it because you oversee the
+            pipeline — but the work is theirs, and they will not be told. Use
+            Reassign if it should change hands properly.
+          </div>
+        </div>
+      )}
 
       {viewOnly && (
         // Said once, plainly, at the top. Everything below is missing its
@@ -473,7 +507,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             You can read everything here, but not draft, edit, attach a document
             or log against it — one proposal per tender is what stops two of
             ours reaching the same buyer. If it should be yours, ask them to
-            hand it back{can.seeEveryone ? ', or release it from the tracker' : ''}.
+            hand it back.
           </div>
         </div>
       )}
@@ -845,6 +879,20 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           onBack()
         }}
       />
+
+      {can.seeEveryone && (
+        <ReassignDialog
+          rfp={rfp}
+          currentOwner={
+            heldByOther ??
+            (rfp.ownerId === profile?.id
+              ? 'you'
+              : (memberNames.get(rfp.ownerId) ?? 'another member'))
+          }
+          open={reassigning}
+          onOpenChange={setReassigning}
+        />
+      )}
     </>
   )
 }

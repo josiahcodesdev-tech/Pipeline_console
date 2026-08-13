@@ -102,6 +102,8 @@ interface PipelineValue {
   removeRfp: (id: string) => Promise<void>
   setRfpStatus: (id: string, status: RfpStatus) => Promise<void>
   setRfpPipeline: (id: string, inPipeline: boolean) => Promise<void>
+  /** Hands a tender and its attached work to another member. Oversight only. */
+  reassignRfp: (id: string, newOwner: string) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
   setTenderDocument: (id: string, text: string, fileName: string) => Promise<void>
   syncOpportunities: () => Promise<SyncOutcome>
@@ -336,6 +338,15 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       toast.error(message(cause))
     }
   }, [rfps, claims])
+
+  const reassignRfp = useCallback(async (id: string, newOwner: string) => {
+    await db.reassignRfp(id, newOwner)
+    // A full reload rather than patching state: the move rewrites four tables,
+    // can delete the new owner's duplicate copy, and changes what the reader
+    // may see at all — an admin who reassigns their own row loses nothing, but
+    // a member watching this happen does. Cheaper to re-read than to model it.
+    await refresh()
+  }, [refresh])
 
   const saveRfp = useCallback(async (draft: db.RfpDraft, existing: Rfp | null) => {
     const saved = existing
@@ -626,6 +637,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeRfp,
       setRfpStatus,
       setRfpPipeline,
+
+      reassignRfp,
       importRfps,
       setTenderDocument,
       syncOpportunities,
@@ -668,6 +681,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeRfp,
       setRfpStatus,
       setRfpPipeline,
+
+      reassignRfp,
       importRfps,
       setTenderDocument,
       syncOpportunities,

@@ -333,6 +333,15 @@ export type Database = {
           unclaimed_open: number
         }
       }
+      /**
+       * Moves a tender, its proposals, its activities and its claim to another
+       * member. Admin and super user only — see migration 0028. One call
+       * because the four writes have to agree afterwards.
+       */
+      reassign_rfp: {
+        Args: { target: string; new_owner: string }
+        Returns: undefined
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

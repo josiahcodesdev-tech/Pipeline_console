@@ -906,6 +906,21 @@ export async function fetchRfpClaims(): Promise<RfpClaim[]> {
  * Hand-added RFPs have no external id and so no claim — nobody else can see
  * them to take.
  */
+/**
+ * Hands a tender and everything attached to it to another member.
+ *
+ * One RPC rather than four writes from here, because the tender, its proposals,
+ * its activities and the firm-wide claim have to agree afterwards — see
+ * migration 0028. Admin and super user only, enforced in the function.
+ */
+export async function reassignRfp(id: string, newOwner: string): Promise<void> {
+  const { error } = await supabase.rpc('reassign_rfp', {
+    target: id,
+    new_owner: newOwner,
+  })
+  if (error) throw new Error(`Could not reassign this tender: ${error.message}`)
+}
+
 export async function setRfpPipeline(
   id: string,
   inPipeline: boolean,
@@ -934,13 +949,17 @@ export async function setRfpPipeline(
   }
 
   if (externalId && !inPipeline) {
-    // Only your own claim comes off — the delete policy sees to that, so an
-    // attempt on someone else's simply removes nothing.
+    // Matched on the tender alone, and left to row-level security to decide
+    // whose claim may go: a member's delete matches only their own, an admin's
+    // matches anyone's. Filtering on `claimed_by` here as well used to look
+    // like belt and braces, but it quietly broke oversight — an admin taking a
+    // colleague's abandoned bid out of the pipeline cleared the flag and left
+    // the claim behind, so the tender was in nobody's pipeline and still
+    // unclaimable by anyone.
     const { error } = await supabase
       .from('rfp_claims')
       .delete()
       .eq('external_id', externalId)
-      .eq('claimed_by', userId)
     if (error) throw new Error(`Could not hand this tender back: ${error.message}`)
   }
 

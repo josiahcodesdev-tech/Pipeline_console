@@ -240,6 +240,7 @@ export function PipelineView({
                     rfp={rfp}
                     owner={showOwner ? ownerLabel(rfp) : null}
                     mine={rfp.ownerId === session?.user.id}
+                    canOversee={can.seeEveryone}
                     lastTouch={lastTouch.get(rfp.id)}
                     onStatus={setRfpStatus}
                     onOpen={onOpenProfile}
@@ -259,6 +260,7 @@ function PipelineRow({
   rfp,
   owner,
   mine,
+  canOversee,
   lastTouch,
   onStatus,
   onOpen,
@@ -268,6 +270,8 @@ function PipelineRow({
   /** Who took this on, or `null` when the viewer only ever sees their own. */
   owner: string | null
   mine: boolean
+  /** Oversight may act on anyone's row; see migration 0028. */
+  canOversee: boolean
   lastTouch?: string
   onStatus: (id: string, status: RfpStatus) => Promise<void>
   onOpen: (id: string) => void
@@ -335,10 +339,11 @@ function PipelineRow({
         />
       </TableCell>
       <TableCell>
-        {/* Only your own. Row-level security scopes the update to rows you own,
-            so this button on someone else's proposal could only ever fail —
-            leaving it there offers an action the server will refuse. */}
-        {mine && (
+        {/* Your own, or anyone's if you oversee the pipeline. It was hidden on
+            other members' rows because the update policy scoped writes to the
+            owner and the button could only ever fail; migration 0028 gives
+            oversight that write, so the control comes back with it. */}
+        {(mine || canOversee) && (
           <button
             type="button"
             onClick={() => onRemove(rfp.id)}
