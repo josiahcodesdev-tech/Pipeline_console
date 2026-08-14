@@ -320,19 +320,11 @@ export function DashboardView({
             )}
           </div>
 
-          {/* Required by the Icons8 free licence: the marks above may be used
-              at no cost provided this link is visible. */}
-          <p className="shrink-0 text-right text-[10px] text-faint">
-            Icons by{' '}
-            <a
-              href="https://icons8.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-muted-foreground"
-            >
-              Icons8
-            </a>
-          </p>
+          {/* No Icons8 attribution line: the marks on this page are covered by
+              a licence that does not require one. It used to sit here, and was
+              emptied rather than deleted — an anchor with no text is still a
+              link, and a link with no accessible name is announced to a screen
+              reader as an unlabelled destination. */}
         </aside>
       </div>
 

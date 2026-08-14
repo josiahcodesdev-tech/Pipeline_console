@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils'
  * third-party requests on every page load, and the dashboard should still
  * render if icons8 is slow, blocked by a corporate network, or changes a URL.
  *
- * Licence: free use requires a visible link back to icons8.com, which the
- * dashboard footer carries. Remove that link only if the licence changes.
+ * Licence: covered by a licence that does not require on-page attribution, so
+ * there is no longer a link in the dashboard footer. The free Icons8 tier does
+ * require one — if these are ever swapped back to it, the link has to come
+ * back with them.
  */
 const ICONS = {
   qualified: 'handshake',
