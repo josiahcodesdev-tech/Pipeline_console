@@ -28,7 +28,7 @@ import {
   PROPOSAL_PROMPT,
   TENDER_ANALYSIS_PROMPT,
 } from './prompts.ts'
-import { fetchNotice, MAX_NOTICE_CHARS } from './notice.ts'
+import { fetchNotice } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
 
@@ -426,7 +426,6 @@ The full tender document is reproduced below, after the summary. It is the autho
 Read it for compliance as well as content — page limits, submission method, validity period, required attachments and forms — and list anything it demands that you cannot satisfy from the information supplied in the bid readiness notes.
 
 ${details}
-${analysis ? `\n---\n\n## What this assignment is, as already read\n\n${analysis}\n` : ''}
 ---
 
 ## Tender document

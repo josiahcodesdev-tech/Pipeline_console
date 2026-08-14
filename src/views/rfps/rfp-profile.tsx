@@ -359,7 +359,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       {/*
         The document as it is written, pinned to the side of the screen.
 
-        A proposal is 8,000 tokens and takes the better part of a minute, which
+        A proposal is a substantial document and can take close to a minute, which
         as a disabled button is indistinguishable from a hang. It stays open
         after the draft finishes so the text can be read without digging the
         .docx out of the downloads folder, and closing it does not cancel

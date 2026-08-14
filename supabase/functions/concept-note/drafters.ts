@@ -60,11 +60,11 @@ const CLAUDE_MODEL = 'claude-opus-5'
  * Output ceiling for Claude, covering thinking *and* the document.
  *
  * Claude Opus 5 thinks by default and `max_tokens` caps the two together, so
- * this has to be well clear of the ~16,000 tokens an eighteen-page proposal
- * needs or the document gets cut off by its own reasoning. Output bills only
+ * this has to leave room for both the compact proposal and its reasoning or the
+ * document gets cut off. Output bills only
  * when produced, so headroom that is never used costs nothing.
  */
-const CLAUDE_PROPOSAL_MAX_TOKENS = 32_000
+const CLAUDE_PROPOSAL_MAX_TOKENS = 20_000
 const CLAUDE_NOTE_MAX_TOKENS = 4_000
 
 /**
@@ -150,10 +150,10 @@ const OPENAI_PROPOSAL_MODEL = 'gpt-4o'
 const OPENAI_NOTE_MODEL = 'gpt-4o-mini'
 
 /**
- * Just under gpt-4o's 16,384-token output maximum. Unlike Claude this covers
+ * Enough for the compact proposal with safe headroom. Unlike Claude this covers
  * the document alone — there is no thinking to leave room for.
  */
-const OPENAI_PROPOSAL_MAX_TOKENS = 16_000
+const OPENAI_PROPOSAL_MAX_TOKENS = 10_000
 const OPENAI_NOTE_MAX_TOKENS = 2_000
 
 function openaiDrafter(apiKey: string): Drafter {

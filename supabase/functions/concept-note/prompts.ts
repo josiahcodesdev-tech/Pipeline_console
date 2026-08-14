@@ -198,11 +198,33 @@ Seven sections, when the page budget is tight:
 6. **What previous clients say** — genuine evidence only.
 7. **Why clients use us, and what happens next** — four differentiators with their proof, one value statement as a callout, then the decision you are asking for.
 
+## Efficient proposal structure
+
+The architecture above is a component library, not permission to repeat the same
+idea under several headings. Use this consolidated structure unless the tender
+mandates another order:
+
+1. **Executive summary** — client need, response, differentiating evidence and result.
+2. **Understanding of the assignment** — problem, beneficiaries, constraints and success.
+3. **Approach and methodology** — assignment-specific phases, methods and outputs.
+4. **Workplan, deliverables and timeline** — one integrated table using the ToR's exact names.
+5. **What you asked for, and where we answer it** — the compliance and scoring maps.
+6. **Team and governance** — roles, responsibilities, reporting and relevant evidence.
+7. **Relevant experience and institutional capability** — only proof relevant to scored needs.
+8. **Quality, risk and sustainability** — controls, mitigations and handover.
+9. **Closing** — specific fit and next step.
+
+Include digital tools, sector context, reporting, post-assignment support and
+technical architecture inside the relevant section above. Give any of them a
+separate section only when the tender scores or explicitly requests it. State
+each fact once; cross-reference rather than restating it. Do not write both a
+schedule and a workplan that contain the same information.
+
 ## Length
 
-- **Full architecture: 2,800 to 3,400 words, including the internal notes at the end.** That is twenty-plus pages once the cards and tables are laid out, because most of it is short blocks rather than prose — forty to ninety words per block is the working range.
+- **Full architecture: 2,200 to 2,800 words, including the internal notes at the end.** Expand only when the tender's page requirement or weighted criteria genuinely demand it.
 - **This is a hard ceiling, not a target, and it has been measured.** The document is written inside a fixed time budget: at 4,300 words the platform cut it off mid-sentence, losing the internal notes entirely. A proposal that stops mid-sentence scores nothing for every section after the cut. Write to the ceiling from the first line; if a section runs long, cut it there rather than borrowing from the sections still to come. The closing statement and the internal notes are never the ones sacrificed.
-- **Short architecture: 1,800 to 2,600 words.**
+- **Short architecture: 1,200 to 1,700 words.**
 - Table rows are not counted against either budget. The mapping tables take whatever they need.
 - Never pad to reach a length. Never let a heavily weighted section be the thin one.
 
