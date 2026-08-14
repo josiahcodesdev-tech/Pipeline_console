@@ -46,6 +46,20 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** Pull the short opening explanation out of the structured tender reading. */
+function assignmentSummary(analysis: string): string {
+  const heading = /^#{1,3}\s+What this assignment is\s*$/im
+  const match = heading.exec(analysis)
+  if (!match) return ''
+
+  const body = analysis.slice(match.index + match[0].length)
+  return body
+    .split(/^#{1,3}\s+/m, 1)[0]
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -169,10 +183,41 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         .map((proposal) => proposal.content.slice(0, MAX_EXEMPLAR_CHARS)),
     [exemplars],
   )
+  const summary = useMemo(
+    () => assignmentSummary(rfp.analysis) || rfp.notes.trim(),
+    [rfp.analysis, rfp.notes],
+  )
 
   const left = daysUntil(rfp.deadline)
 
   const [reading, setReading] = useState(false)
+
+  /**
+   * Produces the structured brief that proposal drafting needs.
+   *
+   * Kept as one operation for both the explicit Read button and automatic
+   * pre-draft reading, so the two paths cannot quietly analyse different
+   * source material.
+   */
+  async function readTender(): Promise<string> {
+    const result = await draftConceptNoteStreaming(
+      {
+        kind: 'tender-analysis',
+        org: rfp.org,
+        segment: rfp.segment,
+        notes: rfp.notes,
+        rfpTitle: rfp.title,
+        deadline: rfp.deadline,
+        serviceAreas: rfp.serviceAreas,
+        tenderText: rfp.tenderText,
+        // The server fetches this; the browser cannot, for want of CORS.
+        link: rfp.link,
+      },
+      () => undefined,
+    )
+    await saveTenderAnalysis(rfp.id, result.text, '')
+    return result.text
+  }
 
   /**
    * Reads the tender before anything is written for it.
@@ -185,22 +230,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   async function handleRead() {
     setReading(true)
     try {
-      const result = await draftConceptNoteStreaming(
-        {
-          kind: 'tender-analysis',
-          org: rfp.org,
-          segment: rfp.segment,
-          notes: rfp.notes,
-          rfpTitle: rfp.title,
-          deadline: rfp.deadline,
-          serviceAreas: rfp.serviceAreas,
-          tenderText: rfp.tenderText,
-          // The server fetches this; the browser cannot, for want of CORS.
-          link: rfp.link,
-        },
-        () => undefined,
-      )
-      await saveTenderAnalysis(rfp.id, result.text, '')
+      await readTender()
       toast.success('Read. Check it before drafting against it.')
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
@@ -217,6 +247,21 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setDrafting(true)
     setDraftPreview('')
     try {
+      // A linked notice is not enough context by itself: the proposal endpoint
+      // deliberately does no network fetch. If nobody has read it yet, do that
+      // now and feed the resulting scope, deliverables, criteria and gaps into
+      // this same draft. This closes the old path where one click could produce
+      // polished prose from little more than a title.
+      let proposalAnalysis = rfp.analysis.trim()
+      if (!rfp.tenderText.trim() && !proposalAnalysis) {
+        if (!rfp.link.trim()) {
+          toast.error('Attach the tender document or add its source link before drafting')
+          return
+        }
+        toast.info('Reading the RFP source before drafting…')
+        proposalAnalysis = await readTender()
+      }
+
       const result = await draftConceptNoteStreaming(
         {
           kind: 'proposal',
@@ -238,7 +283,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           // And where no document was attached, the reading of the notice does
           // the same job. Without either, a proposal is written against a
           // 99-character title, which is where invented scopes come from.
-          analysis: rfp.analysis,
+          analysis: proposalAnalysis,
         },
         // The panel renders from this, so the document appears as it is written
         // rather than after a minute of a disabled button.
@@ -554,6 +599,14 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         </div>
       )}
 
+      <section className="mb-5 rounded-xl border border-border bg-card px-4 py-3.5">
+        <div className="eyebrow mb-1.5 text-clay">Assignment summary</div>
+        <p className="max-w-[90ch] text-[13px] leading-relaxed text-foreground">
+          {summary ||
+            'No assignment summary is available yet. Read the tender or attach its Terms of Reference to create one.'}
+        </p>
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
           {PROPOSAL_DRAFTING && !viewOnly && (
@@ -614,7 +667,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 type="button"
                 variant={rfp.analysis ? 'outline' : 'default'}
                 onClick={() => void handleRead()}
-                disabled={reading}
+                disabled={reading || drafting}
               >
                 <SparklesIcon className="size-3.5" aria-hidden />
                 {reading ? 'Reading…' : rfp.analysis ? 'Read again' : 'Read this tender'}
@@ -636,9 +689,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               </>
             ) : (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Not read yet. Drafting without this works from the title and the
-                organisation name alone, which is how a proposal ends up answering a
-                scope nobody published.
+                Not read yet. You can read it here for review, or draft directly:
+                drafting will first read the linked notice automatically and save the
+                resulting brief before writing.
               </p>
             )}
           </Panel>
@@ -652,12 +705,12 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             </p>
             {!rfp.analysis && !rfp.tenderText && (
               <p className="mb-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11.5px] leading-relaxed text-warning">
-                Neither a Terms of Reference nor a reading of the notice is attached, so
-                the drafter has the title and the organisation and nothing else. Read the
-                tender first.
+                No Terms of Reference or saved reading is attached. Drafting will first
+                fetch and analyse the source link; if there is no usable link, attach the
+                tender document before continuing.
               </p>
             )}
-            <Button onClick={() => void handleDraft()} disabled={drafting}>
+            <Button onClick={() => void handleDraft()} disabled={drafting || reading}>
               <SparklesIcon />
               {drafting ? 'Drafting…' : 'Draft proposal'}
             </Button>
