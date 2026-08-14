@@ -106,6 +106,8 @@ interface PipelineValue {
   reassignRfp: (id: string, newOwner: string) => Promise<void>
   importRfps: (drafts: db.RfpDraft[]) => Promise<number>
   setTenderDocument: (id: string, text: string, fileName: string) => Promise<void>
+  /** Stores the drafter’s reading of a tender, and the notice it read. */
+  saveTenderAnalysis: (id: string, analysis: string, noticeText: string) => Promise<void>
   syncOpportunities: () => Promise<SyncOutcome>
   /** State of the background sync, for status text in the RFPs view. */
   autoSync: AutoSyncStatus
@@ -339,6 +341,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     }
   }, [rfps, claims])
 
+  const saveTenderAnalysis = useCallback(
+    async (id: string, analysis: string, noticeText: string) => {
+      const saved = await db.saveTenderAnalysis(id, analysis, noticeText)
+      setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
+    },
+    [],
+  )
   const reassignRfp = useCallback(async (id: string, newOwner: string) => {
     await db.reassignRfp(id, newOwner)
     // A full reload rather than patching state: the move rewrites four tables,
@@ -641,6 +650,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reassignRfp,
       importRfps,
       setTenderDocument,
+
+      saveTenderAnalysis,
       syncOpportunities,
       autoSync,
       syncedAt,
@@ -685,6 +696,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       reassignRfp,
       importRfps,
       setTenderDocument,
+
+      saveTenderAnalysis,
       syncOpportunities,
       autoSync,
       syncedAt,

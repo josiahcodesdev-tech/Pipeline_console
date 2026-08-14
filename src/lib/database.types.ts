@@ -108,6 +108,10 @@ export type RfpRow = {
   /** Text extracted from the tender PDF in the browser; see migration 0011. */
   tender_text: string
   tender_file_name: string
+  /** See migration 0030. */
+  notice_text: string
+  analysis: string
+  analysed_at: string | null
   /** Opportunity id from the CareerCraft feed; null for manual entries. */
   external_id: string | null
   created_on: string
@@ -220,6 +224,10 @@ export type Database = {
           | 'fit_score'
           | 'tender_text'
           | 'tender_file_name'
+          // Written by reading the tender, never at insert; see migration 0030.
+          | 'notice_text'
+          | 'analysis'
+          | 'analysed_at'
         >
         Update: Partial<RfpRow>
         Relationships: []

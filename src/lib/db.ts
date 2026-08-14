@@ -56,6 +56,11 @@ export type RfpDraft = Omit<
   | 'sourced'
   | 'externalId'
   | 'inPipeline'
+  // Written by reading the tender, not by the edit form — the same reasoning
+  // as the file fields on a consultant. See migration 0030.
+  | 'noticeText'
+  | 'analysis'
+  | 'analysedAt'
 >
 export type TaskDraft = Omit<Task, 'id' | 'done' | 'completedOn' | 'createdOn'>
 // The file fields are omitted: they are set by uploading, not by editing the
@@ -173,6 +178,9 @@ function toRfp(row: RfpRow): Rfp {
     fitScore: row.fit_score ?? 0,
     tenderText: row.tender_text ?? '',
     tenderFileName: row.tender_file_name ?? '',
+    noticeText: row.notice_text ?? '',
+    analysis: row.analysis ?? '',
+    analysedAt: row.analysed_at ?? '',
     externalId: row.external_id,
     createdOn: row.created_on,
     createdAt: row.created_at,
@@ -1325,4 +1333,38 @@ export async function updateConsultant(
 export async function deleteConsultant(id: string): Promise<void> {
   const { error } = await supabase.from('consultants').delete().eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+/**
+ * Stores the drafter's reading of a tender, and the notice it was read from.
+ *
+ * Kept rather than recomputed so it can be inspected and corrected before a
+ * proposal is written against it — an understanding nobody can check is a guess
+ * with better manners. `notice_text` is written alongside because the analysis
+ * is only as good as its source, and a reader who doubts the reading needs to
+ * see what was read.
+ */
+export async function saveTenderAnalysis(
+  id: string,
+  analysis: string,
+  noticeText: string,
+): Promise<Rfp> {
+  const { data, error } = await supabase
+    .from('rfps')
+    .update({
+      analysis,
+      // Never blanked by a later run that could not reach the page: a stored
+      // notice is worth more than an empty one from a portal having a bad day.
+      ...(noticeText ? { notice_text: noticeText } : {}),
+      analysed_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+
+  if (error) throw new Error(`Could not save the analysis: ${error.message}`)
+  if (!data) {
+    throw new Error('This tender belongs to another member, so its analysis cannot be saved.')
+  }
+  return toRfp(data)
 }

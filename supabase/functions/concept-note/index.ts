@@ -22,7 +22,13 @@
  * regardless.
  */
 
-import { CONCEPT_NOTE_PROMPT, PERFORMANCE_REPORT_PROMPT, PROPOSAL_PROMPT } from './prompts.ts'
+import {
+  CONCEPT_NOTE_PROMPT,
+  PERFORMANCE_REPORT_PROMPT,
+  PROPOSAL_PROMPT,
+  TENDER_ANALYSIS_PROMPT,
+} from './prompts.ts'
+import { fetchNotice, MAX_NOTICE_CHARS } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
 
@@ -308,11 +314,14 @@ Deno.serve(async (request: Request) => {
   // It takes no playbook, no roster and no tender: its content is the figures
   // block, and anything it cannot read there it must not claim.
   const isPerformanceReport = kind === 'performance-report'
+  const isAnalysis = kind === 'tender-analysis'
   const what = isProposal
     ? 'proposal'
     : isPerformanceReport
       ? 'performance report'
-      : 'concept note'
+      : isAnalysis
+        ? 'tender analysis'
+        : 'concept note'
 
   const segment = text(context.segment) || 'Government'
   const country = text(context.country)
@@ -346,6 +355,11 @@ Deno.serve(async (request: Request) => {
     ? selectPlaybooks(`${rfpTitle} ${serviceAreas} ${notes} ${segment}`)
     : []
 
+  // The stored reading of the tender, when one has been produced. A proposal
+  // written from this rather than from a 99-character title is the difference
+  // the analysis pass exists to make.
+  const analysis = isProposal ? text(context.analysis, 8000) : ''
+
   const details = [
     `${isProposal ? 'Issuing organization' : 'Recipient organization'}: ${org}`,
     `Sector / segment: ${segment}`,
@@ -363,11 +377,13 @@ Deno.serve(async (request: Request) => {
   // the examples — each layer is more specific than the last, so it reads as
   // refinement rather than contradiction.
   const systemPrompt = [
-    isPerformanceReport
-      ? PERFORMANCE_REPORT_PROMPT
-      : isProposal
-        ? PROPOSAL_PROMPT
-        : CONCEPT_NOTE_PROMPT,
+    isAnalysis
+      ? TENDER_ANALYSIS_PROMPT
+      : isPerformanceReport
+        ? PERFORMANCE_REPORT_PROMPT
+        : isProposal
+          ? PROPOSAL_PROMPT
+          : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
     houseRulesBlock(guidance, boilerplate),
     rosterBlock(roster),
@@ -375,6 +391,19 @@ Deno.serve(async (request: Request) => {
   ]
     .filter(Boolean)
     .join('\n\n')
+
+  // The notice itself, fetched here because these portals send no CORS header
+  // and a browser cannot read them at all. Only for an analysis: it is a
+  // network round trip per call, and a proposal is written from the analysis
+  // rather than from the raw page.
+  let noticeText = ''
+  let noticeProblem: string | null = null
+  if (isAnalysis) {
+    const link = text(context.link, 2000)
+    const fetched = await fetchNotice(link)
+    noticeText = fetched.text
+    noticeProblem = fetched.problem
+  }
 
   // Only proposals carry a tender document; a lead has no scope to attach yet.
   const tender = isProposal ? text(context.tenderText, MAX_TENDER_CHARS) : ''
@@ -393,7 +422,7 @@ The full tender document is reproduced below, after the summary. It is the autho
 Read it for compliance as well as content — page limits, submission method, validity period, required attachments and forms — and list anything it demands that you cannot satisfy from the information supplied in the bid readiness notes.
 
 ${details}
-
+${analysis ? `\n---\n\n## What this assignment is, as already read\n\n${analysis}\n` : ''}
 ---
 
 ## Tender document
@@ -401,16 +430,35 @@ ${details}
 ${tender}`
       : `Draft a proposal responding to this tender.
 
-You have the published notice only — not the full RFP document, evaluation matrix, company profile, CVs or reference letters. Work from what is here, mark everything else as a placeholder, and list what the bid team must supply in the bid readiness notes.
+${
+  analysis
+    ? 'You do not have the full RFP document, but the notice has been read and analysed for you — that reading is below and is what you should write against. Where it says "Not stated", the notice genuinely does not say: mark it as a placeholder rather than inventing an answer.'
+    : 'You have the published notice only — not the full RFP document, evaluation matrix, company profile, CVs or reference letters, and nobody has analysed it. You are working from a title and an organisation name, so say so in the bid readiness notes and keep every specific you cannot evidence as a marked placeholder.'
+}
 
-${details}`
+${details}
+${analysis ? `\n---\n\n## What this assignment is, as already read\n\n${analysis}` : ''}`
     : isPerformanceReport
       ? `Write a performance report covering the period below.
 
 The figures block is the only source you have. Every number in the report must come from it. Where the block says something is not held, that is a placeholder for the author to supply — never a number to estimate.
 
 ${text(context.notes, 12_000) || "No figures were supplied, which makes this report impossible to write honestly. Say so and stop."}`
-      : `Draft a ${what} using this context:\n\n${details}`
+      : isAnalysis
+      ? `Read this opportunity and report what the assignment is.
+
+${details}
+
+${
+  tender
+    ? `## Uploaded Terms of Reference (authoritative)\n\n${tender}`
+    : noticeText
+      ? `## The published notice, fetched from its link\n\n${noticeText}`
+      : `## No notice text
+
+The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You have the summary above and nothing more. Say so in your first sentence and answer "Not stated" wherever the summary does not answer the question — do not infer a scope from the title.`
+}`
+    : `Draft a ${what} using this context:\n\n${details}`
 
   const job = { system: systemPrompt, task, heavy: isProposal || isPerformanceReport }
 

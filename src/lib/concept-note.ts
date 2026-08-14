@@ -17,7 +17,11 @@ export type ConsultantBrief = Omit<Consultant, 'id' | 'longBio'>
  * own relevance. An RFP gets a *proposal*, which answers a brief that already
  * exists, so it leads with the response rather than the introduction.
  */
-export type DraftKind = 'concept-note' | 'proposal' | 'performance-report'
+export type DraftKind =
+  | 'concept-note'
+  | 'proposal'
+  | 'performance-report'
+  | 'tender-analysis'
 
 /**
  * How many worked examples to send. Every one is included in full on every
@@ -38,6 +42,16 @@ export interface ConceptNoteContext {
   consultants?: ConsultantBrief[]
   /** Text of the tender document, when one has been attached to the RFP. */
   tenderText?: string
+  /**
+   * The notice URL. Sent so the *server* can fetch it — these portals send no
+   * CORS header, so the browser cannot read them at all.
+   */
+  link?: string
+  /**
+   * The stored reading of this tender. A proposal written from this rather than
+   * from a 99-character title is the difference the analysis pass exists for.
+   */
+  analysis?: string
   kind: DraftKind
   org: string
   segment: string
@@ -71,11 +85,24 @@ export const DRAFT_LABELS: Record<
     action: 'Draft proposal',
     loading: 'Drafting proposal…',
   },
+  'tender-analysis': {
+    title: 'What this tender is',
+    action: 'Read this tender',
+    loading: 'Reading the tender…',
+  },
   'performance-report': {
     title: 'Performance report',
     action: 'Write the report',
     loading: 'Writing the report…',
   },
+}
+
+/** What to call this kind of document in an error message. */
+function labelFor(kind: DraftKind): string {
+  if (kind === 'proposal') return 'proposal'
+  if (kind === 'performance-report') return 'performance report'
+  if (kind === 'tender-analysis') return 'tender analysis'
+  return 'concept note'
 }
 
 export interface DraftResult {
@@ -107,12 +134,7 @@ export async function draftConceptNote(
   }>('concept-note', { body: context })
 
   if (error) {
-    const what =
-    context.kind === 'proposal'
-      ? 'proposal'
-      : context.kind === 'performance-report'
-        ? 'performance report'
-        : 'concept note'
+    const what = labelFor(context.kind)
     throw new Error(
       `Could not draft the ${what}: ${error.message}. Check that the concept-note function is deployed and a drafting key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.`,
     )
@@ -145,12 +167,7 @@ export async function draftConceptNoteStreaming(
 ): Promise<DraftResult> {
   const base = import.meta.env.VITE_SUPABASE_URL
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  const what =
-    context.kind === 'proposal'
-      ? 'proposal'
-      : context.kind === 'performance-report'
-        ? 'performance report'
-        : 'concept note'
+  const what = labelFor(context.kind)
 
   // The function verifies the caller, so it needs this user's token rather than
   // the anon key. invoke() would have attached it for us.

@@ -278,6 +278,11 @@ export interface Rfp {
    * criteria rather than the notice alone. Empty when none is attached.
    */
   tenderText: string
+  /** The published notice, fetched from its link. See migration 0030. */
+  noticeText: string
+  /** The drafter's structured reading of this tender, kept so it can be checked. */
+  analysis: string
+  analysedAt: string
   /** Filename the tender text came from, so its provenance is visible. */
   tenderFileName: string
   /**

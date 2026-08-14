@@ -77,6 +77,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     settings,
     consultants,
     setTenderDocument,
+    saveTenderAnalysis,
     saveDraftProposal,
     uploadProposal,
     removeProposal,
@@ -171,6 +172,43 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
   const left = daysUntil(rfp.deadline)
 
+  const [reading, setReading] = useState(false)
+
+  /**
+   * Reads the tender before anything is written for it.
+   *
+   * Separate from drafting so the reading can be checked. Measured on the live
+   * tracker, not one tender in 1,218 had a document attached and notes averaged
+   * eight characters — so "draft a proposal" was asking the model to respond to
+   * a scope it had never seen, and it obliged by inventing one.
+   */
+  async function handleRead() {
+    setReading(true)
+    try {
+      const result = await draftConceptNoteStreaming(
+        {
+          kind: 'tender-analysis',
+          org: rfp.org,
+          segment: rfp.segment,
+          notes: rfp.notes,
+          rfpTitle: rfp.title,
+          deadline: rfp.deadline,
+          serviceAreas: rfp.serviceAreas,
+          tenderText: rfp.tenderText,
+          // The server fetches this; the browser cannot, for want of CORS.
+          link: rfp.link,
+        },
+        () => undefined,
+      )
+      await saveTenderAnalysis(rfp.id, result.text, '')
+      toast.success('Read. Check it before drafting against it.')
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setReading(false)
+    }
+  }
+
   async function handleDraft() {
     if (!rfp.org.trim()) {
       toast.error('Add an organization name before drafting')
@@ -197,6 +235,10 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           // The whole point of attaching it: the drafter stops guessing at the
           // scope from a one-line notice.
           tenderText: rfp.tenderText,
+          // And where no document was attached, the reading of the notice does
+          // the same job. Without either, a proposal is written against a
+          // 99-character title, which is where invented scopes come from.
+          analysis: rfp.analysis,
         },
         // The panel renders from this, so the document appears as it is written
         // rather than after a minute of a disabled button.
@@ -560,6 +602,47 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             )}
           </Panel>
 
+          {/* Before drafting, not after. A proposal written against a
+              99-character title is a proposal written against an invented
+              scope, and this is the step that replaces the invention with
+              whatever the notice actually says. */}
+          <Panel
+            title="What this tender is"
+            description="Fetches the published notice from its link and reports what the assignment actually is — type, scope, deadlines, evaluation criteria, and what the notice does not say. Read it before drafting: the proposal is written from this."
+            action={
+              <Button
+                type="button"
+                variant={rfp.analysis ? 'outline' : 'default'}
+                onClick={() => void handleRead()}
+                disabled={reading}
+              >
+                <SparklesIcon className="size-3.5" aria-hidden />
+                {reading ? 'Reading…' : rfp.analysis ? 'Read again' : 'Read this tender'}
+              </Button>
+            }
+          >
+            {rfp.analysis ? (
+              <>
+                <div className="max-h-[420px] overflow-y-auto rounded-lg border border-border bg-surface-2/40 p-3.5">
+                  <pre className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-foreground">
+                    {rfp.analysis}
+                  </pre>
+                </div>
+                <p className="mt-2 text-[11px] text-faint">
+                  Read {rfp.analysedAt ? formatDateWithYear(rfp.analysedAt.slice(0, 10)) : 'earlier'}.
+                  Correct it by attaching the real Terms of Reference above and reading
+                  again — an uploaded ToR outranks the notice.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Not read yet. Drafting without this works from the title and the
+                organisation name alone, which is how a proposal ends up answering a
+                scope nobody published.
+              </p>
+            )}
+          </Panel>
+
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Writes a full technical proposal against this notice — method,
@@ -567,6 +650,13 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               listing what you still have to supply. Appears as it is written,
               and is kept below; download it as Word when you want it.
             </p>
+            {!rfp.analysis && !rfp.tenderText && (
+              <p className="mb-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11.5px] leading-relaxed text-warning">
+                Neither a Terms of Reference nor a reading of the notice is attached, so
+                the drafter has the title and the organisation and nothing else. Read the
+                tender first.
+              </p>
+            )}
             <Button onClick={() => void handleDraft()} disabled={drafting}>
               <SparklesIcon />
               {drafting ? 'Drafting…' : 'Draft proposal'}
