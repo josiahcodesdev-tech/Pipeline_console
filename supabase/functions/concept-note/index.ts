@@ -406,7 +406,11 @@ Deno.serve(async (request: Request) => {
   }
 
   // Only proposals carry a tender document; a lead has no scope to attach yet.
-  const tender = isProposal ? text(context.tenderText, MAX_TENDER_CHARS) : ''
+  // Read for an analysis as well as a proposal. It was proposal-only, which
+  // meant the reading pass could never see an uploaded ToR — the one source
+  // that outranks the notice — and reported "no ToR is stored" while holding it.
+  const tender =
+    isProposal || isAnalysis ? text(context.tenderText, MAX_TENDER_CHARS) : ''
 
   // What the model has been given changes what it should do about the gaps, so
   // this is stated either way rather than assuming the thin case. Getting it
