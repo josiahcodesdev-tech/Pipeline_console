@@ -141,9 +141,12 @@ const OPENAI_PROPOSAL_MODEL = 'gpt-5.6-sol'
 const OPENAI_NOTE_MODEL = 'gpt-4o-mini'
 
 /**
- * Enough for the compact proposal plus the reasoning tokens used to plan it.
+ * Enough for the full proposal plus the reasoning tokens used to plan it. The
+ * model supports substantially more, but this cap prevents a runaway draft
+ * while leaving ample room beyond the 20,000-token ceiling that truncated
+ * real proposal runs.
  */
-const OPENAI_PROPOSAL_MAX_TOKENS = 20_000
+const OPENAI_PROPOSAL_MAX_TOKENS = 48_000
 const OPENAI_NOTE_MAX_TOKENS = 2_000
 
 function openaiDrafter(apiKey: string): Drafter {
