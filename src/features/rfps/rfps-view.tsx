@@ -25,7 +25,8 @@ import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
 import { RfpStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { daysUntil, formatDateWithYear, formatKes } from '@/domain/dates'
+import { daysUntil, formatDate, formatDateWithYear, formatKes } from '@/domain/dates'
+import { siteOf } from './source-site'
 import { cn } from '@/shared/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/domain/types'
 import { OPPORTUNITY_SYNC } from '@/app/features'
@@ -584,6 +585,16 @@ export function RfpsView({
                 <TableCell>
                   <span className="inline-block whitespace-nowrap rounded-full bg-gold-soft px-2 py-0.5 text-[11px] font-medium text-warning">
                     {rfp.source || 'Manual'}
+                  </span>
+                  {/* Where it came from, and when it arrived. The badge names
+                      the publisher, the host says which site to open, and the
+                      date answers "how long has this been sitting here?" —
+                      which the deadline column cannot, since a tender with
+                      three weeks left may have been filed a fortnight ago. */}
+                  <span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">
+                    {[siteOf(rfp.link), formatDate(rfp.createdOn)]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                 </TableCell>
                 <TableCell>

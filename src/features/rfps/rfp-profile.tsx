@@ -41,6 +41,7 @@ import {
   retrieveKnowledge,
 } from '@/services/tender-intelligence'
 import { daysUntil, formatDateWithYear, formatKes } from '@/domain/dates'
+import { siteOf } from './source-site'
 import { cn } from '@/shared/utils'
 import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
@@ -140,6 +141,8 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * button standing in for a server rule.
    */
   const viewOnly = heldByOther !== null && !can.seeEveryone
+
+  const site = siteOf(rfp.link)
 
   const [editing, setEditing] = useState(false)
   const [reassigning, setReassigning] = useState(false)
@@ -550,8 +553,19 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             <h2 className="font-display text-[22px] leading-tight text-foreground">
               {rfp.title}
             </h2>
+            {/* Provenance, in the order you would ask for it: whose tender,
+                what kind of buyer, which site it came off, and the day it
+                landed here. The site is the host rather than the full notice
+                URL — the title above is already the link to the notice. */}
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {rfp.org || 'Unknown organisation'} · {rfp.segment} · {rfp.source}
+              {[
+                rfp.org || 'Unknown organisation',
+                rfp.segment,
+                [rfp.source || 'Entered by hand', site && `(${site})`]
+                  .filter(Boolean)
+                  .join(' '),
+                `Added ${formatDateWithYear(rfp.createdOn)}`,
+              ].join(' · ')}
             </p>
           </div>
 
