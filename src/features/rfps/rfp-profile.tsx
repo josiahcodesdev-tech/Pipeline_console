@@ -23,7 +23,7 @@ import { ActivityComposer, ActivityRow } from '@/shared/components/activity-log'
 import { useAuth } from '@/shared/hooks/use-auth'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { proposalFileUrl } from '@/data/db'
+import { proposalFileUrl } from '@/data/proposals'
 import { PROPOSAL_DRAFTING } from '@/app/features'
 import {
   draftConceptNoteStreaming,

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { Field, FieldRow, SelectField } from '@/shared/components/field'
-import type { TaskDraft } from '@/data/db'
+import type { TaskDraft } from '@/data/tasks'
 import { today } from '@/domain/dates'
 import { TASK_PRIORITIES, type Lead } from '@/domain/types'
 

@@ -11,7 +11,7 @@ import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
 import { Field, FieldRow, SelectField } from '@/shared/components/field'
 import { ConceptNoteDialog } from '@/shared/components/concept-note-dialog'
-import type { LeadDraft } from '@/data/db'
+import type { LeadDraft } from '@/data/leads'
 import { ActivityComposer, ActivityRow } from '@/shared/components/activity-log'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import {

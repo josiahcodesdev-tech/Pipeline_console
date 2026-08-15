@@ -19,7 +19,7 @@ import {
   missingCallReportFields,
 } from '@/documents/call-report'
 import { formatDateWithYear, today } from '@/domain/dates'
-import type { CallReportFields } from '@/data/db'
+import type { CallReportFields } from '@/data/activities'
 import type { Activity, Lead } from '@/domain/types'
 
 /**

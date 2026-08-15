@@ -10,7 +10,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
 import { Field, FieldRow } from '@/shared/components/field'
-import type { ConsultantDraft } from '@/data/db'
+import type { ConsultantDraft } from '@/data/consultants'
 import { EMPTY_CONSULTANT, type Consultant } from '@/domain/types'
 import { useAuth } from '@/shared/hooks/use-auth'
 

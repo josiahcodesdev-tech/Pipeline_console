@@ -1,4 +1,4 @@
-import type { RfpDraft } from '@/data/db'
+import type { RfpDraft } from '@/data/rfps'
 import { isSegment } from '@/domain/types'
 
 export interface ImportResult {

@@ -25,9 +25,9 @@
 import {
   CONCEPT_NOTE_PROMPT,
   PERFORMANCE_REPORT_PROMPT,
-  PROPOSAL_PROMPT,
   TENDER_ANALYSIS_PROMPT,
 } from './prompts.ts'
+import { PROPOSAL_PROMPT } from './proposal-prompt.ts'
 import { fetchNotice } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'

@@ -9,7 +9,55 @@ import {
   type ReactNode,
 } from 'react'
 import { toast } from 'sonner'
-import * as db from '@/data/db'
+import { fetchAll } from '@/data/snapshot'
+import { fetchSettings, saveSettings } from '@/data/settings'
+import {
+  deleteProposal,
+  saveDraftProposal,
+  savePastedProposal,
+  setProposalExemplar,
+  uploadSubmittedProposal,
+} from '@/data/proposals'
+import {
+  createActivity,
+  deleteActivity,
+  saveCallReport,
+  type ActivityDraft,
+  type CallReportFields,
+} from '@/data/activities'
+import {
+  createLead,
+  deleteLead,
+  updateLead,
+  updateLeadStatus,
+  type LeadDraft,
+} from '@/data/leads'
+import {
+  RfpAlreadyClaimed,
+  createRfp,
+  deleteRfp,
+  fetchRfpClaims,
+  importRfps,
+  listRfps,
+  reassignRfp,
+  saveTenderAnalysis,
+  setRfpPipeline,
+  setTenderDocument,
+  updateRfp,
+  updateRfpStatus,
+  type RfpDraft,
+} from '@/data/rfps'
+import { createTask, deleteTask, setTaskDone, type TaskDraft } from '@/data/tasks'
+import { saveWeeklyReport, type WeeklyReportDraft } from '@/data/reports'
+import {
+  clearConsultantFile,
+  createConsultant,
+  deleteConsultant,
+  setConsultantCv,
+  setConsultantPhoto,
+  updateConsultant,
+  type ConsultantDraft,
+} from '@/data/consultants'
 import { runOpportunitySync } from '@/services/opportunities'
 import { OPPORTUNITY_SYNC } from '@/app/features'
 import { EMPTY_SETTINGS } from '@/domain/types'
@@ -92,19 +140,19 @@ interface PipelineValue {
   refresh: () => Promise<void>
 
   saveLead: (
-    draft: db.LeadDraft,
+    draft: LeadDraft,
     existing: Lead | null,
   ) => Promise<void>
   removeLead: (id: string) => Promise<void>
   setLeadStatus: (id: string, status: LeadStatus) => Promise<void>
 
-  saveRfp: (draft: db.RfpDraft, existing: Rfp | null) => Promise<void>
+  saveRfp: (draft: RfpDraft, existing: Rfp | null) => Promise<void>
   removeRfp: (id: string) => Promise<void>
   setRfpStatus: (id: string, status: RfpStatus) => Promise<void>
   setRfpPipeline: (id: string, inPipeline: boolean) => Promise<void>
   /** Hands a tender and its attached work to another member. Oversight only. */
   reassignRfp: (id: string, newOwner: string) => Promise<void>
-  importRfps: (drafts: db.RfpDraft[]) => Promise<number>
+  importRfps: (drafts: RfpDraft[]) => Promise<number>
   setTenderDocument: (id: string, text: string, fileName: string) => Promise<void>
   /** Stores the drafter’s reading of a tender, and the notice it read. */
   saveTenderAnalysis: (id: string, analysis: string, noticeText: string) => Promise<void>
@@ -114,18 +162,18 @@ interface PipelineValue {
   /** Epoch ms of the last successful sync, or null if never. */
   syncedAt: number | null
 
-  addTask: (draft: db.TaskDraft) => Promise<void>
+  addTask: (draft: TaskDraft) => Promise<void>
   toggleTask: (id: string, done: boolean) => Promise<void>
   removeTask: (id: string) => Promise<void>
 
-  saveReport: (draft: db.WeeklyReportDraft) => Promise<void>
+  saveReport: (draft: WeeklyReportDraft) => Promise<void>
 
   saveDraftProposal: (rfpId: string, title: string, content: string) => Promise<void>
   uploadProposal: (rfpId: string, file: File, notes: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
   addPastProposal: (rfpId: string, title: string, content: string) => Promise<void>
-  saveConsultant: (draft: db.ConsultantDraft, existing: Consultant | null) => Promise<void>
+  saveConsultant: (draft: ConsultantDraft, existing: Consultant | null) => Promise<void>
   /** Attaches a photo or CV, or clears one when `file` is null. */
   setConsultantFile: (
     consultant: Consultant,
@@ -135,10 +183,10 @@ interface PipelineValue {
   removeConsultant: (id: string) => Promise<void>
   saveSettings: (next: UserSettings) => Promise<void>
 
-  logActivity: (draft: db.ActivityDraft) => Promise<void>
+  logActivity: (draft: ActivityDraft) => Promise<void>
   removeActivity: (id: string) => Promise<void>
   /** Writes the call report attached to one client visit. */
-  saveCallReport: (id: string, fields: db.CallReportFields) => Promise<void>
+  saveCallReport: (id: string, fields: CallReportFields) => Promise<void>
 }
 
 const PipelineContext = createContext<PipelineValue | null>(null)
@@ -190,7 +238,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true)
     try {
-      const snapshot = await db.fetchAll(can.seeEveryone)
+      const snapshot = await fetchAll(can.seeEveryone)
       setLeads(snapshot.leads)
       setRfps(snapshot.rfps)
       setTasks(snapshot.tasks)
@@ -201,14 +249,14 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       // Claims are read separately and allowed to fail on their own. Losing
       // them should cost the tracker its "taken by" labels, not the tracker.
       try {
-        setClaims(await db.fetchRfpClaims())
+        setClaims(await fetchRfpClaims())
       } catch {
         setClaims([])
       }
       // Settings are small and read on their own; a failure here should not
       // cost the snapshot, so it degrades to the empty defaults.
       try {
-        setSettings(await db.fetchSettings())
+        setSettings(await fetchSettings())
       } catch {
         setSettings(EMPTY_SETTINGS)
       }
@@ -232,12 +280,12 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const saveLead = useCallback(
-    async (draft: db.LeadDraft, existing: Lead | null) => {
+    async (draft: LeadDraft, existing: Lead | null) => {
       const saved = existing
-        ? await db.updateLead(existing.id, draft, {
+        ? await updateLead(existing.id, draft, {
             statusChanged: existing.status !== draft.status,
           })
-        : await db.createLead(draft)
+        : await createLead(draft)
       setLeads((current) => upsertInto(current, saved))
       toast.success('Lead saved')
     },
@@ -245,7 +293,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const removeLead = useCallback(async (id: string) => {
-    await db.deleteLead(id)
+    await deleteLead(id)
     setLeads((current) => current.filter((lead) => lead.id !== id))
     // A deleted lead cascades to `linked_lead = null` in Postgres; mirror that
     // locally so task rows stop showing a dangling organisation name.
@@ -273,7 +321,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         current.map((lead) => (lead.id === id ? { ...lead, status } : lead)),
       )
       try {
-        const saved = await db.updateLeadStatus(id, status)
+        const saved = await updateLeadStatus(id, status)
         setLeads((current) =>
           current.map((lead) => (lead.id === id ? saved : lead)),
         )
@@ -296,7 +344,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         current.map((rfp) => (rfp.id === id ? { ...rfp, status } : rfp)),
       )
       try {
-        const saved = await db.updateRfpStatus(id, status)
+        const saved = await updateRfpStatus(id, status)
         setRfps((current) => current.map((rfp) => (rfp.id === id ? saved : rfp)))
       } catch (cause) {
         if (previous) {
@@ -320,22 +368,22 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const setRfpPipeline = useCallback(async (id: string, inPipeline: boolean) => {
     const current = rfps.find((rfp) => rfp.id === id)
     try {
-      const saved = await db.setRfpPipeline(id, inPipeline, current?.externalId ?? null)
+      const saved = await setRfpPipeline(id, inPipeline, current?.externalId ?? null)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
       if (inPipeline && current?.status === 'Watching') {
-        const promoted = await db.updateRfpStatus(id, 'Preparing')
+        const promoted = await updateRfpStatus(id, 'Preparing')
         setRfps((list) => list.map((rfp) => (rfp.id === id ? promoted : rfp)))
       }
       // Refreshed either way: taking one on adds a claim, handing it back
       // removes one, and both change what everyone else may take.
-      setClaims(await db.fetchRfpClaims())
+      setClaims(await fetchRfpClaims())
       toast.success(inPipeline ? 'Added to the pipeline' : 'Removed from the pipeline')
     } catch (cause) {
-      if (cause instanceof db.RfpAlreadyClaimed) {
+      if (cause instanceof RfpAlreadyClaimed) {
         // Someone took it between the page rendering and the click. Pull the
         // claims so the row updates to show who, rather than leaving a button
         // that will keep failing.
-        setClaims(await db.fetchRfpClaims().catch(() => claims))
+        setClaims(await fetchRfpClaims().catch(() => claims))
       }
       toast.error(message(cause))
     }
@@ -343,13 +391,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const saveTenderAnalysis = useCallback(
     async (id: string, analysis: string, noticeText: string) => {
-      const saved = await db.saveTenderAnalysis(id, analysis, noticeText)
+      const saved = await saveTenderAnalysis(id, analysis, noticeText)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
     },
     [],
   )
   const reassignRfp = useCallback(async (id: string, newOwner: string) => {
-    await db.reassignRfp(id, newOwner)
+    await reassignRfp(id, newOwner)
     // A full reload rather than patching state: the move rewrites four tables,
     // can delete the new owner's duplicate copy, and changes what the reader
     // may see at all — an admin who reassigns their own row loses nothing, but
@@ -357,31 +405,31 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     await refresh()
   }, [refresh])
 
-  const saveRfp = useCallback(async (draft: db.RfpDraft, existing: Rfp | null) => {
+  const saveRfp = useCallback(async (draft: RfpDraft, existing: Rfp | null) => {
     const saved = existing
-      ? await db.updateRfp(existing.id, draft, {
+      ? await updateRfp(existing.id, draft, {
           statusChanged: existing.status !== draft.status,
         })
-      : await db.createRfp(draft)
+      : await createRfp(draft)
     setRfps((current) => upsertInto(current, saved))
     toast.success('RFP saved')
   }, [])
 
   const removeRfp = useCallback(async (id: string) => {
-    await db.deleteRfp(id)
+    await deleteRfp(id)
     setRfps((current) => current.filter((rfp) => rfp.id !== id))
     toast.success('RFP deleted')
   }, [])
 
-  const importRfps = useCallback(async (drafts: db.RfpDraft[]) => {
-    const created = await db.importRfps(drafts)
+  const importRfps = useCallback(async (drafts: RfpDraft[]) => {
+    const created = await importRfps(drafts)
     setRfps((current) => [...created, ...current])
     return created.length
   }, [])
 
   const setTenderDocument = useCallback(
     async (id: string, text: string, fileName: string) => {
-      const saved = await db.setTenderDocument(id, text, fileName)
+      const saved = await setTenderDocument(id, text, fileName)
       setRfps((current) => current.map((rfp) => (rfp.id === id ? saved : rfp)))
       toast.success(text ? 'Tender document attached' : 'Tender document removed')
     },
@@ -402,7 +450,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     // Re-read rather than diff: the function inserts across several sources at
     // once and reports counts, not rows. Skipped when nothing arrived, so the
     // common "already up to date" case costs no extra round trip.
-    if (report.added > 0) setRfps(await db.listRfps())
+    if (report.added > 0) setRfps(await listRfps())
 
     // Stamped here rather than in the caller so the manual "Check now" button
     // and the automatic run both refresh the "Updated …" status.
@@ -469,8 +517,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     }
   }, [session, loading, can.sync, syncOpportunities])
 
-  const addTask = useCallback(async (draft: db.TaskDraft) => {
-    const saved = await db.createTask(draft)
+  const addTask = useCallback(async (draft: TaskDraft) => {
+    const saved = await createTask(draft)
     setTasks((current) => [saved, ...current])
     toast.success('Task added')
   }, [])
@@ -481,7 +529,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       current.map((task) => (task.id === id ? { ...task, done } : task)),
     )
     try {
-      const saved = await db.setTaskDone(id, done)
+      const saved = await setTaskDone(id, done)
       setTasks((current) =>
         current.map((task) => (task.id === id ? saved : task)),
       )
@@ -496,13 +544,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const removeTask = useCallback(async (id: string) => {
-    await db.deleteTask(id)
+    await deleteTask(id)
     setTasks((current) => current.filter((task) => task.id !== id))
   }, [])
 
   const saveDraftProposal = useCallback(
     async (rfpId: string, title: string, content: string) => {
-      const saved = await db.saveDraftProposal(rfpId, title, content)
+      const saved = await saveDraftProposal(rfpId, title, content)
       setProposals((current) => [saved, ...current])
       toast.success('Draft saved to this RFP')
     },
@@ -511,7 +559,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const uploadProposal = useCallback(
     async (rfpId: string, file: File, notes: string) => {
-      const saved = await db.uploadSubmittedProposal(rfpId, file, notes)
+      const saved = await uploadSubmittedProposal(rfpId, file, notes)
       setProposals((current) => [saved, ...current])
       toast.success(`${saved.fileName} uploaded`)
     },
@@ -519,10 +567,10 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const saveConsultant = useCallback(
-    async (draft: db.ConsultantDraft, existing: Consultant | null) => {
+    async (draft: ConsultantDraft, existing: Consultant | null) => {
       const saved = existing
-        ? await db.updateConsultant(existing.id, draft)
-        : await db.createConsultant(draft)
+        ? await updateConsultant(existing.id, draft)
+        : await createConsultant(draft)
       // Sorted by name, matching the order fetchAll returns, so a newly added
       // consultant lands where it will be after the next reload rather than
       // jumping to the top and moving later.
@@ -546,9 +594,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       try {
         const saved = file
           ? kind === 'photo'
-            ? await db.setConsultantPhoto(consultant.id, file)
-            : await db.setConsultantCv(consultant.id, file)
-          : await db.clearConsultantFile(consultant, kind)
+            ? await setConsultantPhoto(consultant.id, file)
+            : await setConsultantCv(consultant.id, file)
+          : await clearConsultantFile(consultant, kind)
         setConsultants((current) =>
           upsertInto(current, saved).sort((a, b) => a.name.localeCompare(b.name)),
         )
@@ -565,20 +613,20 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const removeConsultant = useCallback(async (id: string) => {
-    await db.deleteConsultant(id)
+    await deleteConsultant(id)
     setConsultants((current) => current.filter((person) => person.id !== id))
     toast.success('Consultant removed')
   }, [])
 
   const setProposalExemplar = useCallback(async (id: string, isExemplar: boolean) => {
-    const saved = await db.setProposalExemplar(id, isExemplar)
+    const saved = await setProposalExemplar(id, isExemplar)
     setProposals((current) => current.map((item) => (item.id === id ? saved : item)))
     toast.success(isExemplar ? 'Marked as a model answer' : 'No longer an example')
   }, [])
 
   const addPastProposal = useCallback(
     async (rfpId: string, title: string, content: string) => {
-      const saved = await db.savePastedProposal(rfpId, title, content)
+      const saved = await savePastedProposal(rfpId, title, content)
       setProposals((current) => [saved, ...current])
       toast.success('Past proposal recorded')
     },
@@ -586,31 +634,31 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const saveSettings = useCallback(async (next: UserSettings) => {
-    setSettings(await db.saveSettings(next))
+    setSettings(await saveSettings(next))
     toast.success('Guidance saved — it applies to the next draft')
   }, [])
 
   const removeProposal = useCallback(async (proposal: Proposal) => {
-    await db.deleteProposal(proposal)
+    await deleteProposal(proposal)
     setProposals((current) => current.filter((item) => item.id !== proposal.id))
     toast.success('Removed')
   }, [])
 
-  const logActivity = useCallback(async (draft: db.ActivityDraft) => {
-    const saved = await db.createActivity(draft)
+  const logActivity = useCallback(async (draft: ActivityDraft) => {
+    const saved = await createActivity(draft)
     // Newest first, matching the order fetchAll returns.
     setActivities((current) => [saved, ...current])
     toast.success(`${saved.type} logged`)
   }, [])
 
   const removeActivity = useCallback(async (id: string) => {
-    await db.deleteActivity(id)
+    await deleteActivity(id)
     setActivities((current) => current.filter((activity) => activity.id !== id))
   }, [])
 
   const saveCallReport = useCallback(
-    async (id: string, fields: db.CallReportFields) => {
-      const saved = await db.saveCallReport(id, fields)
+    async (id: string, fields: CallReportFields) => {
+      const saved = await saveCallReport(id, fields)
       setActivities((current) =>
         current.map((activity) => (activity.id === id ? saved : activity)),
       )
@@ -618,8 +666,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const saveReport = useCallback(async (draft: db.WeeklyReportDraft) => {
-    const saved = await db.saveWeeklyReport(draft)
+  const saveReport = useCallback(async (draft: WeeklyReportDraft) => {
+    const saved = await saveWeeklyReport(draft)
     setReports((current) => upsertInto(current, saved))
   }, [])
 

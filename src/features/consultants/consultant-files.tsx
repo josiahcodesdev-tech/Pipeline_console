@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { DownloadIcon, FileTextIcon, TrashIcon, UserRoundIcon } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
-import { consultantFileUrl } from '@/data/db'
+import { consultantFileUrl } from '@/data/consultants'
 import type { Consultant } from '@/domain/types'
 
 function formatBytes(bytes: number | null): string {

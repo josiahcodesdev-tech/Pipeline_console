@@ -30,7 +30,7 @@ import {
   type ActivityType,
   type Lead,
 } from '@/domain/types'
-import type { ActivityDraft } from '@/data/db'
+import type { ActivityDraft } from '@/data/activities'
 
 const TYPE_ICON: Record<ActivityType, typeof PhoneIcon> = {
   Call: PhoneIcon,
