@@ -221,7 +221,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * pre-draft reading, so the two paths cannot quietly analyse different
    * source material.
    */
-  async function readTender(): Promise<string> {
+  async function readTender(): Promise<{ analysis: string; capabilityContext: string }> {
     const knowledge = await retrieveCapabilityContext()
     const source = rfp.tenderText.trim() || [rfp.title, rfp.org, rfp.notes, rfp.noticeText].filter(Boolean).join('\n\n')
     const structured = await analyzeTender(source, knowledge, rfp.link)
@@ -242,7 +242,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       noticeText: structured.noticeText,
       enrichment,
     })
-    return review
+    return { analysis: review, capabilityContext: knowledge }
   }
 
   /** Reads, enriches and stores the tender context before writing when needed. */
@@ -254,21 +254,22 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setDrafting(true)
     setDraftPreview('')
     try {
-      // A linked notice is not enough context by itself: the proposal endpoint
-      // deliberately does no network fetch. If nobody has read it yet, do that
-      // now and feed the resulting scope, deliverables, criteria and gaps into
-      // this same draft. This closes the old path where one click could produce
-      // polished prose from little more than a title.
-      let proposalAnalysis = rfp.analysis.trim()
-      if (!proposalAnalysis) {
-        if (!rfp.tenderText.trim() && !rfp.link.trim()) {
-          toast.error('Attach the tender document or add its source link before drafting')
-          return
-        }
-        toast.info('Reading and enriching the RFP before drafting…')
-        proposalAnalysis = await readTender()
+      if (!rfp.tenderText.trim() && !rfp.link.trim()) {
+        toast.error('Attach the tender document or add its source link before drafting')
+        return
       }
-      const capabilityContext = await retrieveCapabilityContext()
+      // Trust the stored analysis once it exists. Attaching a replacement TOR
+      // clears that memory below, so a fresh source is still checked once.
+      let proposalAnalysis = rfp.analysis.trim()
+      let capabilityContext: string
+      if (proposalAnalysis) {
+        capabilityContext = await retrieveCapabilityContext()
+      } else {
+        toast.info('Checking and enriching the RFP before drafting…')
+        const checked = await readTender()
+        proposalAnalysis = checked.analysis
+        capabilityContext = checked.capabilityContext
+      }
 
       const result = await draftConceptNoteStreaming(
         {
@@ -333,6 +334,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         tenderText: markdown,
         tenderFileName: file.name,
         ingestion: remote as unknown as Record<string, unknown>,
+        analysis: '',
+        analysisJson: {},
+        enrichment: {},
       })
       toast.success('OpenAI layout and OCR completed.')
       if (remote.markdown.length > MAX_TENDER_CHARS) {
