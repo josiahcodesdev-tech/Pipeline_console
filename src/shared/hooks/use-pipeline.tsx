@@ -10,18 +10,18 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 import { fetchAll } from '@/data/snapshot'
-import { fetchSettings, saveSettings } from '@/data/settings'
+import { fetchSettings, saveSettings as dbSaveSettings } from '@/data/settings'
 import {
   deleteProposal,
-  saveDraftProposal,
+  saveDraftProposal as dbSaveDraftProposal,
   savePastedProposal,
-  setProposalExemplar,
+  setProposalExemplar as dbSetProposalExemplar,
   uploadSubmittedProposal,
 } from '@/data/proposals'
 import {
   createActivity,
   deleteActivity,
-  saveCallReport,
+  saveCallReport as dbSaveCallReport,
   type ActivityDraft,
   type CallReportFields,
 } from '@/data/activities'
@@ -37,13 +37,13 @@ import {
   createRfp,
   deleteRfp,
   fetchRfpClaims,
-  importRfps,
+  importRfps as dbImportRfps,
   listRfps,
-  reassignRfp,
-  saveTenderAnalysis,
+  reassignRfp as dbReassignRfp,
+  saveTenderAnalysis as dbSaveTenderAnalysis,
   saveTenderIntelligence as persistTenderIntelligence,
-  setRfpPipeline,
-  setTenderDocument,
+  setRfpPipeline as dbSetRfpPipeline,
+  setTenderDocument as dbSetTenderDocument,
   updateRfp,
   updateRfpStatus,
   type RfpDraft,
@@ -370,7 +370,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const setRfpPipeline = useCallback(async (id: string, inPipeline: boolean) => {
     const current = rfps.find((rfp) => rfp.id === id)
     try {
-      const saved = await setRfpPipeline(id, inPipeline, current?.externalId ?? null)
+      const saved = await dbSetRfpPipeline(id, inPipeline, current?.externalId ?? null)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
       if (inPipeline && current?.status === 'Watching') {
         const promoted = await updateRfpStatus(id, 'Preparing')
@@ -393,7 +393,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const saveTenderAnalysis = useCallback(
     async (id: string, analysis: string, noticeText: string) => {
-      const saved = await saveTenderAnalysis(id, analysis, noticeText)
+      const saved = await dbSaveTenderAnalysis(id, analysis, noticeText)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
     },
     [],
@@ -406,7 +406,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
   const reassignRfp = useCallback(async (id: string, newOwner: string) => {
-    await reassignRfp(id, newOwner)
+    await dbReassignRfp(id, newOwner)
     // A full reload rather than patching state: the move rewrites four tables,
     // can delete the new owner's duplicate copy, and changes what the reader
     // may see at all — an admin who reassigns their own row loses nothing, but
@@ -431,14 +431,14 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const importRfps = useCallback(async (drafts: RfpDraft[]) => {
-    const created = await importRfps(drafts)
+    const created = await dbImportRfps(drafts)
     setRfps((current) => [...created, ...current])
     return created.length
   }, [])
 
   const setTenderDocument = useCallback(
     async (id: string, text: string, fileName: string) => {
-      const saved = await setTenderDocument(id, text, fileName)
+      const saved = await dbSetTenderDocument(id, text, fileName)
       setRfps((current) => current.map((rfp) => (rfp.id === id ? saved : rfp)))
       toast.success(text ? 'Tender document attached' : 'Tender document removed')
     },
@@ -559,7 +559,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const saveDraftProposal = useCallback(
     async (rfpId: string, title: string, content: string) => {
-      const saved = await saveDraftProposal(rfpId, title, content)
+      const saved = await dbSaveDraftProposal(rfpId, title, content)
       setProposals((current) => [saved, ...current])
       toast.success('Draft saved to this RFP')
     },
@@ -628,7 +628,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setProposalExemplar = useCallback(async (id: string, isExemplar: boolean) => {
-    const saved = await setProposalExemplar(id, isExemplar)
+    const saved = await dbSetProposalExemplar(id, isExemplar)
     setProposals((current) => current.map((item) => (item.id === id ? saved : item)))
     toast.success(isExemplar ? 'Marked as a model answer' : 'No longer an example')
   }, [])
@@ -643,7 +643,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const saveSettings = useCallback(async (next: UserSettings) => {
-    setSettings(await saveSettings(next))
+    setSettings(await dbSaveSettings(next))
     toast.success('Guidance saved — it applies to the next draft')
   }, [])
 
@@ -667,7 +667,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const saveCallReport = useCallback(
     async (id: string, fields: CallReportFields) => {
-      const saved = await saveCallReport(id, fields)
+      const saved = await dbSaveCallReport(id, fields)
       setActivities((current) =>
         current.map((activity) => (activity.id === id ? saved : activity)),
       )

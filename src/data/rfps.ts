@@ -1,7 +1,7 @@
 import { supabase } from './client'
 import { today } from '@/domain/dates'
 import type { Rfp, RfpClaim, RfpStatus } from '@/domain/types'
-import { unwrap, currentUserId, dateOrNull, type RfpDraft } from './internal'
+import { unwrap, currentUserId, type RfpDraft } from './internal'
 import { toRfp, rfpFields } from './mappers'
 
 export type { RfpDraft }

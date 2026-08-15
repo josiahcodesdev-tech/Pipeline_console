@@ -1,7 +1,7 @@
 import { supabase } from './client'
 import { today } from '@/domain/dates'
 import type { Lead, LeadStatus } from '@/domain/types'
-import { unwrap, currentUserId, dateOrNull, type LeadDraft } from './internal'
+import { unwrap, currentUserId, type LeadDraft } from './internal'
 import { toLead, leadFields } from './mappers'
 
 export type { LeadDraft }

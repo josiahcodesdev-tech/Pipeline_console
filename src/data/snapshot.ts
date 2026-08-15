@@ -8,6 +8,14 @@ import type {
   Task,
   WeeklyReport,
 } from '@/domain/types'
+import type {
+  ActivityRow,
+  LeadRow,
+  ProposalRow,
+  RfpRow,
+  TaskRow,
+} from './database.types'
+import { currentUserId } from './internal'
 import {
   toActivity,
   toConsultant,
@@ -253,7 +261,3 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       .filter((error): error is string => error !== null),
   }
 }
-
-// ----------------------------------------------------------- proposals -----
-
-const PROPOSAL_BUCKET = 'proposals'

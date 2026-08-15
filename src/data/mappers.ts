@@ -11,6 +11,7 @@ import {
   type Proposal,
   type Rfp,
   type Task,
+  type TaskPriority,
   type Consultant,
   type WeeklyReport,
 } from '@/domain/types'
@@ -150,11 +151,6 @@ export function toWeeklyReport(row: WeeklyReportRow): WeeklyReport {
   }
 }
 
-/** Date columns are nullable in Postgres; the domain uses `''` for "unset". */
-function dateOrNull(iso: string): string | null {
-  return iso ? iso : null
-}
-
 export function leadFields(draft: LeadDraft) {
   return {
     org: draft.org,
@@ -238,7 +234,3 @@ export function consultantFields(draft: ConsultantDraft) {
     long_bio: draft.longBio.trim(),
   }
 }
-
-const CONSULTANT_BUCKET = 'consultants'
-
-/** Photo formats a browser will actually render inline. */

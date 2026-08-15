@@ -5,6 +5,8 @@ import { toConsultant, consultantFields } from './mappers'
 
 export type { ConsultantDraft }
 
+const CONSULTANT_BUCKET = 'consultants'
+
 // --------------------------------------------------------- consultants -----
 
 export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
