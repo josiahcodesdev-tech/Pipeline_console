@@ -112,6 +112,10 @@ export type RfpRow = {
   notice_text: string
   analysis: string
   analysed_at: string | null
+  ingestion: Record<string, unknown>
+  analysis_json: Record<string, unknown>
+  enrichment: Record<string, unknown>
+  intelligence_updated_at: string | null
   /** Opportunity id from the CareerCraft feed; null for manual entries. */
   external_id: string | null
   created_on: string
@@ -228,6 +232,10 @@ export type Database = {
           | 'notice_text'
           | 'analysis'
           | 'analysed_at'
+          | 'ingestion'
+          | 'analysis_json'
+          | 'enrichment'
+          | 'intelligence_updated_at'
         >
         Update: Partial<RfpRow>
         Relationships: []
@@ -349,6 +357,10 @@ export type Database = {
       reassign_rfp: {
         Args: { target: string; new_owner: string }
         Returns: undefined
+      }
+      match_knowledge_chunks: {
+        Args: { query_embedding: number[]; match_count?: number; minimum_similarity?: number }
+        Returns: Array<{ id:string; source_type:string; source_id:string; title:string; content:string; metadata:Record<string,unknown>; similarity:number }>
       }
     }
     Enums: { [_ in never]: never }

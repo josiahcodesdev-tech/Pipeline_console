@@ -36,6 +36,10 @@ export type RfpDraft = Omit<
   | 'noticeText'
   | 'analysis'
   | 'analysedAt'
+  | 'ingestion'
+  | 'analysisJson'
+  | 'enrichment'
+  | 'intelligenceUpdatedAt'
 >
 export type TaskDraft = Omit<Task, 'id' | 'done' | 'completedOn' | 'createdOn'>
 // The file fields are omitted: they are set by uploading, not by editing the

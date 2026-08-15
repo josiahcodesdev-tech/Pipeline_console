@@ -31,7 +31,15 @@ import {
   MAX_EXEMPLAR_CHARS,
 } from '@/services/concept-note'
 import { downloadProposalDocx } from '@/documents/proposal'
-import { extractPdfText, MAX_TENDER_CHARS } from '@/services/pdf-text'
+import { MAX_TENDER_CHARS } from '@/services/pdf-text'
+import {
+  analysisMarkdown,
+  analyzeTender,
+  enrichTender,
+  indexKnowledge,
+  ingestTender,
+  retrieveKnowledge,
+} from '@/services/tender-intelligence'
 import { daysUntil, formatDateWithYear, formatKes } from '@/domain/dates'
 import { cn } from '@/shared/utils'
 import type { Proposal, Rfp } from '@/domain/types'
@@ -91,7 +99,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     settings,
     consultants,
     setTenderDocument,
-    saveTenderAnalysis,
+    saveTenderIntelligence,
     saveDraftProposal,
     uploadProposal,
     removeProposal,
@@ -187,10 +195,29 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     () => assignmentSummary(rfp.analysis) || rfp.notes.trim(),
     [rfp.analysis, rfp.notes],
   )
+  const enrichmentResults = useMemo(() => {
+    const value = rfp.enrichment?.results
+    return Array.isArray(value) ? value.filter((item): item is { title:string; url:string; content?:string } => Boolean(item && typeof item === 'object' && typeof item.title === 'string' && typeof item.url === 'string')) : []
+  }, [rfp.enrichment])
 
   const left = daysUntil(rfp.deadline)
 
   const [reading, setReading] = useState(false)
+  const [enriching, setEnriching] = useState(false)
+
+  async function retrieveCapabilityContext(): Promise<string> {
+    const jobs: Promise<unknown>[] = []
+    if (settings.boilerplate.trim()) jobs.push(indexKnowledge({ sourceType:'company_fact', sourceId:'settings', title:'Verified company facts', content:settings.boilerplate }))
+    if (settings.proposalGuidance.trim()) jobs.push(indexKnowledge({ sourceType:'methodology', sourceId:'proposal-guidance', title:'Proposal methodology guidance', content:settings.proposalGuidance }))
+    for (const proposal of exemplars) jobs.push(indexKnowledge({ sourceType:'proposal', sourceId:proposal.id, title:proposal.title, content:proposal.content }))
+    for (const consultant of consultants) {
+      const content = [consultant.title, consultant.coreExpertise, consultant.qualifications, consultant.taskFit, consultant.projectExperience, consultant.shortBio, consultant.longBio].filter(Boolean).join('\n')
+      if (content) jobs.push(indexKnowledge({ sourceType:'consultant_cv', sourceId:consultant.id, title:consultant.name, content }))
+    }
+    await Promise.all(jobs)
+    const retrieved = await retrieveKnowledge(`${rfp.title}\n${rfp.serviceAreas}\n${rfp.tenderText.slice(0, 12000)}`)
+    return retrieved.matches.map((match) => `[${match.source_type}: ${match.title}; similarity ${match.similarity.toFixed(3)}]\n${match.content}`).join('\n\n')
+  }
 
   /**
    * Produces the structured brief that proposal drafting needs.
@@ -200,23 +227,38 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * source material.
    */
   async function readTender(): Promise<string> {
-    const result = await draftConceptNoteStreaming(
-      {
-        kind: 'tender-analysis',
-        org: rfp.org,
-        segment: rfp.segment,
-        notes: rfp.notes,
-        rfpTitle: rfp.title,
-        deadline: rfp.deadline,
-        serviceAreas: rfp.serviceAreas,
-        tenderText: rfp.tenderText,
-        // The server fetches this; the browser cannot, for want of CORS.
-        link: rfp.link,
-      },
-      () => undefined,
-    )
-    await saveTenderAnalysis(rfp.id, result.text, '')
-    return result.text
+    const knowledge = await retrieveCapabilityContext()
+    const source = rfp.tenderText.trim() || [rfp.title, rfp.org, rfp.notes, rfp.noticeText].filter(Boolean).join('\n\n')
+    const structured = await analyzeTender(source, knowledge, rfp.link)
+    const review = analysisMarkdown(structured.analysis)
+    await saveTenderIntelligence(rfp.id, {
+      analysis: review,
+      analysisJson: structured.analysis as unknown as Record<string, unknown>,
+      noticeText: structured.noticeText,
+    })
+    return review
+  }
+
+  async function handleEnrich() {
+    setEnriching(true)
+    try {
+      const metadata = typeof rfp.analysisJson?.metadata === 'object' && rfp.analysisJson.metadata
+        ? rfp.analysisJson.metadata as Record<string, unknown>
+        : {}
+      const result = await enrichTender({
+        reference: String(metadata.reference ?? ''),
+        exactPhrase: rfp.tenderText.slice(0, 180),
+        client: rfp.org,
+      })
+      await saveTenderIntelligence(rfp.id, {
+        enrichment: result as unknown as Record<string, unknown>,
+      })
+      toast.success(`Found ${result.results.length} cross-references and client sources.`)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setEnriching(false)
+    }
   }
 
   /**
@@ -261,6 +303,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         toast.info('Reading the RFP source before drafting…')
         proposalAnalysis = await readTender()
       }
+      const capabilityContext = await retrieveCapabilityContext()
 
       const result = await draftConceptNoteStreaming(
         {
@@ -272,7 +315,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           deadline: rfp.deadline,
           serviceAreas: rfp.serviceAreas,
           guidance: settings.proposalGuidance,
-          boilerplate: settings.boilerplate,
+          boilerplate: [settings.boilerplate, capabilityContext && `RETRIEVED BID-SPECIFIC EVIDENCE\n${capabilityContext}`].filter(Boolean).join('\n\n'),
           examples: exemplarTexts,
           // The long bio is for a CV annex, not the proposal body — sending it
           // would triple the roster block for text the drafter should not use.
@@ -308,28 +351,27 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   /**
    * Reads an uploaded tender PDF and attaches its text to this RFP.
    *
-   * Extraction happens here in the browser — the file itself is never uploaded,
-   * which keeps an unpublished tender off the server entirely and costs nothing
-   * per page.
+   * The authenticated Edge Function sends the PDF to OpenAI for layout-aware
+   * extraction and OCR, then only the extracted representation is persisted.
    */
   async function handleTenderUpload(file: File | undefined) {
     if (!file) return
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Tender documents are limited to 20 MB.')
+      return
+    }
     setReadingTender(true)
     try {
-      const result = await extractPdfText(file)
-      if (result.scanned) {
-        // Said plainly rather than saving an empty document: a scanned tender
-        // needs OCR, which this deliberately does not do.
-        toast.error(
-          `No text found in ${file.name} — it looks like a scan. Paste the scope into Notes instead.`,
-        )
-        return
-      }
-      await setTenderDocument(rfp.id, result.text, file.name)
-      if (result.truncated) {
-        toast.warning(
-          `Attached, but only the first ${MAX_TENDER_CHARS.toLocaleString()} characters — the rest is beyond what the drafter can read.`,
-        )
+      const remote = await ingestTender(file)
+      const markdown = remote.markdown.slice(0, MAX_TENDER_CHARS)
+      await saveTenderIntelligence(rfp.id, {
+        tenderText: markdown,
+        tenderFileName: file.name,
+        ingestion: remote as unknown as Record<string, unknown>,
+      })
+      toast.success('OpenAI layout and OCR completed.')
+      if (remote.markdown.length > MAX_TENDER_CHARS) {
+        toast.warning('The extracted document was truncated to the drafting limit.')
       }
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
@@ -615,7 +657,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               the draft worth having, so it should be read first. */}
           <Panel
             title="Tender document"
-            description="Upload the tender PDF and its text is read here in the browser, then written against by the drafter. The file itself is never uploaded."
+            description="Upload a PDF. OpenAI layout-aware OCR preserves headings, page references and tables before analysis and drafting."
           >
             {rfp.tenderText ? (
               <div className="flex flex-wrap items-center gap-3">
@@ -649,7 +691,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 <p className="mt-2 text-[11px] text-faint">
                   {readingTender
                     ? 'Reading the document…'
-                    : 'Digital PDFs only. A scanned tender has no text to read and will be refused rather than attached empty.'}
+                    : 'PDFs are processed with OpenAI layout-aware OCR.'}
                 </p>
               </>
             )}
@@ -663,15 +705,21 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             title="What this tender is"
             description="Fetches the published notice from its link and reports what the assignment actually is — type, scope, deadlines, evaluation criteria, and what the notice does not say. Read it before drafting: the proposal is written from this."
             action={
-              <Button
-                type="button"
-                variant={rfp.analysis ? 'outline' : 'default'}
-                onClick={() => void handleRead()}
-                disabled={reading || drafting}
-              >
-                <SparklesIcon className="size-3.5" aria-hidden />
-                {reading ? 'Reading…' : rfp.analysis ? 'Read again' : 'Read this tender'}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => void handleEnrich()} disabled={enriching || reading}>
+                  <ExternalLinkIcon className="size-3.5" aria-hidden />
+                  {enriching ? 'Researching…' : 'Enrich'}
+                </Button>
+                <Button
+                  type="button"
+                  variant={rfp.analysis ? 'outline' : 'default'}
+                  onClick={() => void handleRead()}
+                  disabled={reading || drafting}
+                >
+                  <SparklesIcon className="size-3.5" aria-hidden />
+                  {reading ? 'Reading…' : rfp.analysis ? 'Read again' : 'Read this tender'}
+                </Button>
+              </div>
             }
           >
             {rfp.analysis ? (
@@ -693,6 +741,19 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 drafting will first read the linked notice automatically and save the
                 resulting brief before writing.
               </p>
+            )}
+            {enrichmentResults.length > 0 && (
+              <div className="mt-3 border-t border-border pt-3">
+                <div className="eyebrow mb-2 text-faint">Verified web cross-references</div>
+                <ul className="space-y-2">
+                  {enrichmentResults.slice(0, 12).map((item) => (
+                    <li key={item.url} className="text-[11.5px]">
+                      <a className="font-medium text-clay hover:underline" href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
+                      {item.content && <p className="mt-0.5 line-clamp-2 text-faint">{item.content}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </Panel>
 

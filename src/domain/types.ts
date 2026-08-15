@@ -283,6 +283,10 @@ export interface Rfp {
   /** The drafter's structured reading of this tender, kept so it can be checked. */
   analysis: string
   analysedAt: string
+  ingestion: Record<string, unknown>
+  analysisJson: Record<string, unknown>
+  enrichment: Record<string, unknown>
+  intelligenceUpdatedAt: string
   /** Filename the tender text came from, so its provenance is visible. */
   tenderFileName: string
   /**

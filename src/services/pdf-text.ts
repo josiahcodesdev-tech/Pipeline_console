@@ -35,24 +35,42 @@ export interface ExtractedPdf {
  * vertical transform marks a new line, so both are used: `hasEOL` where the
  * producer set it, and a y-shift as the fallback for the many that do not.
  */
-function itemsToText(items: Array<{ str?: string; hasEOL?: boolean; transform?: number[] }>): string {
-  let out = ''
-  let lastY: number | null = null
+interface PositionedItem {
+  str?: string
+  transform?: number[]
+  width?: number
+}
 
-  for (const item of items) {
-    const text = typeof item.str === 'string' ? item.str : ''
-    const y = Array.isArray(item.transform) ? item.transform[5] : null
+/** Reconstruct rows first, then preserve table-like gaps inside each row. */
+function itemsToText(items: PositionedItem[]): string {
+  const positioned = items
+    .map((item) => ({
+      text: item.str?.trim() ?? '',
+      x: item.transform?.[4] ?? 0,
+      y: item.transform?.[5] ?? 0,
+      width: item.width ?? 0,
+    }))
+    .filter((item) => item.text)
+    .sort((a, b) => Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x)
 
-    if (lastY !== null && y !== null && Math.abs(y - lastY) > 1) {
-      // A bigger jump than one line is a paragraph break rather than a wrap.
-      out += Math.abs(y - lastY) > 14 ? '\n\n' : '\n'
-    }
-    out += text
-    if (item.hasEOL) out += '\n'
-    if (y !== null) lastY = y
+  const rows: typeof positioned[] = []
+  for (const item of positioned) {
+    const row = rows.find((candidate) => Math.abs(candidate[0].y - item.y) <= 2)
+    if (row) row.push(item)
+    else rows.push([item])
   }
 
-  return out
+  return rows.map((row) => {
+    row.sort((a, b) => a.x - b.x)
+    let line = row[0].text
+    let right = row[0].x + row[0].width
+    for (const item of row.slice(1)) {
+      const gap = item.x - right
+      line += gap > 24 && row.length >= 3 ? ` | ${item.text}` : ` ${item.text}`
+      right = Math.max(right, item.x + item.width)
+    }
+    return line
+  }).join('\n')
 }
 
 /**
@@ -82,7 +100,8 @@ export async function extractPdfText(file: File): Promise<ExtractedPdf> {
       break
     }
     const content = await (await doc.getPage(page)).getTextContent()
-    const text = itemsToText(content.items as Parameters<typeof itemsToText>[0]).trim()
+    const pageText = itemsToText(content.items as PositionedItem[]).trim()
+    const text = pageText ? `<!-- PAGE ${page} -->\n${pageText}` : ''
     if (!text) continue
     parts.push(text)
     chars += text.length

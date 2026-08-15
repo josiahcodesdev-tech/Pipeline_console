@@ -293,3 +293,31 @@ export async function saveTenderAnalysis(
   }
   return toRfp(data)
 }
+
+/** Persists auditable machine-readable tender intelligence beside its review. */
+export async function saveTenderIntelligence(
+  id: string,
+  fields: {
+    tenderText?: string
+    tenderFileName?: string
+    ingestion?: Record<string, unknown>
+    analysis?: string
+    analysisJson?: Record<string, unknown>
+    enrichment?: Record<string, unknown>
+    noticeText?: string
+  },
+): Promise<Rfp> {
+  const { data, error } = await supabase.from('rfps').update({
+    ...(fields.tenderText !== undefined ? { tender_text: fields.tenderText } : {}),
+    ...(fields.tenderFileName !== undefined ? { tender_file_name: fields.tenderFileName } : {}),
+    ...(fields.ingestion !== undefined ? { ingestion: fields.ingestion } : {}),
+    ...(fields.analysis !== undefined ? { analysis: fields.analysis, analysed_at: new Date().toISOString() } : {}),
+    ...(fields.analysisJson !== undefined ? { analysis_json: fields.analysisJson } : {}),
+    ...(fields.enrichment !== undefined ? { enrichment: fields.enrichment } : {}),
+    ...(fields.noticeText ? { notice_text: fields.noticeText } : {}),
+    intelligence_updated_at: new Date().toISOString(),
+  }).eq('id', id).select().maybeSingle()
+  if (error) throw new Error(`Could not save tender intelligence: ${error.message}`)
+  if (!data) throw new Error('This tender belongs to another member and cannot be updated.')
+  return toRfp(data)
+}

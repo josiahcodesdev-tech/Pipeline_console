@@ -41,6 +41,7 @@ import {
   listRfps,
   reassignRfp,
   saveTenderAnalysis,
+  saveTenderIntelligence as persistTenderIntelligence,
   setRfpPipeline,
   setTenderDocument,
   updateRfp,
@@ -156,6 +157,7 @@ interface PipelineValue {
   setTenderDocument: (id: string, text: string, fileName: string) => Promise<void>
   /** Stores the drafter’s reading of a tender, and the notice it read. */
   saveTenderAnalysis: (id: string, analysis: string, noticeText: string) => Promise<void>
+  saveTenderIntelligence: (id: string, fields: Parameters<typeof persistTenderIntelligence>[1]) => Promise<void>
   syncOpportunities: () => Promise<SyncOutcome>
   /** State of the background sync, for status text in the RFPs view. */
   autoSync: AutoSyncStatus
@@ -392,6 +394,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const saveTenderAnalysis = useCallback(
     async (id: string, analysis: string, noticeText: string) => {
       const saved = await saveTenderAnalysis(id, analysis, noticeText)
+      setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
+    },
+    [],
+  )
+  const saveTenderIntelligence = useCallback(
+    async (id: string, fields: Parameters<typeof persistTenderIntelligence>[1]) => {
+      const saved = await persistTenderIntelligence(id, fields)
       setRfps((list) => list.map((rfp) => (rfp.id === id ? saved : rfp)))
     },
     [],
@@ -700,6 +709,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setTenderDocument,
 
       saveTenderAnalysis,
+      saveTenderIntelligence,
       syncOpportunities,
       autoSync,
       syncedAt,
@@ -746,6 +756,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setTenderDocument,
 
       saveTenderAnalysis,
+      saveTenderIntelligence,
       syncOpportunities,
       autoSync,
       syncedAt,

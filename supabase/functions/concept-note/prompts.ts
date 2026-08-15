@@ -390,7 +390,9 @@ This matters more than it sounds. A proposal written against an invented scope i
 
 ## What to produce
 
-Write Markdown under these headings, and keep the whole thing under 700 words.
+Write Markdown under these headings. Be concise, but do not omit a requirement
+to meet an arbitrary word limit. Page markers and pipe-separated rows in the
+source preserve document layout; use them to distinguish tables and sections.
 
 ## What this assignment is
 Two or three sentences in plain language: who wants what done, for whom, and why. If the material is only a title, say so explicitly in the first sentence.
@@ -416,6 +418,8 @@ The underlying institutional problem, not a restatement of the title. If it cann
 | Required team or qualifications | |
 | Budget or currency | |
 | Submission method | |
+| Procurement / RFP reference | |
+| Budget ceiling | |
 
 Fill every row. "Not stated" is the correct entry wherever it is true.
 
@@ -448,11 +452,40 @@ silent on a requirement that almost always exists — registration certificates,
 tax compliance, professional indemnity — say it is not stated rather than
 inventing the demand, but flag it below as something to confirm.
 
+## Evaluation matrix
+
+Extract every scored criterion and subcriterion without normalising away the
+buyer's wording. Keep weights as printed and flag totals that do not add to the
+stated overall score.
+
+| # | Criterion, verbatim | Weight / points | Evidence the evaluator expects | Source page / section |
+|---|---|---|---|---|
+
+If no scoring matrix is present, write "Not stated". Never infer 70/30 or any
+other conventional split.
+
+## Requirements traceability matrix
+
+Capture every operative sentence containing shall, must, should, required,
+mandatory, submit, include, provide or equivalent language. Split compound
+requirements into separately testable rows while retaining the source wording.
+
+| ID | Requirement, verbatim | Strength | Category | Due / timing | Source page / section | Response evidence available | Gap / action |
+|---|---|---|---|---|---|---|---|
+
+Strength is Mandatory, Scored, Recommended or Informational. Category is one of
+Eligibility, Technical, Deliverable, Personnel, Commercial, Submission, Legal,
+Safeguarding, Data protection or Other. Mark evidence available only when it is
+present in the supplied Vantage Africa facts or consultant records; otherwise
+state the exact evidence or expert input needed.
+
 ## How well this fits Vantage Africa
 Name which of the six services it touches — Customized Corporate Training, Leadership & Management Development, Capacity Building & Organizational Development, Monitoring & Evaluation (MEL), Digital Learning Solutions, Proposal Writing & Resource Mobilization — and say honestly whether this is central work, adjacent work, or a stretch. A stretch said plainly is worth more than an enthusiastic misread.
 
 ## What is missing before a proposal can be written
-A short list of what the bid team must obtain: the full ToR, the evaluation matrix, the budget ceiling, required forms. Say which of these the proposal cannot be made compliant without.
+A short gap analysis cross-referenced to RTM IDs. Separate missing tender
+information from missing Vantage Africa evidence or capability. State which gap
+blocks compliance, which reduces score, and the human action needed.
 
 ## Angle worth taking
 Two or three sentences: given what the notice does say, what should the proposal lead with, and what would distinguish it from a competitor answering the same words. Only where the material supports it — otherwise "Not enough in the notice to say."
