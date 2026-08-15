@@ -16,6 +16,7 @@ import {
 } from '@/shared/ui/table'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { TaskRow } from '@/features/tasks/task-row'
+import { safeExternalUrl } from '@/features/rfps/source-site'
 import {
   addDays,
   daysUntil,
@@ -395,7 +396,7 @@ export function DashboardView({
                   <TableCell className="max-w-[380px] font-medium">
                     {rfp.link ? (
                       <a
-                        href={rfp.link}
+                        href={safeExternalUrl(rfp.link)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="group inline-flex items-start gap-1 text-primary hover:underline"

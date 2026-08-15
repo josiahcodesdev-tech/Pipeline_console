@@ -12,6 +12,11 @@ const CONSULTANT_BUCKET = 'consultants'
 export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 export const MAX_PHOTO_BYTES = 4 * 1024 * 1024
 export const MAX_CV_BYTES = 15 * 1024 * 1024
+const CV_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
 
 /**
  * Attaches a photo or a CV to a consultant.
@@ -56,6 +61,9 @@ export async function setConsultantPhoto(id: string, file: File): Promise<Consul
 }
 
 export async function setConsultantCv(id: string, file: File): Promise<Consultant> {
+  if (!CV_TYPES.includes(file.type)) {
+    throw new Error('Use a PDF, DOC or DOCX file for the CV.')
+  }
   if (file.size > MAX_CV_BYTES) {
     throw new Error('That CV is over 15 MB. Use a smaller file.')
   }

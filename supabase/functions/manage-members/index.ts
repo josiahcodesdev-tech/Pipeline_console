@@ -215,8 +215,25 @@ Deno.serve(async (request: Request) => {
 
     if (!patch) return json({ error: 'That is not a valid change.' }, 400)
 
+    if (action === 'set-active') {
+      const active = body.active as boolean
+      const { error: authError } = await admin.auth.admin.updateUserById(id, {
+        // The restrictive RLS policy blocks existing access tokens immediately;
+        // banning also prevents new sessions and refreshes at the Auth layer.
+        ban_duration: active ? 'none' : '876000h',
+      })
+      if (authError) return json({ error: `Could not change sign-in access: ${authError.message}` }, 502)
+    }
+
     const { error } = await admin.from('profiles').update(patch).eq('id', id)
-    if (error) return json({ error: `Could not save: ${error.message}` }, 502)
+    if (error) {
+      if (action === 'set-active') {
+        await admin.auth.admin.updateUserById(id, {
+          ban_duration: body.active === true ? '876000h' : 'none',
+        })
+      }
+      return json({ error: `Could not save: ${error.message}` }, 502)
+    }
 
     return json({ id, ...patch }, 200)
   }

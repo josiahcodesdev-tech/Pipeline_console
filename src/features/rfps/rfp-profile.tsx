@@ -41,7 +41,7 @@ import {
   retrieveKnowledge,
 } from '@/services/tender-intelligence'
 import { daysUntil, formatDateWithYear, formatKes } from '@/domain/dates'
-import { siteOf } from './source-site'
+import { safeExternalUrl, siteOf } from './source-site'
 import { cn } from '@/shared/utils'
 import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
@@ -952,7 +952,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               <Detail label="Notice">
                 {rfp.link ? (
                   <a
-                    href={rfp.link}
+                    href={safeExternalUrl(rfp.link)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary hover:underline"

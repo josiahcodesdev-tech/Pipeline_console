@@ -4,6 +4,17 @@ import { unwrap, currentUserId } from './internal'
 import { toProposal } from './mappers'
 
 const PROPOSAL_BUCKET = 'proposals'
+const MAX_PROPOSAL_BYTES = 25 * 1024 * 1024
+const PROPOSAL_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+])
 
 /** Marks a proposal as a worked example for future drafts. */
 export async function setProposalExemplar(
@@ -106,6 +117,10 @@ export async function uploadSubmittedProposal(
   file: File,
   notes: string,
 ): Promise<Proposal> {
+  if (file.size > MAX_PROPOSAL_BYTES) throw new Error('That proposal is over 25 MB.')
+  if (!PROPOSAL_TYPES.has(file.type)) {
+    throw new Error('Use PDF, Office document or ZIP format for a submitted proposal.')
+  }
   const userId = await proposalOwner(rfpId)
   const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
   const path = `${userId}/${rfpId}/${crypto.randomUUID()}.${extension}`

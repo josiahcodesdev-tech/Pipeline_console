@@ -15,6 +15,7 @@ import type { RfpDraft } from '@/data/rfps'
 import { RFP_STATUSES, SEGMENTS, type Rfp } from '@/domain/types'
 import { DRAFT_LABELS, type ConceptNoteContext } from '@/services/concept-note'
 import { useAuth } from '@/shared/hooks/use-auth'
+import { safeExternalUrl } from './source-site'
 
 const EMPTY: RfpDraft = {
   title: '',
@@ -74,6 +75,10 @@ export function RfpDialog({
   async function handleSave() {
     if (!draft.title.trim()) {
       toast.error('Title is required')
+      return
+    }
+    if (draft.link.trim() && !safeExternalUrl(draft.link.trim())) {
+      toast.error('The source link must be a valid HTTP or HTTPS address without embedded credentials')
       return
     }
     setBusy(true)

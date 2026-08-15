@@ -11,10 +11,9 @@
  *   supabase secrets set OPENAI_API_KEY=sk-proj-...
  *   supabase functions deploy concept-note
  *
- * JWT verification is left ON (the Supabase default). Note that this is weaker
- * than it sounds: the project's *anon* key is a valid JWT, so anyone who reads
- * it out of the shipped bundle can call this. Tightening it means rejecting
- * `role: 'anon'` here — not yet done.
+ * The platform verifies JWT syntax and this function also resolves the bearer
+ * token to a real, active user. The public anon key is therefore not enough to
+ * spend drafting tokens.
  *
  * The prompt doctrine lives in ./prompts.ts and the assignment-specific method
  * in ./playbooks.ts. House rules, boilerplate and model answers arrive from the
@@ -31,6 +30,7 @@ import { PROPOSAL_PROMPT } from './proposal-prompt.ts'
 import { fetchNotice } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 
 interface DraftContext {
   kind?: unknown
@@ -83,6 +83,7 @@ const MAX_CONSULTANT_CHARS = 1_500
  */
 const MAX_TENDER_CHARS = 60_000
 const MAX_EXEMPLAR_CHARS = 12_000
+const MAX_REQUEST_BYTES = 350_000
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -287,6 +288,30 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'Method not allowed' }, 405)
   }
 
+  const declaredLength = Number(request.headers.get('content-length') ?? '0')
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    return json({ error: 'Request body is too large.' }, 413)
+  }
+
+  const auth = request.headers.get('authorization') ?? ''
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim() ?? ''
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')?.trim() ?? ''
+  if (!auth || !supabaseUrl || !anonKey) return json({ error: 'Unauthorized' }, 401)
+
+  const supabase = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: auth } },
+    auth: { persistSession: false },
+  })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return json({ error: 'Unauthorized' }, 401)
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('active')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (!profile?.active) return json({ error: 'This account does not have access.' }, 403)
+
   const drafter = selectDrafter()
   if (!drafter) {
     return json(
@@ -297,7 +322,11 @@ Deno.serve(async (request: Request) => {
 
   let context: DraftContext
   try {
-    context = await request.json()
+    const raw = await request.text()
+    if (new TextEncoder().encode(raw).byteLength > MAX_REQUEST_BYTES) {
+      return json({ error: 'Request body is too large.' }, 413)
+    }
+    context = JSON.parse(raw)
   } catch {
     return json({ error: 'Request body must be JSON.' }, 400)
   }
@@ -315,6 +344,15 @@ Deno.serve(async (request: Request) => {
   // block, and anything it cannot read there it must not claim.
   const isPerformanceReport = kind === 'performance-report'
   const isAnalysis = kind === 'tender-analysis'
+  const quotaAction = isProposal ? 'proposal' : isAnalysis ? 'tender-analysis' : isPerformanceReport ? 'performance-report' : 'concept-note'
+  const quotaMax = isProposal ? 10 : isPerformanceReport ? 10 : 30
+  const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
+    quota_action: quotaAction,
+    max_calls: quotaMax,
+    window_seconds: 3600,
+  })
+  if (quotaError) return json({ error: 'Could not verify the drafting allowance.' }, 503)
+  if (!quotaAllowed) return json({ error: `The hourly ${quotaAction} limit has been reached. Try again later.` }, 429)
   const what = isProposal
     ? 'proposal'
     : isPerformanceReport

@@ -8,12 +8,18 @@
  *
  * Returns '' for hand-entered rows with no link, which have no site to name.
  */
-export function siteOf(link: string): string {
+export function safeExternalUrl(link: string): string {
   if (!link) return ''
   try {
-    return new URL(link).hostname.replace(/^www\./, '')
+    const url = new URL(link)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return ''
+    return url.toString()
   } catch {
-    // Notes pasted into the link field, mostly. Nothing to show.
     return ''
   }
+}
+
+export function siteOf(link: string): string {
+  const safe = safeExternalUrl(link)
+  return safe ? new URL(safe).hostname.replace(/^www\./, '') : ''
 }

@@ -24,6 +24,7 @@ import {
 } from '@/domain/dates'
 import { cn } from '@/shared/utils'
 import type { Rfp, RfpStatus } from '@/domain/types'
+import { safeExternalUrl } from '@/features/rfps/source-site'
 
 /** Open first, then decided — a live bid outranks a closed one. */
 const SECTIONS: { status: RfpStatus; blurb: string }[] = [
@@ -284,7 +285,7 @@ function PipelineRow({
       <TableCell className="max-w-[360px] font-medium">
         {rfp.link ? (
           <a
-            href={rfp.link}
+            href={safeExternalUrl(rfp.link)}
             target="_blank"
             rel="noopener noreferrer"
             className="group inline-flex items-start gap-1 text-primary hover:underline"

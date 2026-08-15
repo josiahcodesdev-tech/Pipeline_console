@@ -33,6 +33,7 @@ import { useAuth } from '@/shared/hooks/use-auth'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
 import { RfpDialog } from './rfp-dialog'
 import { parseRfpImport } from './import-rfps'
+import { safeExternalUrl } from './source-site'
 
 const PLACEHOLDER = `[{"title":"...","org":"...","segment":"NGO","deadline":"2026-08-15","value":500000,"link":"https://...","source":"TendersOnTime","notes":"..."}]`
 
@@ -549,7 +550,7 @@ export function RfpsView({
                     // click (which opens the edit dialog) working everywhere
                     // else in the row.
                     <a
-                      href={rfp.link}
+                      href={safeExternalUrl(rfp.link)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(event) => event.stopPropagation()}
