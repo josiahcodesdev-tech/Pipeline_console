@@ -1,17 +1,8 @@
 /**
  * Which model actually writes the document.
  *
- * The drafter was built on OpenAI and works; Anthropic's Claude Opus 5 is the
- * stronger writer for this job and is what a winning proposal should be written
- * by. Rather than swap one hard dependency for another, this picks whichever
- * key the function has been given — set ANTHROPIC_API_KEY and the next draft is
- * written by Claude with no redeploy of anything else, unset it and the OpenAI
- * path is still there.
- *
- *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
- *
- * Anthropic wins when both are present: it is the better model for long,
- * structured, evidence-disciplined prose, which is the whole of this task.
+ * Full proposals use OpenAI's flagship GPT model through the Responses API.
+ * Anthropic remains an operational fallback when no OpenAI key is configured.
  *
  * Both providers are driven as a *stream* even when the caller wanted a
  * buffered reply. Two reasons: a 16,000-token document is long enough to hit an
@@ -146,31 +137,60 @@ function anthropicDrafter(apiKey: string): Drafter {
 
 // ------------------------------------------------------------------- OpenAI
 
-const OPENAI_PROPOSAL_MODEL = 'gpt-4o'
+const OPENAI_PROPOSAL_MODEL = 'gpt-5.6-sol'
 const OPENAI_NOTE_MODEL = 'gpt-4o-mini'
 
 /**
- * Enough for the compact proposal with safe headroom. Unlike Claude this covers
- * the document alone — there is no thinking to leave room for.
+ * Enough for the compact proposal plus the reasoning tokens used to plan it.
  */
-const OPENAI_PROPOSAL_MAX_TOKENS = 10_000
+const OPENAI_PROPOSAL_MAX_TOKENS = 20_000
 const OPENAI_NOTE_MAX_TOKENS = 2_000
 
 function openaiDrafter(apiKey: string): Drafter {
   const client = new OpenAI({ apiKey })
-  const model = (heavy: boolean) => (heavy ? OPENAI_PROPOSAL_MODEL : OPENAI_NOTE_MODEL)
 
   return {
     label: `OpenAI ${OPENAI_PROPOSAL_MODEL}`,
     async *run(job: DraftJob): AsyncGenerator<DraftEvent> {
+      if (job.heavy) {
+        const stream = await client.responses.create({
+          model: OPENAI_PROPOSAL_MODEL,
+          instructions: job.system,
+          input: job.task,
+          reasoning: { effort: 'high' },
+          text: { verbosity: 'high' },
+          max_output_tokens: OPENAI_PROPOSAL_MAX_TOKENS,
+          store: false,
+          stream: true,
+        })
+
+        let truncated = false
+        let refused = false
+
+        for await (const event of stream) {
+          if (event.type === 'response.output_text.delta') {
+            yield { type: 'text', text: event.delta }
+          } else {
+            if (event.type === 'response.incomplete') {
+              truncated = event.response.incomplete_details?.reason === 'max_output_tokens'
+            }
+            if (event.type === 'response.refusal.delta') refused = true
+            yield { type: 'progress' }
+          }
+        }
+
+        yield { type: 'end', truncated, refused }
+        return
+      }
+
       const completion = await client.chat.completions.create({
-        model: model(job.heavy),
+        model: OPENAI_NOTE_MODEL,
         messages: [
           { role: 'system', content: job.system },
           { role: 'user', content: job.task },
         ],
         temperature: 0.7,
-        max_tokens: job.heavy ? OPENAI_PROPOSAL_MAX_TOKENS : OPENAI_NOTE_MAX_TOKENS,
+        max_tokens: OPENAI_NOTE_MAX_TOKENS,
         stream: true,
       })
 
@@ -237,16 +257,17 @@ export function describeDraftFailure(cause: unknown): string {
 // ------------------------------------------------------------------ Choosing
 
 /**
- * Picks the drafter from whichever key is configured, preferring Anthropic.
+ * Picks the drafter from whichever key is configured, preferring OpenAI so
+ * proposal runs use the flagship GPT model configured above.
  * Returns null when neither is set, which the handler reports as a 500 — that
  * is a deployment fault, not a bad request.
  */
 export function selectDrafter(): Drafter | null {
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')?.trim()
-  if (anthropicKey) return anthropicDrafter(anthropicKey)
-
   const openaiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
   if (openaiKey) return openaiDrafter(openaiKey)
+
+  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')?.trim()
+  if (anthropicKey) return anthropicDrafter(anthropicKey)
 
   return null
 }
