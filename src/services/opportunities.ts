@@ -6,9 +6,9 @@ import { supabase } from '@/data/client'
  * There is no feed-fetching here any more. The console used to call the
  * CareerCraft endpoint straight from the browser, which only worked because
  * that one service sent `Access-Control-Allow-Origin: *`. The sources it reads
- * now — World Bank, UNDP, UNGM, IUCN, AfDB, ReliefWeb — send no such header and
- * could not be reached from a page even if we wanted to, and the 5am scheduled
- * run has no browser in it at all.
+ * now — World Bank, UNDP, UNGM, IUCN, AfDB, NGO Jobs in Africa, ReliefWeb —
+ * send no such header and could not be reached from a page even if we wanted
+ * to, and the 5am scheduled run has no browser in it at all.
  *
  * So all of it lives in the `sync-opportunities` Edge Function, and this just
  * asks it to run. The function writes the rows itself; the caller reloads the

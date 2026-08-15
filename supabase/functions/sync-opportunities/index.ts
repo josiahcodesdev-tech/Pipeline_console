@@ -38,6 +38,7 @@ import { fetchUngm } from "./sources/ungm.ts"
 import { fetchIucn } from "./sources/iucn.ts"
 import { fetchAfdb } from "./sources/afdb.ts"
 import { fetchReliefWeb } from "./sources/reliefweb.ts"
+import { fetchNgoJobsAfrica } from "./sources/ngo-jobs-africa.ts"
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -80,6 +81,7 @@ function registry(): Array<{
     { name: "UNGM", run: () => fetchUngm(), enabled: true },
     { name: "IUCN", run: () => fetchIucn(), enabled: true },
     { name: "AfDB", run: () => fetchAfdb(), enabled: true },
+    { name: "NGO Jobs in Africa", run: () => fetchNgoJobsAfrica(), enabled: true },
     {
       name: "ReliefWeb",
       run: () => fetchReliefWeb(reliefwebAppname),

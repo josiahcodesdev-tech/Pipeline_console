@@ -25,8 +25,9 @@ export const PROPOSAL_DRAFTING = true
  * Pulling RFPs from the procurement sources — the scheduled 05:00 run, the sync
  * on page load, the manual "Check now" button, and the panel reporting on them.
  *
- * On. Sources are World Bank, UNDP, UNGM, IUCN and AfDB, with ReliefWeb waiting
- * on an approved appname; see supabase/functions/sync-opportunities/.
+ * On. Sources are World Bank, UNDP, UNGM, IUCN, AfDB and NGO Jobs in Africa,
+ * with ReliefWeb waiting on an approved appname; see
+ * supabase/functions/sync-opportunities/.
  *
  * Turning this off stops new rows arriving but removes nothing: anything
  * already synced stays exactly where it is, with its `sourced` flag untouched.

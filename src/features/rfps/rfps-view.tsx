@@ -408,7 +408,7 @@ export function RfpsView({
               ? `Syncing is off — RFPs are added by hand. The ${syncedCount} already pulled are still here.`
               : 'Syncing is off — RFPs are added by hand.'
             : syncedCount > 0
-              ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from World Bank, UNDP, UNGM, IUCN or AfDB. New ones arrive every morning at 5am.`
+              ? `${syncedCount} of your RFP${syncedCount === 1 ? '' : 's'} came from World Bank, UNDP, UNGM, IUCN, AfDB or NGO Jobs in Africa. New ones arrive every morning at 5am.`
               : can.sync
                 ? 'Nothing synced yet. Sources are checked every morning at 5am — or press Check now.'
                 : 'Nothing synced yet. Sources are checked every morning at 5am.'}

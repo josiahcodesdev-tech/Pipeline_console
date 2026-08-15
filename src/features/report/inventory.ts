@@ -42,9 +42,9 @@ export interface Capability {
 export const WORKING: Capability[] = [
   {
     area: 'Opportunity sourcing',
-    what: 'Reads six tender sources on a schedule and files what fits, without anyone visiting a portal.',
+    what: 'Reads seven tender sources on a schedule and files what fits, without anyone visiting a portal.',
     example:
-      'World Bank, UNDP, UNGM, IUCN, AfDB and ReliefWeb are read at 5am. A notice published overnight is in the tracker before the working day, already tagged with the service it touches.',
+      'World Bank, UNDP, UNGM, IUCN, AfDB, NGO Jobs in Africa and ReliefWeb are read at 5am. A notice published overnight is in the tracker before the working day, already tagged with the service it touches.',
   },
   {
     area: 'Relevance filtering',
