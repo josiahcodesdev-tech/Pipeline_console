@@ -25,8 +25,7 @@ import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
 import { RfpStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { daysUntil, formatDate, formatDateWithYear, formatKes } from '@/domain/dates'
-import { siteOf } from './source-site'
+import { daysUntil, formatDateWithYear, formatKes, today } from '@/domain/dates'
 import { cn } from '@/shared/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/domain/types'
 import { OPPORTUNITY_SYNC } from '@/app/features'
@@ -72,7 +71,7 @@ type SortKey = 'fit' | 'deadline' | 'newest'
  * date the row does not carry.
  */
 const SORTS: ReadonlyArray<{ key: SortKey; label: string; title: string }> = [
-  { key: 'newest', label: 'Newest', title: 'Most recently brought in by the sync' },
+  { key: 'newest', label: 'Latest obtained', title: 'Most recently obtained first' },
   { key: 'fit', label: 'Best fit', title: 'How well it matches what Vantage Africa delivers' },
   { key: 'deadline', label: 'Deadline', title: 'Soonest closing first' },
 ]
@@ -178,6 +177,7 @@ export function RfpsView({
   const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
   // Which of the six services from the capability statement it touches.
   const [areaFilter, setAreaFilter] = useState<string>('all')
+  const [obtainedToday, setObtainedToday] = useState(false)
   // Newest first. Best fit sorts the whole tracker the same way every day, so
   // the notices that arrived overnight land wherever their score puts them —
   // often pages down, among rows already read and passed over. What someone
@@ -250,6 +250,7 @@ export function RfpsView({
         if (hideExpired && isClosed(rfp)) return false
         if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
         if (areaFilter !== 'all' && !areasOf(rfp).includes(areaFilter)) return false
+        if (obtainedToday && rfp.createdOn !== today()) return false
         if (
           term &&
           !rfp.title.toLowerCase().includes(term) &&
@@ -278,7 +279,7 @@ export function RfpsView({
         }
         return b.createdAt.localeCompare(a.createdAt)
       })
-  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, sort])
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, sort])
 
   async function handleImport() {
     setImporting(true)
@@ -480,6 +481,19 @@ export function RfpsView({
           ))}
         </div>
         <SortToggle value={sort} onChange={setSort} />
+        <button
+          type="button"
+          onClick={() => setObtainedToday((current) => !current)}
+          className={cn(
+            'cursor-pointer rounded-lg border px-3 py-1 text-[11.5px] font-medium transition-colors',
+            obtainedToday
+              ? 'border-primary bg-brand-soft text-primary'
+              : 'border-border bg-card text-muted-foreground hover:text-foreground',
+          )}
+          aria-pressed={obtainedToday}
+        >
+          Obtained today
+        </button>
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-[11.5px] text-muted-foreground">
           <input
             type="checkbox"
@@ -510,7 +524,8 @@ export function RfpsView({
               <TableHead>Fit</TableHead>
               <TableHead>Deadline</TableHead>
               <TableHead className="text-right">Value (KES)</TableHead>
-              <TableHead>Source</TableHead>
+              <TableHead>Date obtained</TableHead>
+              <TableHead>Source site</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Pipeline</TableHead>
               {/* The whole row opens the record, but that is an invisible
@@ -582,19 +597,12 @@ export function RfpsView({
                 <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {formatKes(rfp.value)}
                 </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatDateWithYear(rfp.createdOn)}
+                </TableCell>
                 <TableCell>
-                  <span className="inline-block whitespace-nowrap rounded-full bg-gold-soft px-2 py-0.5 text-[11px] font-medium text-warning">
+                  <span className="whitespace-nowrap text-muted-foreground">
                     {rfp.source || 'Manual'}
-                  </span>
-                  {/* Where it came from, and when it arrived. The badge names
-                      the publisher, the host says which site to open, and the
-                      date answers "how long has this been sitting here?" —
-                      which the deadline column cannot, since a tender with
-                      three weeks left may have been filed a fortnight ago. */}
-                  <span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">
-                    {[siteOf(rfp.link), formatDate(rfp.createdOn)]
-                      .filter(Boolean)
-                      .join(' · ')}
                   </span>
                 </TableCell>
                 <TableCell>

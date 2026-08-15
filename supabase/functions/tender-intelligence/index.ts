@@ -21,8 +21,8 @@ const ANALYSIS_SCHEMA = {
       summary: { type: 'string' },
       metadata: {
         type: 'object', additionalProperties: false,
-        required: ['client','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'],
-        properties: Object.fromEntries(['client','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'].map((key) => [key, { type: ['string','null'] }]))
+        required: ['client','contractingAuthority','implementingPartners','donor','projectOwner','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'],
+        properties: Object.fromEntries(['client','contractingAuthority','implementingPartners','donor','projectOwner','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'].map((key) => [key, { type: ['string','null'] }]))
       },
       evaluation: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['criterion','weight','evidence','source'], properties: { criterion:{type:'string'}, weight:{type:['number','null']}, evidence:{type:'string'}, source:{type:'string'} } } },
       deliverables: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name','format','due','source'], properties: { name:{type:'string'}, format:{type:['string','null']}, due:{type:['string','null']}, source:{type:'string'} } } },
@@ -101,7 +101,7 @@ Deno.serve(async (request) => {
         model:'gpt-4.1-mini', temperature:0,
         response_format:{type:'json_schema',json_schema:ANALYSIS_SCHEMA},
         messages:[
-          {role:'system',content:'Extract tender facts only. Never infer missing values. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.'},
+          {role:'system',content:'Extract tender facts only. Never infer missing values. Resolve and distinguish the contracting authority, implementing partner(s), donor/funder, project owner and beneficiaries; do not substitute an aggregator or tracker label for the buyer named in the authoritative tender. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.'},
           {role:'user',content:`COMPANY KNOWLEDGE\n${knowledge || 'None supplied'}\n\nTENDER\n${source}`}
         ]
       })

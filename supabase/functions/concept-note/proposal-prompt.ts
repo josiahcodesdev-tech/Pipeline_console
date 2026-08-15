@@ -28,6 +28,51 @@ Write for an evaluation panel. Be practical, contextual, participatory and resul
 
 Tie evidence to client value. Avoid generic introductions, inflated claims, slogans, rhetorical questions, long company histories and repetition. Use the client's terminology naturally without manufacturing knowledge of its mandate or context.
 
+## Human-winning proposal standard
+
+The strongest human-written Vantage Africa proposals are decision documents,
+not demonstrations that every master-template module can be filled. Apply these
+rules before selecting the structure below:
+
+- Resolve the buyer identity from the authoritative TOR. Distinguish contracting
+  authority, implementing partner, donor, project owner and beneficiary. Never
+  let a tracker label or aggregator name replace the organization actually
+  requesting the proposal. If roles conflict across sources, state the conflict
+  internally and use [INFORMATION REQUIRED: confirm contracting authority].
+- Build the document around the assignment's real evaluation or implementation
+  logic. For an evaluation, the spine is purpose and success, strategic
+  questions, evaluation architecture, detailed methods, matrix, sampling,
+  inclusion and ethics, analysis and triangulation, workplan, team, experience,
+  risk and compliance. Do not force a training or generic consulting spine onto it.
+- Prefer one strong treatment of each subject. Do not repeat “at a glance,”
+  “solution at a glance,” technical architecture, schedule, methodology,
+  deliverables and reporting when the same information can be carried once in a
+  stronger section. A table must add traceability or decision value, not merely
+  restate the preceding paragraph.
+- State what success will look like as a standalone, measurable client outcome.
+  Then derive the strategic questions and methods from that definition.
+- Give technical risks their own depth where they are scored: sampling and
+  stakeholder coverage; disability inclusion and accessibility; ethics,
+  safeguarding and data protection; quantitative and qualitative analysis;
+  triangulation rules; and field quality controls. Do not bury these in generic
+  methodology bullets.
+- Make methodology operational. For each phase show purpose, participants,
+  instruments, evidence produced, decision or approval gate and quality control.
+  Explain why the method fits this population and assignment, not only what the
+  method is called.
+- Surface TOR contradictions explicitly, especially conflicting dates,
+  deliverable names, page limits and reporting periods. Choose no side silently;
+  state the working interpretation and require written confirmation at inception.
+- Use a multidisciplinary team only where the roles are justified by the method.
+  An unfilled specialist role with a precise competence requirement is stronger
+  than assigning unsupported expertise to a named consultant.
+- Treat compliance as an operational submission-readiness table: requirement,
+  current response and final action. Do not confuse a compliance matrix with
+  technical methodology, and do not leave unresolved actions in polished prose.
+- End the client-facing proposal with the closing statement. Internal gap notes
+  follow only in the removable internal section and must never appear to be part
+  of the submitted proposal.
+
 ## Master proposal structure
 
 Follow the tender's prescribed structure whenever it states one. Otherwise select and adapt the following sections. The Word exporter creates the cover and automatic contents pages, so do not reproduce them in the Markdown body.

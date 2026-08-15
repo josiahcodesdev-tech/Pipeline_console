@@ -198,15 +198,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     () => assignmentSummary(rfp.analysis) || rfp.notes.trim(),
     [rfp.analysis, rfp.notes],
   )
-  const enrichmentResults = useMemo(() => {
-    const value = rfp.enrichment?.results
-    return Array.isArray(value) ? value.filter((item): item is { title:string; url:string; content?:string } => Boolean(item && typeof item === 'object' && typeof item.title === 'string' && typeof item.url === 'string')) : []
-  }, [rfp.enrichment])
-
   const left = daysUntil(rfp.deadline)
-
-  const [reading, setReading] = useState(false)
-  const [enriching, setEnriching] = useState(false)
 
   async function retrieveCapabilityContext(): Promise<string> {
     const jobs: Promise<unknown>[] = []
@@ -234,56 +226,26 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     const source = rfp.tenderText.trim() || [rfp.title, rfp.org, rfp.notes, rfp.noticeText].filter(Boolean).join('\n\n')
     const structured = await analyzeTender(source, knowledge, rfp.link)
     const review = analysisMarkdown(structured.analysis)
+    let enrichment: Record<string, unknown> | undefined
+    try {
+      enrichment = await enrichTender({
+        reference: structured.analysis.metadata.reference,
+        exactPhrase: rfp.tenderText.slice(0, 180),
+        client: rfp.org,
+      }) as unknown as Record<string, unknown>
+    } catch {
+      // Web context is useful but must not block drafting from the authoritative tender.
+    }
     await saveTenderIntelligence(rfp.id, {
       analysis: review,
       analysisJson: structured.analysis as unknown as Record<string, unknown>,
       noticeText: structured.noticeText,
+      enrichment,
     })
     return review
   }
 
-  async function handleEnrich() {
-    setEnriching(true)
-    try {
-      const metadata = typeof rfp.analysisJson?.metadata === 'object' && rfp.analysisJson.metadata
-        ? rfp.analysisJson.metadata as Record<string, unknown>
-        : {}
-      const result = await enrichTender({
-        reference: String(metadata.reference ?? ''),
-        exactPhrase: rfp.tenderText.slice(0, 180),
-        client: rfp.org,
-      })
-      await saveTenderIntelligence(rfp.id, {
-        enrichment: result as unknown as Record<string, unknown>,
-      })
-      toast.success(`Found ${result.results.length} cross-references and client sources.`)
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setEnriching(false)
-    }
-  }
-
-  /**
-   * Reads the tender before anything is written for it.
-   *
-   * Separate from drafting so the reading can be checked. Measured on the live
-   * tracker, not one tender in 1,218 had a document attached and notes averaged
-   * eight characters — so "draft a proposal" was asking the model to respond to
-   * a scope it had never seen, and it obliged by inventing one.
-   */
-  async function handleRead() {
-    setReading(true)
-    try {
-      await readTender()
-      toast.success('Read. Check it before drafting against it.')
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setReading(false)
-    }
-  }
-
+  /** Reads, enriches and stores the tender context before writing when needed. */
   async function handleDraft() {
     if (!rfp.org.trim()) {
       toast.error('Add an organization name before drafting')
@@ -298,12 +260,12 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       // this same draft. This closes the old path where one click could produce
       // polished prose from little more than a title.
       let proposalAnalysis = rfp.analysis.trim()
-      if (!rfp.tenderText.trim() && !proposalAnalysis) {
-        if (!rfp.link.trim()) {
+      if (!proposalAnalysis) {
+        if (!rfp.tenderText.trim() && !rfp.link.trim()) {
           toast.error('Attach the tender document or add its source link before drafting')
           return
         }
-        toast.info('Reading the RFP source before drafting…')
+        toast.info('Reading and enriching the RFP before drafting…')
         proposalAnalysis = await readTender()
       }
       const capabilityContext = await retrieveCapabilityContext()
@@ -711,66 +673,6 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             )}
           </Panel>
 
-          {/* Before drafting, not after. A proposal written against a
-              99-character title is a proposal written against an invented
-              scope, and this is the step that replaces the invention with
-              whatever the notice actually says. */}
-          <Panel
-            title="What this tender is"
-            description="Fetches the published notice from its link and reports what the assignment actually is — type, scope, deadlines, evaluation criteria, and what the notice does not say. Read it before drafting: the proposal is written from this."
-            action={
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => void handleEnrich()} disabled={enriching || reading}>
-                  <ExternalLinkIcon className="size-3.5" aria-hidden />
-                  {enriching ? 'Researching…' : 'Enrich'}
-                </Button>
-                <Button
-                  type="button"
-                  variant={rfp.analysis ? 'outline' : 'default'}
-                  onClick={() => void handleRead()}
-                  disabled={reading || drafting}
-                >
-                  <SparklesIcon className="size-3.5" aria-hidden />
-                  {reading ? 'Reading…' : rfp.analysis ? 'Read again' : 'Read this tender'}
-                </Button>
-              </div>
-            }
-          >
-            {rfp.analysis ? (
-              <>
-                <div className="max-h-[420px] overflow-y-auto rounded-lg border border-border bg-surface-2/40 p-3.5">
-                  <pre className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-foreground">
-                    {rfp.analysis}
-                  </pre>
-                </div>
-                <p className="mt-2 text-[11px] text-faint">
-                  Read {rfp.analysedAt ? formatDateWithYear(rfp.analysedAt.slice(0, 10)) : 'earlier'}.
-                  Correct it by attaching the real Terms of Reference above and reading
-                  again — an uploaded ToR outranks the notice.
-                </p>
-              </>
-            ) : (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Not read yet. You can read it here for review, or draft directly:
-                drafting will first read the linked notice automatically and save the
-                resulting brief before writing.
-              </p>
-            )}
-            {enrichmentResults.length > 0 && (
-              <div className="mt-3 border-t border-border pt-3">
-                <div className="eyebrow mb-2 text-faint">Verified web cross-references</div>
-                <ul className="space-y-2">
-                  {enrichmentResults.slice(0, 12).map((item) => (
-                    <li key={item.url} className="text-[11.5px]">
-                      <a className="font-medium text-clay hover:underline" href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
-                      {item.content && <p className="mt-0.5 line-clamp-2 text-faint">{item.content}</p>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </Panel>
-
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Writes a full technical proposal against this notice — method,
@@ -785,7 +687,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 tender document before continuing.
               </p>
             )}
-            <Button onClick={() => void handleDraft()} disabled={drafting || reading}>
+            <Button onClick={() => void handleDraft()} disabled={drafting}>
               <SparklesIcon />
               {drafting ? 'Drafting…' : 'Draft proposal'}
             </Button>
