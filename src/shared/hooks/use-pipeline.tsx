@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 import { fetchAll } from '@/data/snapshot'
+import { supabase } from '@/data/client'
 import { fetchSettings, saveSettings as dbSaveSettings } from '@/data/settings'
 import {
   deleteProposal,
@@ -38,7 +39,6 @@ import {
   deleteRfp,
   fetchRfpClaims,
   importRfps as dbImportRfps,
-  listRfps,
   reassignRfp as dbReassignRfp,
   saveTenderAnalysis as dbSaveTenderAnalysis,
   saveTenderIntelligence as persistTenderIntelligence,
@@ -281,6 +281,31 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [refresh])
 
+  // A manual admin sync writes the same new tender pool to every active member.
+  // Debounce the insert burst into one role-aware refresh so an already-open
+  // user dashboard receives the same total without multiplying network reads.
+  useEffect(() => {
+    const userId = session?.user.id
+    if (!userId || can.seeEveryone) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const channel = supabase
+      .channel(`rfp-counts:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rfps', filter: `user_id=eq.${userId}` },
+        () => {
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(() => void refresh(), 750)
+        },
+      )
+      .subscribe()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      void supabase.removeChannel(channel)
+    }
+  }, [session?.user.id, can.seeEveryone, refresh])
+
   const saveLead = useCallback(
     async (draft: LeadDraft, existing: Lead | null) => {
       const saved = existing
@@ -456,10 +481,11 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     // there is nothing to insert here — only to catch up with what it did.
     const report = await runOpportunitySync()
 
-    // Re-read rather than diff: the function inserts across several sources at
-    // once and reports counts, not rows. Skipped when nothing arrived, so the
-    // common "already up to date" case costs no extra round trip.
-    if (report.added > 0) setRfps(await listRfps())
+    // Refresh through the same role-aware path as initial page load. Calling
+    // listRfps directly here made an admin receive every member's physical copy
+    // after a sync, undoing fetchAll's deduplication and inflating every RFP
+    // figure until the next full reload.
+    if (report.added > 0) await refresh()
 
     // Stamped here rather than in the caller so the manual "Check now" button
     // and the automatic run both refresh the "Updated …" status.
@@ -472,7 +498,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       alreadyHave: report.alreadyHave,
       skipped: report.skipped,
     }
-  }, [])
+  }, [refresh])
 
   /**
    * Pull new opportunities on load, without the user asking.

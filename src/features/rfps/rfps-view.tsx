@@ -328,7 +328,7 @@ export function RfpsView({
       // reached, and the others carried on without it.
       if (outcome.skipped.length) {
         toast.warning(
-          `${outcome.skipped.length} source${outcome.skipped.length === 1 ? '' : 's'} unavailable (${outcome.skipped[0]})`,
+          `${outcome.skipped.length} sync warning${outcome.skipped.length === 1 ? '' : 's'} (${outcome.skipped[0]})`,
         )
       }
       // The "Updated …" stamp is set inside syncOpportunities, so both this

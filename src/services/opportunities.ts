@@ -21,7 +21,7 @@ import { supabase } from '@/data/client'
 export interface SyncReport {
   /** Relevant notices the sources returned, after filtering and dedup. */
   fetched: number
-  /** Rows actually added for this user. */
+  /** Distinct opportunities newly visible to the admin who ran the sync. */
   added: number
   /** Rows already held, left untouched so local edits survive. */
   alreadyHave: number
@@ -39,11 +39,11 @@ export interface SourceStatus {
 }
 
 /**
- * Runs the sync for the signed-in user.
+ * Runs a firm-wide sync for every active member.
  *
- * `functions.invoke` attaches the user's access token, which is what the
- * function uses to scope the run to this one account — the scheduled run
- * presents the service-role key instead and syncs everybody.
+ * `functions.invoke` attaches the user's access token, which proves the caller
+ * is an admin. Both this path and the scheduled service-role path update every
+ * active member, keeping their tender totals aligned.
  */
 export async function runOpportunitySync(): Promise<SyncReport> {
   const { data, error } = await supabase.functions.invoke<

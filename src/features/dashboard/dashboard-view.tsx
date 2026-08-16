@@ -17,6 +17,7 @@ import {
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { TaskRow } from '@/features/tasks/task-row'
 import { safeExternalUrl } from '@/features/rfps/source-site'
+import { useAuth } from '@/shared/hooks/use-auth'
 import {
   addDays,
   daysUntil,
@@ -115,6 +116,7 @@ export function DashboardView({
   onOpenLeadStage: (stage: LeadStatus) => void
 }) {
   const { leads, rfps, tasks, activities, toggleTask, setRfpStatus } = usePipeline()
+  const { can } = useAuth()
 
   const leadsById = useMemo(() => {
     const map = new Map<string, Lead>()
@@ -195,7 +197,9 @@ export function DashboardView({
             <HeroStat
               label="Active RFPs"
               value={activeRfps}
-              hint="Watching, Preparing or Submitted"
+              hint={can.seeEveryone
+                ? 'Distinct across the team · Watching, Preparing or Submitted'
+                : 'In your tracker · Watching, Preparing or Submitted'}
               subject="rfps"
               onClick={() => onNavigate('rfps')}
             />

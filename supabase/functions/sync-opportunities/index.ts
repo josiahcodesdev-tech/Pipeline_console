@@ -16,7 +16,8 @@
  * AUTHENTICATION — two callers, two scopes:
  *   service-role key  the cron job. Syncs every user, because rows are
  *                     per-user under RLS and nobody is "logged in" at 05:00.
- *   user access token  the "Check now" button. Syncs only the caller.
+ *   admin access token the "Check now" button. Syncs every active member so
+ *                      users and oversight see the same tender pool at once.
  * The anon key is a valid JWT and ships in the browser bundle, so it must not
  * be enough to trigger either path — see requireCaller below.
  *
@@ -166,14 +167,14 @@ async function requireCaller(
   request: Request,
   admin: ReturnType<typeof createClient>,
   serviceKey: string,
-): Promise<{ scope: "all" } | { scope: "self"; userId: string } | null> {
+): Promise<{ userId?: string } | null> {
   const header = request.headers.get("authorization") ?? ""
   const token = header.replace(/^Bearer\s+/i, "").trim()
   if (!token) return null
 
   // The cron job. Compared whole rather than decoded — this is the same trust
   // boundary as the key itself.
-  if (token === serviceKey) return { scope: "all" }
+  if (token === serviceKey) return {}
 
   // A signed-in user. getUser resolves the token against the auth server, which
   // is what keeps the anon key out: it is a valid JWT but carries no user, so
@@ -196,7 +197,7 @@ async function requireCaller(
   if (!role || role.active !== true) return null
   if (role.role !== "super_user" && role.role !== "admin") return null
 
-  return { scope: "self", userId: data.user.id }
+  return { userId: data.user.id }
 }
 
 Deno.serve(async (request: Request) => {
@@ -227,17 +228,14 @@ Deno.serve(async (request: Request) => {
       )
     }
 
-    let userIds: string[]
-    if (caller.scope === "self") {
-      userIds = [caller.userId]
-    } else {
-      const { data: userList, error: usersError } = await admin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      })
-      if (usersError) throw new Error(`Could not list users: ${usersError.message}`)
-      userIds = (userList?.users ?? []).map((user) => user.id)
-    }
+    // Profiles, not auth.users: switched-off accounts keep their history but
+    // must not receive fresh copies of every tender on each sync.
+    const { data: activeProfiles, error: usersError } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("active", true)
+    if (usersError) throw new Error(`Could not list active members: ${usersError.message}`)
+    const userIds = (activeProfiles ?? []).map((profile) => profile.id as string)
 
     if (userIds.length === 0) {
       return json({ fetched: notices.length, users: 0, added: 0, alreadyHave: 0, skipped: [], sources: reports }, 200)
@@ -245,7 +243,8 @@ Deno.serve(async (request: Request) => {
 
     const stamp = new Date().toISOString().slice(0, 10)
     const perUser: Record<string, number> = {}
-    let added = 0
+    const failedUsers: string[] = []
+    const newlyAddedTenders = new Set<string>()
 
     for (const userId of userIds) {
       // `ignoreDuplicates` against rfps_user_external_id_key makes this
@@ -257,20 +256,26 @@ Deno.serve(async (request: Request) => {
           notices.map((notice) => toRow(notice, userId, stamp)),
           { onConflict: "user_id,external_id", ignoreDuplicates: true },
         )
-        .select("id")
+        .select("external_id")
 
       if (error) {
         console.error(`[sync] insert failed for ${userId}:`, error.message)
+        failedUsers.push(userId)
         continue
       }
       perUser[userId] = data?.length ?? 0
-      added += data?.length ?? 0
+      for (const row of data ?? []) {
+        if (typeof row.external_id === "string") newlyAddedTenders.add(row.external_id)
+      }
     }
 
-    // Reported per calling user rather than in total, so the number the button
-    // shows matches what that person actually gained.
     const fetched = notices.length
-    const addedForCaller = caller.scope === "self" ? (perUser[caller.userId] ?? 0) : added
+    // A button click reports newly visible tenders, not physical copies written
+    // across the team. The scheduled service call has no user and reports the
+    // total write count for operational logs.
+    const addedForCaller = caller.userId
+      ? (perUser[caller.userId] ?? 0)
+      : newlyAddedTenders.size
 
     return json(
       {
@@ -283,10 +288,11 @@ Deno.serve(async (request: Request) => {
         // still in `sources` below for anyone actually looking.
         skipped: reports
           .filter((report) => report.status === "failed")
-          .map((report) => `${report.name}: ${report.detail ?? "failed"}`),
+          .map((report) => `${report.name}: ${report.detail ?? "failed"}`)
+          .concat(failedUsers.length ? [`Could not update ${failedUsers.length} member account(s).`] : []),
         users: userIds.length,
         sources: reports,
-        perUser: caller.scope === "all" ? perUser : undefined,
+        perUser,
       },
       200,
     )
