@@ -116,7 +116,7 @@ export async function fetchTeamPipeline(): Promise<TeamPipelineItem[]> {
  * characters that hide text from whoever reads it back.
  *
  * The rule that binds is the `profiles_full_name_charset` constraint added in
- * migration 0032; this row is writable directly by its owner, so TypeScript
+ * migration 0035; this row is writable directly by its owner, so TypeScript
  * cannot be the enforcement. What this gets us is the readable complaint,
  * rather than a Postgres constraint violation shown to a member who was only
  * correcting the spelling of their surname.
