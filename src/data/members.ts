@@ -194,6 +194,15 @@ export function setMemberActive(id: string, active: boolean): Promise<unknown> {
   return call({ action: 'set-active', id, active })
 }
 
+/** Creates a short-lived, one-time login for an active standard user. */
+export async function createImpersonationLogin(
+  id: string,
+): Promise<{ actionLink: string; email: string }> {
+  const result = await call<{ actionLink?: string; email?: string }>({ action: 'impersonate', id })
+  if (!result.actionLink || !result.email) throw new Error('The members service returned no login link.')
+  return { actionLink: result.actionLink, email: result.email }
+}
+
 /**
  * Issues a member a new password.
  *
@@ -219,4 +228,3 @@ export async function resetMemberPassword(
 export function removeMember(id: string): Promise<unknown> {
   return call({ action: 'delete', id, confirmDataLoss: true })
 }
-

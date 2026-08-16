@@ -171,6 +171,43 @@ Deno.serve(async (request: Request) => {
 
   const action = text(body.action, 32)
 
+  // ----------------------------------------------------------- impersonate
+  // A one-time magic link switches the browser into the selected member's
+  // real Auth session without exposing or changing their password.
+  if (action === 'impersonate') {
+    const id = text(body.id, 64)
+    if (!id || id === caller.id) return json({ error: 'Choose another member account.' }, 400)
+
+    const { data: target, error: targetError } = await admin
+      .from('profiles')
+      .select('id, email, role, active')
+      .eq('id', id)
+      .maybeSingle()
+    if (targetError) return json({ error: 'Could not verify the selected member.' }, 502)
+    if (!target || target.active !== true || target.role !== 'user' || !target.email) {
+      return json({ error: 'Only an active standard-user account can be opened this way.' }, 400)
+    }
+
+    const { data: generated, error: linkError } = await admin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: target.email,
+    })
+    const actionLink = generated?.properties?.action_link
+    if (linkError || !actionLink) {
+      return json({ error: `Could not create the one-time login: ${linkError?.message ?? 'no link returned'}` }, 502)
+    }
+
+    const { error: auditError } = await admin
+      .from('impersonation_audit')
+      .insert({ actor_id: caller.id, target_id: target.id })
+    if (auditError) {
+      console.error('Could not audit impersonation', auditError)
+      return json({ error: 'The login was refused because it could not be recorded in the audit log.' }, 503)
+    }
+
+    return json({ actionLink, email: target.email }, 200)
+  }
+
   // ------------------------------------------------------------------ create
   if (action === 'create') {
     const email = text(body.email, 254).toLowerCase()

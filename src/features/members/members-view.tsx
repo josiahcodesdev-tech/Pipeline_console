@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { CopyIcon, KeyRoundIcon, ShieldCheckIcon, TargetIcon, Trash2Icon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { CopyIcon, KeyRoundIcon, LogInIcon, ShieldCheckIcon, TargetIcon, Trash2Icon, UserPlusIcon, UsersIcon } from 'lucide-react'
 import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { Button } from '@/shared/ui/button'
 import { KpiCard } from '@/shared/components/kpi-card'
@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/shared/ui/table'
 import { useAuth } from '@/shared/hooks/use-auth'
-import { createMember, fetchMembers, setMemberActive, setMemberRole, resetMemberPassword, removeMember, fetchTeamOverview, fetchTeamPipeline, type CreatedMember, type TeamOverview, type TeamPipelineItem } from '@/data/members'
+import { createImpersonationLogin, createMember, fetchMembers, setMemberActive, setMemberRole, resetMemberPassword, removeMember, fetchTeamOverview, fetchTeamPipeline, type CreatedMember, type TeamOverview, type TeamPipelineItem } from '@/data/members'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
 import {
   MEMBER_ROLES,
@@ -103,6 +103,7 @@ export function MembersView() {
   const [members, setMembers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedMember | null>(null)
   // Whether the panel above is showing a reset rather than a new account.
   const [wasReset, setWasReset] = useState(false)
@@ -208,6 +209,21 @@ export function MembersView() {
       toast.success(next ? `${member.email} can sign in` : `${member.email} switched off`)
       await load()
     } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  async function loginAs(member: Profile) {
+    const ok = window.confirm(
+      `Log in as ${member.fullName || member.email}?\n\nThis browser will leave your super-user session and become this standard user. To return, sign out and log in again with your super-user account. The switch is recorded in the security audit log.`,
+    )
+    if (!ok) return
+    setSwitchingTo(member.id)
+    try {
+      const login = await createImpersonationLogin(member.id)
+      window.location.assign(login.actionLink)
+    } catch (cause) {
+      setSwitchingTo(null)
       toast.error(cause instanceof Error ? cause.message : String(cause))
     }
   }
@@ -511,6 +527,18 @@ export function MembersView() {
                             <KeyRoundIcon className="size-3.5" aria-hidden />
                             Reset password
                           </Button>
+                          {!isSelf && member.active && member.role === 'user' && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={switchingTo !== null}
+                              title={`Switch this browser into ${member.email}'s account`}
+                              onClick={() => void loginAs(member)}
+                            >
+                              <LogInIcon className="size-3.5" aria-hidden />
+                              {switchingTo === member.id ? 'Switching…' : 'Login as user'}
+                            </Button>
+                          )}
                           {/* Last, and the only destructive control here, so it
                               is set apart rather than sitting in the same row of
                               outline buttons as "Switch off" — which is the one
