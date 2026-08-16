@@ -111,11 +111,28 @@ export async function fetchTeamPipeline(): Promise<TeamPipelineItem[]> {
   }))
 }
 
+/**
+ * Characters a display name may not contain — markup, and the control
+ * characters that hide text from whoever reads it back.
+ *
+ * The rule that binds is the `profiles_full_name_charset` constraint added in
+ * migration 0032; this row is writable directly by its owner, so TypeScript
+ * cannot be the enforcement. What this gets us is the readable complaint,
+ * rather than a Postgres constraint violation shown to a member who was only
+ * correcting the spelling of their surname.
+ */
+const NOT_IN_NAME = /[<>{}\\|`]/
+
 /** Anyone may set their own display name; nobody may set their own role. */
 export async function saveOwnName(id: string, fullName: string): Promise<void> {
+  const value = fullName.trim().slice(0, 120)
+  if (NOT_IN_NAME.test(value)) {
+    throw new Error('A name cannot contain < > { } \\ | or ` characters.')
+  }
+
   const { error } = await supabase
     .from('profiles')
-    .update({ full_name: fullName.trim().slice(0, 120) })
+    .update({ full_name: value })
     .eq('id', id)
   if (error) throw new Error(`Could not save your name: ${error.message}`)
 }

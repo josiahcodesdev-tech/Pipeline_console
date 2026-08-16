@@ -38,6 +38,56 @@ function text(value: unknown, limit = 320): string {
   return typeof value === 'string' ? value.trim().slice(0, limit) : ''
 }
 
+/**
+ * Characters an email address may contain, as a whitelist.
+ *
+ * Deliberately not a list of dangerous inputs to reject. Guessing every way a
+ * script can be written is a losing game; stating what an address is made of
+ * is not, and everything else — angle brackets, quotes, spaces, semicolons —
+ * is excluded by never being listed.
+ */
+const EMAIL = /^[a-z0-9][a-z0-9._+-]*@[a-z0-9-]+(\.[a-z0-9-]+)+$/i
+
+/**
+ * Characters a display name may NOT contain.
+ *
+ * A name is free text in a way an address is not — apostrophes, accents and
+ * hyphens are all ordinary in real names — so this is the one place a
+ * blacklist is the honest tool. It bars the markup and control characters that
+ * make a name into something other than a name.
+ *
+ * The console renders names through JSX, which escapes them, so a name holding
+ * a <script> tag is inert on screen today. That is not the reason to refuse it.
+ * A name is also written into generated Word documents and passed to the
+ * drafter as context, and neither of those inherits React's escaping — so the
+ * guarantee has to live where the name is written, not where it is read.
+ */
+const NOT_IN_NAME = /[<>{}\\|`]/
+
+/**
+ * Invisible characters, which a real name never contains and which exist in
+ * pasted input mainly to hide something from whoever reads it back.
+ */
+function hasControlCharacters(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0
+    if (code < 0x20 || code === 0x7f) return true
+  }
+  return false
+}
+
+/** A readable complaint, or null when the pair is fit to store. */
+function identityProblem(email: string, fullName: string): string | null {
+  if (!EMAIL.test(email)) return 'That is not a valid email address.'
+  if (!fullName) return null // optional — the list falls back to the address
+  if (hasControlCharacters(fullName)) return 'That name contains invisible characters.'
+  if (NOT_IN_NAME.test(fullName)) {
+    return 'A name cannot contain < > { } \\ | or ` characters.'
+  }
+  if (!/\p{L}/u.test(fullName)) return 'A name needs at least one letter.'
+  return null
+}
+
 const ROLES = ['super_user', 'admin', 'user'] as const
 type Role = (typeof ROLES)[number]
 
@@ -127,9 +177,11 @@ Deno.serve(async (request: Request) => {
     const fullName = text(body.fullName, 120)
     const role = isRole(body.role) ? body.role : 'user'
 
-    if (!email || !email.includes('@')) {
-      return json({ error: 'A valid email address is required.' }, 400)
-    }
+    // Checked here rather than only in the browser. The console's form is a
+    // convenience; this function is the boundary, and anyone holding a super
+    // user token can post to it directly.
+    const problem = identityProblem(email, fullName)
+    if (problem) return json({ error: problem }, 400)
 
     const password = temporaryPassword()
     const { data: created, error: createError } = await admin.auth.admin.createUser({

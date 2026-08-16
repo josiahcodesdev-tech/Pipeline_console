@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { useAuth } from '@/shared/hooks/use-auth'
-import { toSignInEmail } from '@/domain/usernames'
+import { signInProblem, toSignInEmail } from '@/domain/usernames'
 
 /**
  * Sign in only.
@@ -23,6 +23,16 @@ export function SignInView() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (busy) return
+
+    // Said at the field rather than left to the API, which answers a malformed
+    // username with "Invalid login credentials" — indistinguishable from a
+    // wrong password, and it sends people to reset one that was never wrong.
+    const problem = signInProblem(email)
+    if (problem) {
+      toast.error(problem)
+      return
+    }
+
     setBusy(true)
     try {
       // "admin" and "admin@vantageafricaleaders.com" are the same account.
