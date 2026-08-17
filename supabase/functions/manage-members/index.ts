@@ -184,8 +184,8 @@ Deno.serve(async (request: Request) => {
       .eq('id', id)
       .maybeSingle()
     if (targetError) return json({ error: 'Could not verify the selected member.' }, 502)
-    if (!target || target.active !== true || target.role !== 'user' || !target.email) {
-      return json({ error: 'Only an active standard-user account can be opened this way.' }, 400)
+    if (!target || target.active !== true || !['user', 'admin'].includes(target.role) || !target.email) {
+      return json({ error: 'Only an active user or admin account can be opened this way.' }, 400)
     }
 
     const { data: generated, error: linkError } = await admin.auth.admin.generateLink({

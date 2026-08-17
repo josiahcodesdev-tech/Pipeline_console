@@ -194,7 +194,7 @@ export function setMemberActive(id: string, active: boolean): Promise<unknown> {
   return call({ action: 'set-active', id, active })
 }
 
-/** Creates a short-lived, one-time login for an active standard user. */
+/** Creates a short-lived, one-time login for an active user or admin. */
 export async function createImpersonationLogin(
   id: string,
 ): Promise<{ actionLink: string; email: string }> {

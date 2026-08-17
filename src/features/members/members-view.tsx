@@ -214,8 +214,9 @@ export function MembersView() {
   }
 
   async function loginAs(member: Profile) {
+    const accountType = member.role === 'admin' ? 'admin' : 'standard user'
     const ok = window.confirm(
-      `Log in as ${member.fullName || member.email}?\n\nThis browser will leave your super-user session and become this standard user. To return, sign out and log in again with your super-user account. The switch is recorded in the security audit log.`,
+      `Log in as ${member.fullName || member.email}?\n\nThis browser will leave your super-user session and become this ${accountType}. To return, sign out and log in again with your super-user account. The switch is recorded in the security audit log.`,
     )
     if (!ok) return
     setSwitchingTo(member.id)
@@ -527,7 +528,7 @@ export function MembersView() {
                             <KeyRoundIcon className="size-3.5" aria-hidden />
                             Reset password
                           </Button>
-                          {!isSelf && member.active && member.role === 'user' && (
+                          {!isSelf && member.active && (member.role === 'user' || member.role === 'admin') && (
                             <Button
                               type="button"
                               variant="outline"
@@ -536,7 +537,9 @@ export function MembersView() {
                               onClick={() => void loginAs(member)}
                             >
                               <LogInIcon className="size-3.5" aria-hidden />
-                              {switchingTo === member.id ? 'Switching…' : 'Login as user'}
+                              {switchingTo === member.id
+                                ? 'Switching…'
+                                : member.role === 'admin' ? 'Login as admin' : 'Login as user'}
                             </Button>
                           )}
                           {/* Last, and the only destructive control here, so it
