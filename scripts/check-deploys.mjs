@@ -107,12 +107,41 @@ function main() {
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
   const ahead = git('rev-list', '--count', `origin/${branch}..HEAD`)
 
+  /**
+   * The branch Vercel treats as production.
+   *
+   * Checked because pushing is not the same as shipping. This project develops
+   * on `main` while Vercel's production branch is `master`, so every green
+   * build on main was only ever a Preview — the live site sat 18 commits back,
+   * on a tree that did not compile. The first version of this check compared
+   * main against origin/main, said "✓", and was completely right and totally
+   * useless. Override with VERCEL_PRODUCTION_BRANCH when it is neither the
+   * remote's default branch nor the one you are on.
+   */
+  const production =
+    process.env.VERCEL_PRODUCTION_BRANCH ||
+    git('symbolic-ref', 'refs/remotes/origin/HEAD').replace('refs/remotes/origin/', '') ||
+    branch
+
   console.log('\nConsole (Vercel builds on push)')
   if (ahead && ahead !== '0') {
-    console.log(`  ✗ ${ahead} commit(s) on ${branch} not pushed — Vercel is building older code`)
+    console.log(`  ✗ ${ahead} commit(s) on ${branch} not pushed`)
     problems.push('unpushed commits')
   } else {
     console.log(`  ✓ ${branch} matches origin/${branch}`)
+  }
+
+  if (production !== branch) {
+    const behind = git('rev-list', '--count', `origin/${production}..origin/${branch}`)
+    if (behind && behind !== '0') {
+      console.log(
+        `  ✗ production branch ${production} is ${behind} commit(s) behind ${branch} — ` +
+          `builds of ${branch} are Preview only, the live site is older`,
+      )
+      problems.push(`${production} behind ${branch}`)
+    } else {
+      console.log(`  ✓ production branch ${production} is level with ${branch}`)
+    }
   }
 
   // ----------------------------------------------------------- Edge Functions
