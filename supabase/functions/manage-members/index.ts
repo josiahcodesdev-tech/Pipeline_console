@@ -188,9 +188,28 @@ Deno.serve(async (request: Request) => {
       return json({ error: 'Only an active user or admin account can be opened this way.' }, 400)
     }
 
+    /**
+     * Land back on the console that asked, not on the project's Site URL.
+     *
+     * Without this the link redirects to whatever `site_url` happens to be —
+     * which was still Supabase's `http://127.0.0.1:3000` placeholder, so a
+     * successful impersonation delivered the super user to a dead port with a
+     * live session token sitting in the URL fragment. The login had worked;
+     * only the destination was wrong, which is the confusing way for this to
+     * fail.
+     *
+     * Taking the caller's own origin also means the same function serves
+     * localhost and production without knowing which is which. It is not a
+     * redirect hole: Supabase validates `redirectTo` against the project's
+     * allow-list and ignores anything absent from it, so the allow-list stays
+     * the control and this only chooses among addresses already trusted.
+     */
+    const origin = request.headers.get('origin') ?? ''
+
     const { data: generated, error: linkError } = await admin.auth.admin.generateLink({
       type: 'magiclink',
       email: target.email,
+      options: origin ? { redirectTo: origin } : undefined,
     })
     const actionLink = generated?.properties?.action_link
     if (linkError || !actionLink) {
