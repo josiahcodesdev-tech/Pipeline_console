@@ -171,7 +171,7 @@ interface PipelineValue {
   saveReport: (draft: WeeklyReportDraft) => Promise<void>
 
   saveDraftProposal: (rfpId: string, title: string, content: string) => Promise<void>
-  uploadProposal: (rfpId: string, file: File, notes: string) => Promise<void>
+  uploadProposal: (rfpId: string, file: File, notes: string, content?: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
   addPastProposal: (rfpId: string, title: string, content: string) => Promise<void>
@@ -593,8 +593,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const uploadProposal = useCallback(
-    async (rfpId: string, file: File, notes: string) => {
-      const saved = await uploadSubmittedProposal(rfpId, file, notes)
+    async (rfpId: string, file: File, notes: string, content = '') => {
+      const saved = await uploadSubmittedProposal(rfpId, file, notes, content)
       setProposals((current) => [saved, ...current])
       toast.success(`${saved.fileName} uploaded`)
     },

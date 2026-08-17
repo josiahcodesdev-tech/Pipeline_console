@@ -9,6 +9,10 @@ const PROPOSAL_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf',
+  'text/rtf',
+  'text/plain',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint',
@@ -116,10 +120,11 @@ export async function uploadSubmittedProposal(
   rfpId: string,
   file: File,
   notes: string,
+  content = '',
 ): Promise<Proposal> {
   if (file.size > MAX_PROPOSAL_BYTES) throw new Error('That proposal is over 25 MB.')
   if (!PROPOSAL_TYPES.has(file.type)) {
-    throw new Error('Use PDF, Office document or ZIP format for a submitted proposal.')
+    throw new Error('Use PDF, Word, OpenDocument, RTF, text, Office or ZIP format for a submitted proposal.')
   }
   const userId = await proposalOwner(rfpId)
   const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
@@ -140,7 +145,7 @@ export async function uploadSubmittedProposal(
           rfp_id: rfpId,
           kind: 'submitted',
           title: file.name,
-          content: '',
+          content,
           file_path: path,
           file_name: file.name,
           file_size: file.size,

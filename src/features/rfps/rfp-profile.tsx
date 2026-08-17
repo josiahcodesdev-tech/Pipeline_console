@@ -37,6 +37,7 @@ import {
   analyzeTender,
   enrichTender,
   indexKnowledge,
+  ingestProposal,
   ingestTender,
   retrieveKnowledge,
 } from '@/services/tender-intelligence'
@@ -204,14 +205,23 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     const jobs: Promise<unknown>[] = []
     if (settings.boilerplate.trim()) jobs.push(indexKnowledge({ sourceType:'company_fact', sourceId:'settings', title:'Verified company facts', content:settings.boilerplate }))
     if (settings.proposalGuidance.trim()) jobs.push(indexKnowledge({ sourceType:'methodology', sourceId:'proposal-guidance', title:'Proposal methodology guidance', content:settings.proposalGuidance }))
-    for (const proposal of exemplars) jobs.push(indexKnowledge({ sourceType:'proposal', sourceId:proposal.id, title:proposal.title, content:proposal.content }))
+    // The whole submitted library supplies bid-specific evidence through
+    // retrieval. Starred proposals additionally teach writing style.
+    for (const proposal of proposals.filter((item) => item.kind === 'submitted' && item.content.trim())) {
+      jobs.push(indexKnowledge({ sourceType:'proposal', sourceId:proposal.id, title:proposal.title, content:proposal.content }))
+    }
     for (const consultant of consultants) {
       const content = [consultant.title, consultant.coreExpertise, consultant.qualifications, consultant.taskFit, consultant.projectExperience, consultant.shortBio, consultant.longBio].filter(Boolean).join('\n')
       if (content) jobs.push(indexKnowledge({ sourceType:'consultant_cv', sourceId:consultant.id, title:consultant.name, content }))
     }
     await Promise.all(jobs)
     const retrieved = await retrieveKnowledge(`${rfp.title}\n${rfp.serviceAreas}\n${rfp.tenderText.slice(0, 12000)}`)
-    return retrieved.matches.map((match) => `[${match.source_type}: ${match.title}; similarity ${match.similarity.toFixed(3)}]\n${match.content}`).join('\n\n')
+    return retrieved.matches.map((match) => {
+      const use = match.source_type === 'proposal'
+        ? 'PAST PROPOSAL PATTERN ONLY — transfer relevant structure or method, never its client names, figures, dates, staff, credentials or claims.'
+        : 'VERIFIED CAPABILITY CONTEXT — use only for the claim directly supported by this passage.'
+      return `[${match.source_type}: ${match.title}; similarity ${match.similarity.toFixed(3)}]\n${use}\n${match.content}`
+    }).join('\n\n')
   }
 
   /**
@@ -354,7 +364,15 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     if (!file) return
     setUploading(true)
     try {
-      await uploadProposal(rfp.id, file, uploadNotes.trim())
+      let content = ''
+      try {
+        content = (await ingestProposal(file)).markdown
+      } catch (cause) {
+        // Filing the final document is still useful if a legacy format cannot
+        // be read. Keep the limitation visible instead of losing the file.
+        toast.warning(`Text extraction failed; the file will still be saved: ${cause instanceof Error ? cause.message : String(cause)}`)
+      }
+      await uploadProposal(rfp.id, file, uploadNotes.trim(), content)
       setUploadNotes('')
       if (fileInput.current) fileInput.current.value = ''
     } catch (cause) {
@@ -850,7 +868,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           {!viewOnly && (
           <Panel
             title="Upload a sent proposal"
-            description="Keep the version that actually went to the buyer, for the record."
+            description="Keep the version sent to the buyer. PDF and Word text is learned automatically and retrieved for relevant future bids."
           >
             <Input
               value={uploadNotes}
@@ -880,7 +898,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           {PROPOSAL_DRAFTING && !viewOnly && (
           <Panel
             title="Paste a past proposal"
-            description="Text you paste here can be starred as a model answer and shown to the drafter. An uploaded file cannot — it is just an attachment."
+            description="Use this for legacy files that could not be read automatically. Saved text can be starred as a model answer."
           >
             <Input
               value={pasteTitle}

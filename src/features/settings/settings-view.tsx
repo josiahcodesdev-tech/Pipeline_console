@@ -153,7 +153,7 @@ export function SettingsView() {
 
       <Panel
         title="Model answers"
-        description={`Star up to ${MAX_EXEMPLARS} proposals to be shown as worked examples. Only ones with text can be used — an uploaded .docx is an opaque file to the drafter, so paste its text on the RFP profile to make it usable.`}
+        description={`Star up to ${MAX_EXEMPLARS} proposals to be shown as worked style examples. Uploaded PDF and Word proposals are also indexed automatically, so relevant passages from the full library can support future bids.`}
         action={
           <span className="text-[11px] text-faint">
             {exemplars.length} / {MAX_EXEMPLARS} starred

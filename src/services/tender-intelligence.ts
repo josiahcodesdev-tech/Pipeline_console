@@ -27,7 +27,15 @@ function base64(file: File): Promise<string> {
 }
 
 export async function ingestTender(file: File) {
-  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[] }>({ action:'ingest', base64:await base64(file), fileName:file.name, mimeType:file.type })
+  return ingestDocument(file, 'tender')
+}
+
+export async function ingestProposal(file: File) {
+  return ingestDocument(file, 'proposal')
+}
+
+async function ingestDocument(file: File, purpose: 'tender' | 'proposal') {
+  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[] }>({ action:'ingest', purpose, base64:await base64(file), fileName:file.name, mimeType:file.type })
 }
 
 export async function analyzeTender(text: string, knowledge: string, url = '') {
