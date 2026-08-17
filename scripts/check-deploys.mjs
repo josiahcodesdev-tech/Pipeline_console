@@ -13,14 +13,18 @@
  * dashboard cheerfully reported the function as ACTIVE. The gap is invisible
  * precisely because both halves look healthy on their own.
  *
- * So this compares the two clocks that should agree:
+ * So this asks, per function, whether the source on disk is the source that is
+ * running. Preferably by fingerprint: `npm run deploy:fn` records a hash of
+ * what it sent, and this recomputes it. That answer does not depend on clocks,
+ * which matters because clocks cannot tell "deployed, then committed a minute
+ * later" from "committed and never deployed" — the first version of this check
+ * reported the former as stale, on its own author, within the hour.
  *
- *   the last commit touching supabase/functions/<name>/
- *   the timestamp Supabase reports for that function's current version
- *
- * Code newer than its deployment is the failure. Uncommitted changes count as
- * undeployed too — they cannot have shipped — and are reported separately,
- * because the fix is a commit rather than a deploy.
+ * Where no record exists — a bare `supabase functions deploy`, or a function
+ * last shipped before any of this — it falls back to comparing the last commit
+ * touching the directory against the deployment timestamp, and marks the result
+ * `~` rather than `✓` so a weaker answer is never dressed up as the stronger
+ * one.
  *
  * Run it before you say something is live:
  *
@@ -34,8 +38,10 @@
 import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { hashFunction } from './function-hash.mjs'
 
 const FUNCTIONS_DIR = join('supabase', 'functions')
+const STATE_FILE = join(FUNCTIONS_DIR, '.deploy-state.json')
 
 /** Trailing newline stripped; failures become '' rather than throwing. */
 function git(...args) {
@@ -167,6 +173,8 @@ function main() {
     .map((entry) => entry.name)
     .sort()
 
+  const state = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : {}
+
   for (const name of local) {
     const dir = join(FUNCTIONS_DIR, name)
     const committedAt = Number(git('log', '-1', '--format=%ct', '--', dir)) * 1000
@@ -178,6 +186,24 @@ function main() {
       problems.push(name)
       continue
     }
+
+    // The reliable answer, when there is one: does the source on disk hash to
+    // what was recorded at deploy time? Independent of when anything was
+    // committed, which is the ambiguity that made this check cry wolf.
+    const recorded = state[name]?.hash
+    if (recorded) {
+      if (recorded === hashFunction(dir)) {
+        console.log(`  ✓ ${name} — v${live.version}, source matches the recorded deployment`)
+      } else {
+        console.log(`  ✗ ${name} — source has changed since it was deployed (v${live.version})`)
+        problems.push(name)
+      }
+      continue
+    }
+
+    // No record — deployed with the bare CLI, or before this was introduced.
+    // Fall back to the clocks, and say that is what happened rather than
+    // presenting a weaker check as the same answer.
     if (committedAt > live.updatedAt) {
       console.log(
         `  ✗ ${name} — v${live.version} deployed ${stamp(live.updatedAt)}, ` +
@@ -191,7 +217,10 @@ function main() {
       problems.push(name)
       continue
     }
-    console.log(`  ✓ ${name} — v${live.version}, deployed ${stamp(live.updatedAt)}`)
+    console.log(
+      `  ~ ${name} — v${live.version}, looks current by timestamp only ` +
+        `(no deploy record; use npm run deploy:fn)`,
+    )
   }
 
   // Functions live on the project with no source here. Worth naming rather

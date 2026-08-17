@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "check:deploys": "node scripts/check-deploys.mjs",
+    "deploy:fn": "node scripts/deploy-fn.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
