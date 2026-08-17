@@ -8,6 +8,7 @@ import type {
   Task,
   WeeklyReport,
 } from '@/domain/types'
+import { isActiveRfp } from '@/domain/metrics'
 import type {
   ActivityRow,
   LeadRow,
@@ -116,8 +117,10 @@ async function loadEveryPage<Row>(
  * firm gets the same tender once per member — five copies of each with five
  * accounts. The tracker should show an opportunity once.
  *
- * The copy that is in somebody's pipeline wins, so the admin sees the live
- * state rather than an untouched duplicate of a tender already being bid.
+ * The copy that is in somebody's pipeline wins, followed by an active copy.
+ * Members can update their own copy's status independently; keeping whichever
+ * row happened to arrive first made an active tender look Won/Lost on the
+ * oversight dashboard and made its RFP total disagree with member dashboards.
  * Hand-added RFPs are keyed by their own id: two members each entering one by
  * hand really are two records, not a duplicate.
  */
@@ -126,7 +129,11 @@ function onePerTender(rfps: Rfp[]): Rfp[] {
   for (const rfp of rfps) {
     const key = rfp.externalId ?? `own:${rfp.id}`
     const held = byTender.get(key)
-    if (!held || (rfp.inPipeline && !held.inPipeline)) byTender.set(key, rfp)
+    const priority = Number(rfp.inPipeline) * 2 + Number(isActiveRfp(rfp.status))
+    const heldPriority = held
+      ? Number(held.inPipeline) * 2 + Number(isActiveRfp(held.status))
+      : -1
+    if (!held || priority > heldPriority) byTender.set(key, rfp)
   }
   return [...byTender.values()]
 }
