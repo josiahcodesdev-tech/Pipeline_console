@@ -6,6 +6,20 @@ import { ROLE_LABEL } from '@/domain/types'
 import { navItemsFor } from '@/app/nav'
 import { toDisplayName } from '@/domain/usernames'
 
+const NAV_ICON: Record<ViewId, string> = {
+  dashboard: 'dashboard',
+  leads: 'leads',
+  rfps: 'rfps',
+  pipeline: 'pipeline',
+  activity: 'activity',
+  tasks: 'tasks',
+  progress: 'progress',
+  report: 'report',
+  consultants: 'consultants',
+  members: 'members',
+  settings: 'settings',
+}
+
 export function AppSidebar({
   current,
   onNavigate,
@@ -31,7 +45,7 @@ export function AppSidebar({
           aria-hidden
           className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-clay to-primary font-display text-[13px] text-white shadow-brand-sm"
         >
-          JM
+          VA
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[17px] leading-tight text-foreground">
@@ -58,7 +72,6 @@ export function AppSidebar({
         <div className="eyebrow mb-1.5 px-2.5 text-faint">Workspace</div>
         {items.map((item) => {
           const active = item.id === current
-          const Icon = item.icon
           return (
             <button
               key={item.id}
@@ -76,11 +89,11 @@ export function AppSidebar({
                   : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
               )}
             >
-              <Icon
-                className={cn(
-                  'size-4 shrink-0 transition-colors',
-                  active ? 'text-white' : 'text-faint group-hover:text-clay',
-                )}
+              <img
+                src={`/icons/mono/${NAV_ICON[item.id]}.png`}
+                alt=""
+                aria-hidden
+                className="size-4 shrink-0 object-contain"
               />
               {item.label}
             </button>

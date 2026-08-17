@@ -129,7 +129,7 @@ export function KpiCard({
   )
 
   const shell =
-    'lift group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-brand-sm'
+    'lift group relative flex flex-col overflow-hidden rounded-xl border border-border-soft bg-card text-left shadow-brand-sm'
 
   if (!onClick) {
     return <div className={cn(shell, className)}>{body}</div>

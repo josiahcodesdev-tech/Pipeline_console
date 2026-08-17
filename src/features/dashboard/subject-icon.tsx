@@ -14,14 +14,14 @@ import { cn } from '@/shared/utils'
  * back with them.
  */
 const ICONS = {
-  qualified: 'handshake',
-  discipline: 'alarm-clock',
-  rfps: 'document',
-  logged: 'chat',
-  tasks: 'todo-list',
-  deadlines: 'calendar',
+  qualified: 'qualified',
+  discipline: 'discipline',
+  rfps: 'rfps',
+  logged: 'logged',
+  tasks: 'tasks',
+  deadlines: 'deadlines',
   pipeline: 'goal',
-  team: 'conference-call',
+  team: 'team',
 } as const
 
 export type SubjectName = keyof typeof ICONS
@@ -42,7 +42,7 @@ export function SubjectIcon({
 }) {
   return (
     <img
-      src={`/icons/${ICONS[name]}.png`}
+      src={`/icons/mono/${ICONS[name]}.png`}
       alt=""
       aria-hidden
       width={96}

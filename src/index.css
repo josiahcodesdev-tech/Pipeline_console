@@ -26,7 +26,7 @@
     inputs, selects, dialogs — so the whole surface moves together rather than
     drifting a component at a time.
   */
-  --radius: 1rem;
+  --radius: 0.75rem;
 
   --background: #f8f5f0;
   --foreground: #2c1810;
@@ -204,18 +204,7 @@
       gradient — it should feel like paper stock, not decoration.
     */
     background-color: var(--background);
-    background-image:
-      radial-gradient(
-        900px circle at 12% -8%,
-        rgba(218, 165, 32, 0.07),
-        transparent 60%
-      ),
-      radial-gradient(
-        800px circle at 100% 0%,
-        rgba(139, 69, 19, 0.05),
-        transparent 55%
-      );
-    background-attachment: fixed;
+    background-image: none;
   }
 
   /* Inter's default figures are proportional; tables need them to line up. */

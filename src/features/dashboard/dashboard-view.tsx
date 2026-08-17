@@ -179,7 +179,7 @@ export function DashboardView({
       <ViewHeader
         eyebrow="Today"
         title="Dashboard"
-        description="Where the pipeline stands, and what needs you before the day is out."
+        description="See what is moving, what needs attention, and where the team can help today."
         meta={
           <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground shadow-brand-sm">
             {formatToday()}
@@ -202,6 +202,7 @@ export function DashboardView({
                 : 'In your tracker · Watching, Preparing or Submitted'}
               subject="rfps"
               onClick={() => onNavigate('rfps')}
+              featured
             />
             <HeroStat
               label="Being bid"

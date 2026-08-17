@@ -33,28 +33,30 @@ export function HeroStat({
   hint,
   subject,
   onClick,
+  featured = false,
 }: {
   label: string
   value: ReactNode
   hint?: string
   subject: SubjectName
   onClick?: () => void
+  featured?: boolean
 }) {
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-white/70">
+          <div className={cn('text-[10.5px] font-semibold tracking-wide', featured ? 'text-white/75' : 'text-muted-foreground')}>
             {label}
           </div>
-          <div className="mt-1.5 font-display text-[26px] leading-none text-white">
+          <div className={cn('mt-1.5 font-display text-[30px] leading-none', featured ? 'text-white' : 'text-foreground')}>
             {value}
           </div>
-          {hint && <p className="mt-1.5 text-[11px] text-white/70">{hint}</p>}
+          {hint && <p className={cn('mt-1.5 text-[11px]', featured ? 'text-white/70' : 'text-faint')}>{hint}</p>}
         </div>
         {/* Sunk into a translucent well so the mark sits on the gradient
             rather than floating on it. */}
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gold/25 ring-1 ring-white/15">
+        <span className={cn('grid size-9 shrink-0 place-items-center rounded-full', featured ? 'bg-white/15 ring-1 ring-white/20' : 'bg-brand-soft')}>
           <SubjectIcon name={subject} className="size-5" />
         </span>
       </div>
@@ -62,8 +64,10 @@ export function HeroStat({
   )
 
   const shell = cn(
-    'rounded-2xl bg-gradient-to-br px-4 py-3.5 text-left shadow-brand-md',
-    HERO_FILL,
+    'rounded-xl border px-4 py-3.5 text-left shadow-brand-sm',
+    featured
+      ? `border-transparent bg-gradient-to-br ${HERO_FILL}`
+      : 'border-border-soft bg-card',
   )
 
   if (!onClick) return <div className={shell}>{body}</div>
