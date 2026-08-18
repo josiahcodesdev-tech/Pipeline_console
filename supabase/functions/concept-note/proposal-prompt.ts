@@ -173,3 +173,59 @@ Include concise lists for:
 - Material bid risks and a go / go-with-conditions / no-go recommendation.
 
 Never call the proposal submission-ready while a mandatory requirement remains unresolved.`
+
+/** One heading of the master structure, as the console shows it. */
+export interface TemplateSection {
+  title: string
+  /**
+   * Whether the drafter must use it. Read from the doctrine's own first word:
+   * a section opening "CONDITIONAL." or "RECOMMENDED when…" says so about
+   * itself, and anything that does not is expected in every proposal.
+   */
+  status: 'Always' | 'Recommended' | 'Conditional'
+  /** The doctrine's instruction for what belongs under the heading. */
+  guidance: string
+}
+
+/**
+ * The master structure, parsed out of the doctrine above.
+ *
+ * Parsed rather than restated. The alternative — a list of section titles kept
+ * beside the prompt for the console to display — is two copies of one fact,
+ * and the copy nobody drafts against is the copy that quietly goes stale. This
+ * way an edit to the doctrine is an edit to what the console shows, with no
+ * second place to remember.
+ *
+ * Deliberately not the reverse (generating the prompt from a data structure):
+ * the doctrine's exact wording is tuned, and rebuilding that text from parts
+ * would put every future prompt change at the mercy of a template function.
+ */
+export function proposalTemplate(): TemplateSection[] {
+  const start = PROPOSAL_PROMPT.indexOf('## Master proposal structure')
+  if (start === -1) return []
+
+  // To the next top-level heading — "## Format and length" — so the sections
+  // below the structure block are not read as part of it.
+  const rest = PROPOSAL_PROMPT.slice(start + 3)
+  const end = rest.indexOf('\n## ')
+  const block = end === -1 ? rest : rest.slice(0, end)
+
+  const sections: TemplateSection[] = []
+  for (const match of block.matchAll(/^### (.+)$\n([\s\S]*?)(?=\n### |$)/gm)) {
+    const guidance = match[2].trim()
+    const status = /^CONDITIONAL\b/.test(guidance)
+      ? 'Conditional'
+      : /^RECOMMENDED\b/.test(guidance)
+        ? 'Recommended'
+        : 'Always'
+
+    sections.push({
+      title: match[1].trim(),
+      status,
+      // The status word is shown as a badge, so leaving it at the front of the
+      // sentence would print it twice.
+      guidance: guidance.replace(/^(CONDITIONAL|RECOMMENDED)\b\.?\s*/, ''),
+    })
+  }
+  return sections
+}

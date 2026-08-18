@@ -26,7 +26,7 @@ import {
   PERFORMANCE_REPORT_PROMPT,
   TENDER_ANALYSIS_PROMPT,
 } from './prompts.ts'
-import { PROPOSAL_PROMPT } from './proposal-prompt.ts'
+import { PROPOSAL_PROMPT, proposalTemplate } from './proposal-prompt.ts'
 import { fetchNotice } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
@@ -530,6 +530,9 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
       {
         preview: true,
         kind: kind || 'concept-note',
+        // The headings the drafter must populate, read out of the doctrine
+        // itself so this cannot describe a structure it is no longer given.
+        template: isProposal ? proposalTemplate() : [],
         model: drafter.label,
         system: systemPrompt,
         task,

@@ -150,8 +150,24 @@ export async function draftConceptNote(
 }
 
 /** The prompt as it would be sent, with a note of what each part came from. */
+/**
+ * One heading of the master proposal structure.
+ *
+ * Parsed server-side out of the drafting doctrine rather than listed here, so
+ * the console can never show a structure the drafter is no longer given.
+ */
+export interface TemplateSection {
+  title: string
+  /** How the doctrine states its own inclusion rule for this heading. */
+  status: 'Always' | 'Recommended' | 'Conditional'
+  /** What belongs under it, in the doctrine's words. */
+  guidance: string
+}
+
 export interface PromptPreview {
   kind: string
+  /** The document skeleton. Empty for anything that is not a proposal. */
+  template: TemplateSection[]
   /** Which model would write it, e.g. "OpenAI gpt-5.6". */
   model: string
   /** The system message: doctrine, playbooks, house rules, roster, exemplars. */
@@ -200,6 +216,7 @@ export async function previewPrompt(
 
   return {
     kind: data.kind ?? context.kind,
+    template: data.template ?? [],
     model: data.model ?? 'unknown',
     system: data.system,
     task: data.task ?? '',

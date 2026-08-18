@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from '@/shared/ui/dialog'
 import { Button } from '@/shared/ui/button'
-import type { PromptPreview } from '@/services/concept-note'
+import { cn } from '@/shared/utils'
+import type { PromptPreview, TemplateSection } from '@/services/concept-note'
 
 /**
  * The prompt the drafter would be given, shown before it is given.
@@ -100,6 +101,9 @@ export function PromptPreviewDialog({
           <p className="py-6 text-center text-[13px] text-muted-foreground">Reading…</p>
         ) : (
           <div className="space-y-4">
+            {/* First, because it is the question people arrive with: what shape is
+                the document going to be? The prompt below answers why. */}
+            <ProposalTemplate sections={preview.template} />
             <div className="rounded-lg border border-border bg-card p-3">
               <Row label="Model" value={preview.model} />
               <Row label="Doctrine" value={preview.sources.doctrine} />
@@ -132,5 +136,82 @@ export function PromptPreviewDialog({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The skeleton a proposal is written into.
+ *
+ * Shown in the colours of the Word export rather than the console's own, for
+ * the same reason ProposalPreview is: this is a picture of the document, and a
+ * picture of the document should not restyle itself when the console does.
+ *
+ * Every heading carries the doctrine's own rule about whether it appears.
+ * "Always" is not a promise the drafter keeps blindly — a tender that
+ * prescribes its own structure overrides all of this, which is stated once
+ * above the list rather than repeated against each row.
+ */
+const MAROON = '#6B0F1A'
+const GOLD = '#C5973A'
+const CREAM = '#F9F3E8'
+
+const STATUS_STYLE: Record<TemplateSection['status'], string> = {
+  Always: 'bg-success-soft text-success',
+  Recommended: 'bg-brand-soft text-primary',
+  Conditional: 'bg-surface-2 text-muted-foreground',
+}
+
+export function ProposalTemplate({ sections }: { sections: TemplateSection[] }) {
+  if (sections.length === 0) return null
+
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-1.5 text-[13px] font-medium text-foreground">
+        Master structure <span className="text-faint">· {sections.length} sections</span>
+      </h3>
+      <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+        The headings the drafter populates, in order. A tender that prescribes
+        its own structure replaces this entirely — these apply when it does not.
+      </p>
+
+      <div
+        className="max-h-[46vh] overflow-auto rounded-lg border p-4"
+        style={{ background: CREAM, borderColor: GOLD }}
+      >
+        <ol className="space-y-3">
+          {sections.map((section, index) => (
+            <li key={section.title} className="flex gap-3">
+              <span
+                className="mt-0.5 w-5 shrink-0 text-right font-mono text-[11px]"
+                style={{ color: GOLD }}
+              >
+                {index + 1}
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span
+                    className="font-display text-[13px] leading-snug"
+                    style={{ color: MAROON }}
+                  >
+                    {section.title}
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      STATUS_STYLE[section.status],
+                    )}
+                  >
+                    {section.status}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#4A4A4A]">
+                  {section.guidance}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   )
 }
