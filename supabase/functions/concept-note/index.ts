@@ -34,6 +34,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 
 interface DraftContext {
   kind?: unknown
+  /** Assemble the prompt and return it instead of drafting. See below. */
+  preview?: unknown
   org?: unknown
   segment?: unknown
   country?: unknown
@@ -344,15 +346,32 @@ Deno.serve(async (request: Request) => {
   // block, and anything it cannot read there it must not claim.
   const isPerformanceReport = kind === 'performance-report'
   const isAnalysis = kind === 'tender-analysis'
+  /**
+   * Show the assembled prompt instead of writing anything with it.
+   *
+   * For troubleshooting a draft that came out wrong. The prompt is built from
+   * four sources that live in different places — the doctrine in this repo, the
+   * playbooks matched from the tender's own words, the house rules and
+   * boilerplate typed into Settings, and the starred exemplars — so "why did it
+   * say that?" is not answerable by reading any one of them. This returns
+   * exactly what the model would have been sent.
+   *
+   * No model call and no quota: a preview that cost one of the ten hourly
+   * proposals would be a preview nobody could afford to use while debugging.
+   */
+  const isPreview = context.preview === true
+
   const quotaAction = isProposal ? 'proposal' : isAnalysis ? 'tender-analysis' : isPerformanceReport ? 'performance-report' : 'concept-note'
   const quotaMax = isProposal ? 10 : isPerformanceReport ? 10 : 30
-  const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
-    quota_action: quotaAction,
-    max_calls: quotaMax,
-    window_seconds: 3600,
-  })
-  if (quotaError) return json({ error: 'Could not verify the drafting allowance.' }, 503)
-  if (!quotaAllowed) return json({ error: `The hourly ${quotaAction} limit has been reached. Try again later.` }, 429)
+  if (!isPreview) {
+    const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
+      quota_action: quotaAction,
+      max_calls: quotaMax,
+      window_seconds: 3600,
+    })
+    if (quotaError) return json({ error: 'Could not verify the drafting allowance.' }, 503)
+    if (!quotaAllowed) return json({ error: `The hourly ${quotaAction} limit has been reached. Try again later.` }, 429)
+  }
   const what = isProposal
     ? 'proposal'
     : isPerformanceReport
@@ -502,6 +521,38 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
     : `Draft a ${what} using this context:\n\n${details}`
 
   const job = { system: systemPrompt, task, heavy: isProposal || isPerformanceReport }
+
+  // Everything above is assembly; nothing below it is reached in preview mode.
+  // Returned as the two separate messages rather than one blob, because which
+  // half a stray instruction landed in is usually the answer being looked for.
+  if (isPreview) {
+    return json(
+      {
+        preview: true,
+        kind: kind || 'concept-note',
+        model: drafter.label,
+        system: systemPrompt,
+        task,
+        sources: {
+          doctrine: isAnalysis
+            ? 'TENDER_ANALYSIS_PROMPT'
+            : isPerformanceReport
+              ? 'PERFORMANCE_REPORT_PROMPT'
+              : isProposal
+                ? 'PROPOSAL_PROMPT'
+                : 'CONCEPT_NOTE_PROMPT',
+          playbooks: playbooks.map((playbook) => playbook.label),
+          houseRules: guidance.length,
+          boilerplate: boilerplate.length,
+          exemplars: examples.length,
+          consultants: roster.length,
+          tenderText: tender.length,
+          analysis: analysis.length,
+        },
+      },
+      200,
+    )
+  }
 
   const refusedMessage =
     'The drafting service declined this request. Try rephrasing the notes on this record.'

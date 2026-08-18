@@ -149,6 +149,73 @@ export async function draftConceptNote(
   }
 }
 
+/** The prompt as it would be sent, with a note of what each part came from. */
+export interface PromptPreview {
+  kind: string
+  /** Which model would write it, e.g. "OpenAI gpt-5.6". */
+  model: string
+  /** The system message: doctrine, playbooks, house rules, roster, exemplars. */
+  system: string
+  /** The user message: the record's own details, and the tender or its reading. */
+  task: string
+  sources: {
+    doctrine: string
+    playbooks: string[]
+    /** Character counts — enough to see whether a part arrived at all. */
+    houseRules: number
+    boilerplate: number
+    exemplars: number
+    consultants: number
+    tenderText: number
+    analysis: number
+  }
+}
+
+/**
+ * The prompt this record would produce, without producing anything with it.
+ *
+ * For answering "why did it write that?" — which is not answerable by reading
+ * the doctrine alone, because what reaches the model is four sources merged:
+ * the doctrine in the function, the playbooks matched from the tender's own
+ * words, the house rules and boilerplate from Settings, and the starred
+ * exemplars. This returns the merge.
+ *
+ * Costs nothing against the hourly drafting allowance — the server skips both
+ * the quota and the model call.
+ */
+export async function previewPrompt(
+  context: ConceptNoteContext,
+): Promise<PromptPreview> {
+  const { data, error } = await supabase.functions.invoke<
+    Partial<PromptPreview> & { error?: string }
+  >('concept-note', { body: { ...context, preview: true } })
+
+  if (error) {
+    throw new Error(
+      `Could not read the prompt: ${error.message}. Check that the concept-note function is deployed.`,
+    )
+  }
+  if (data?.error) throw new Error(data.error)
+  if (!data?.system) throw new Error('The drafting service returned no prompt.')
+
+  return {
+    kind: data.kind ?? context.kind,
+    model: data.model ?? 'unknown',
+    system: data.system,
+    task: data.task ?? '',
+    sources: data.sources ?? {
+      doctrine: '',
+      playbooks: [],
+      houseRules: 0,
+      boilerplate: 0,
+      exemplars: 0,
+      consultants: 0,
+      tenderText: 0,
+      analysis: 0,
+    },
+  }
+}
+
 /**
  * Same draft, streamed.
  *

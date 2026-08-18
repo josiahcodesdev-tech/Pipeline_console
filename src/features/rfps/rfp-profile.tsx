@@ -29,6 +29,8 @@ import {
   draftConceptNoteStreaming,
   MAX_EXEMPLARS,
   MAX_EXEMPLAR_CHARS,
+  previewPrompt,
+  type PromptPreview,
 } from '@/services/concept-note'
 import { downloadProposalDocx } from '@/documents/proposal'
 import { MAX_TENDER_CHARS } from '@/services/pdf-text'
@@ -48,6 +50,7 @@ import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
 import { RfpDialog } from './rfp-dialog'
 import { ProposalPreview } from './proposal-preview'
+import { PromptPreviewDialog } from './prompt-preview'
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return ''
@@ -148,6 +151,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [editing, setEditing] = useState(false)
   const [reassigning, setReassigning] = useState(false)
   const [drafting, setDrafting] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [promptPreview, setPromptPreview] = useState<PromptPreview | null>(null)
+  const [promptOpen, setPromptOpen] = useState(false)
   const [uploadNotes, setUploadNotes] = useState('')
   const [uploading, setUploading] = useState(false)
   const [pasteTitle, setPasteTitle] = useState('')
@@ -256,6 +262,43 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   }
 
   /** Reads, enriches and stores the tender context before writing when needed. */
+  /**
+   * The prompt this record would produce, without producing anything.
+   *
+   * Built from the same fields `handleDraft` sends, deliberately duplicated
+   * rather than factored out with it: the draft path first runs the enrichment
+   * and retrieval steps, which cost embeddings calls and a tender-analysis
+   * allowance, and a preview that did that could not be used freely while
+   * debugging. The stored analysis is used as it stands, and the dialog says
+   * which single part a real draft adds.
+   */
+  async function handlePreviewPrompt() {
+    setPreviewing(true)
+    try {
+      const preview = await previewPrompt({
+        kind: 'proposal',
+        org: rfp.org,
+        segment: rfp.segment,
+        notes: rfp.notes,
+        rfpTitle: rfp.title,
+        deadline: rfp.deadline,
+        serviceAreas: rfp.serviceAreas,
+        guidance: settings.proposalGuidance,
+        boilerplate: settings.boilerplate,
+        examples: exemplarTexts,
+        consultants: consultants.map(({ id: _id, longBio: _longBio, ...brief }) => brief),
+        tenderText: rfp.tenderText,
+        analysis: rfp.analysis,
+      })
+      setPromptPreview(preview)
+      setPromptOpen(true)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
   async function handleDraft() {
     if (!rfp.org.trim()) {
       toast.error('Add an organization name before drafting')
@@ -709,10 +752,24 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 tender document before continuing.
               </p>
             )}
-            <Button onClick={() => void handleDraft()} disabled={drafting}>
-              <SparklesIcon />
-              {drafting ? 'Drafting…' : 'Draft proposal'}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => void handleDraft()} disabled={drafting}>
+                <SparklesIcon />
+                {drafting ? 'Drafting…' : 'Draft proposal'}
+              </Button>
+              {/* Next to the draft button rather than hidden in Settings: the
+                  moment you want to see the prompt is the moment a draft came
+                  out wrong, and that is here. */}
+              <Button
+                variant="ghost"
+                onClick={() => void handlePreviewPrompt()}
+                disabled={previewing || drafting}
+                title="Show the prompt this record would produce, without drafting or spending an allowance"
+              >
+                <FileTextIcon />
+                {previewing ? 'Reading…' : 'Preview prompt'}
+              </Button>
+            </div>
             {/* Say what the drafter is working from, so a bad draft points at
                 something fixable rather than feeling arbitrary. */}
             <p className="mt-3 text-[11px] text-faint">
@@ -1035,6 +1092,12 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           onOpenChange={setReassigning}
         />
       )}
+
+      <PromptPreviewDialog
+        preview={promptPreview}
+        open={promptOpen}
+        onOpenChange={setPromptOpen}
+      />
     </>
   )
 }
