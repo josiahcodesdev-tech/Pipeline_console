@@ -9,6 +9,7 @@
     "typecheck": "tsc -b",
     "check:deploys": "node scripts/check-deploys.mjs",
     "deploy:fn": "node scripts/deploy-fn.mjs",
+    "templates:build": "node scripts/build-templates.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

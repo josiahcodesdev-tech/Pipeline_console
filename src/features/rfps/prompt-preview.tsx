@@ -103,7 +103,10 @@ export function PromptPreviewDialog({
           <div className="space-y-4">
             {/* First, because it is the question people arrive with: what shape is
                 the document going to be? The prompt below answers why. */}
-            <ProposalTemplate sections={preview.template} />
+            <ProposalTemplate
+              sections={preview.template}
+              overriddenBy={preview.uploadedTemplates.map((template) => template.name)}
+            />
             <div className="rounded-lg border border-border bg-card p-3">
               <Row label="Model" value={preview.model} />
               <Row label="Doctrine" value={preview.sources.doctrine} />
@@ -161,7 +164,14 @@ const STATUS_STYLE: Record<TemplateSection['status'], string> = {
   Conditional: 'bg-surface-2 text-muted-foreground',
 }
 
-export function ProposalTemplate({ sections }: { sections: TemplateSection[] }) {
+export function ProposalTemplate({
+  sections,
+  overriddenBy = [],
+}: {
+  sections: TemplateSection[]
+  /** Names of templates from `proposal-templates/` that supersede this. */
+  overriddenBy?: string[]
+}) {
   if (sections.length === 0) return null
 
   return (
@@ -169,10 +179,26 @@ export function ProposalTemplate({ sections }: { sections: TemplateSection[] }) 
       <h3 className="mb-1.5 text-[13px] font-medium text-foreground">
         Master structure <span className="text-faint">· {sections.length} sections</span>
       </h3>
-      <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
-        The headings the drafter populates, in order. A tender that prescribes
-        its own structure replaces this entirely — these apply when it does not.
-      </p>
+
+      {/* Said before the list rather than after it: if an uploaded template is
+          in force, these headings are largely not what the document will use,
+          and reading twenty-two of them first to discover that is wasted. */}
+      {overriddenBy.length > 0 ? (
+        <p className="mb-2.5 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11px] leading-relaxed text-warning">
+          Superseded by your own template — <strong>{overriddenBy.join(', ')}</strong>{' '}
+          from <code>proposal-templates/</code>. Its headings and order are what
+          the drafter follows; the built-in structure below applies only where
+          your template is silent. A tender that prescribes its own format still
+          beats both.
+        </p>
+      ) : (
+        <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          The headings the drafter populates, in order. A tender that prescribes
+          its own structure replaces this entirely — these apply when it does
+          not. Nothing is in <code>proposal-templates/</code>, so this built-in
+          structure is in use.
+        </p>
+      )}
 
       <div
         className="max-h-[46vh] overflow-auto rounded-lg border p-4"

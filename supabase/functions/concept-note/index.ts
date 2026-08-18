@@ -26,7 +26,12 @@ import {
   PERFORMANCE_REPORT_PROMPT,
   TENDER_ANALYSIS_PROMPT,
 } from './prompts.ts'
-import { PROPOSAL_PROMPT, proposalTemplate } from './proposal-prompt.ts'
+import {
+  PROPOSAL_PROMPT,
+  proposalTemplate,
+  uploadedTemplateBlock,
+} from './proposal-prompt.ts'
+import { UPLOADED_TEMPLATES } from './templates.generated.ts'
 import { fetchNotice } from './notice.ts'
 import { selectPlaybooks } from './playbooks.ts'
 import { describeDraftFailure, selectDrafter } from './drafters.ts'
@@ -443,6 +448,11 @@ Deno.serve(async (request: Request) => {
           : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
     houseRulesBlock(guidance, boilerplate),
+    // After the house rules on purpose. A template is the firm's document
+    // format and the most specific structural statement there is short of the
+    // tender itself, so it should be the last word on headings — and each layer
+    // here reads as a refinement of the one above it.
+    isProposal ? uploadedTemplateBlock(UPLOADED_TEMPLATES) : '',
     rosterBlock(roster),
     examplesBlock(examples),
   ]
@@ -533,6 +543,15 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
         // The headings the drafter must populate, read out of the doctrine
         // itself so this cannot describe a structure it is no longer given.
         template: isProposal ? proposalTemplate() : [],
+        // Which uploaded template is overriding that structure, if any. Named
+        // rather than merely counted: a draft that came out in the wrong shape
+        // should be traceable to the file that shaped it.
+        uploadedTemplates: isProposal
+          ? UPLOADED_TEMPLATES.map((template) => ({
+              name: template.name,
+              chars: template.body.length,
+            }))
+          : [],
         model: drafter.label,
         system: systemPrompt,
         task,

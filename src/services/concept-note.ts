@@ -168,6 +168,13 @@ export interface PromptPreview {
   kind: string
   /** The document skeleton. Empty for anything that is not a proposal. */
   template: TemplateSection[]
+  /**
+   * Templates from `proposal-templates/`, which override that skeleton.
+   *
+   * Named rather than counted, so a draft that came out in an unexpected shape
+   * is traceable to the file responsible.
+   */
+  uploadedTemplates: Array<{ name: string; chars: number }>
   /** Which model would write it, e.g. "OpenAI gpt-5.6". */
   model: string
   /** The system message: doctrine, playbooks, house rules, roster, exemplars. */
@@ -217,6 +224,7 @@ export async function previewPrompt(
   return {
     kind: data.kind ?? context.kind,
     template: data.template ?? [],
+    uploadedTemplates: data.uploadedTemplates ?? [],
     model: data.model ?? 'unknown',
     system: data.system,
     task: data.task ?? '',

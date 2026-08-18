@@ -65,6 +65,21 @@ if (!token) {
   process.exit(1)
 }
 
+/**
+ * Recompile the proposal templates before concept-note goes up.
+ *
+ * Done here rather than left as a step to remember, because forgetting it is
+ * silent and looks like success: the deploy reports fine, and the drafter keeps
+ * using whatever was compiled last time. Running it unconditionally also means
+ * the fingerprint below covers the regenerated module, so a template change
+ * registers as a source change like any other.
+ */
+if (names.includes('concept-note')) {
+  console.log('Compiling proposal-templates/ …')
+  execSync('node scripts/build-templates.mjs', { stdio: 'inherit' })
+  console.log('')
+}
+
 // Fingerprint before deploying, so an edit made mid-deploy cannot be recorded
 // as though it shipped.
 const fingerprints = new Map(names.map((name) => [name, hashFunction(join(FUNCTIONS_DIR, name))]))
