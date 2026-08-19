@@ -51,11 +51,13 @@ const CLAUDE_MODEL = 'claude-opus-5'
  * Output ceiling for Claude, covering thinking *and* the document.
  *
  * Claude Opus 5 thinks by default and `max_tokens` caps the two together, so
- * this has to leave room for both the compact proposal and its reasoning or the
- * document gets cut off. Output bills only
- * when produced, so headroom that is never used costs nothing.
+ * this has to leave room for both the full template-length proposal and its
+ * reasoning or the document gets cut off — 20,000 truncated real runs. Opus 5
+ * allows up to 128,000 and the draft is always streamed, so no HTTP timeout
+ * rides on the size of the ceiling. Output bills only when produced, so
+ * headroom that is never used costs nothing.
  */
-const CLAUDE_PROPOSAL_MAX_TOKENS = 20_000
+const CLAUDE_PROPOSAL_MAX_TOKENS = 64_000
 const CLAUDE_NOTE_MAX_TOKENS = 4_000
 
 /**

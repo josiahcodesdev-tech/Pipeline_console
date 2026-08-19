@@ -156,7 +156,7 @@ CONDITIONAL. List only required or genuinely supporting annexes such as CVs, reg
 
 ## Format and length
 
-Respect tender limits. Otherwise aim for 2,200–3,500 words according to complexity and scoring weight. Use Markdown: ## for main sections, ### for subsections, tables for structured information, bullets for concise lists and bold sparingly. Do not number headings; the exporter numbers them. Do not output curly-brace template placeholders. Use precise square-bracket information-required markers for missing evidence.
+Respect tender limits. Otherwise aim for 4,500–7,000 words according to complexity, scoring weight and the number of sections the structure requires, taking the upper end when the structure is long. Write every section the structure names in full; a structure with many sections is a reason to write more, never a reason to compress each one to a line. Length must be earned by substance — never restate a point, and never pad a thin section to reach a count. Use Markdown: ## for main sections, ### for subsections, tables for structured information, bullets for concise lists and bold sparingly. Do not number headings; the exporter numbers them. Do not output curly-brace template placeholders. Use precise square-bracket information-required markers for missing evidence.
 
 Return the proposal only, without preamble or code fences.
 
