@@ -85,6 +85,60 @@ import { useAuth } from './use-auth'
 const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000
 
 const LAST_SYNC_KEY = 'pipeline-console:last-sync'
+const SNAPSHOT_CACHE_VERSION = 1
+const SNAPSHOT_CACHE_TTL_MS = 15 * 60 * 1000
+
+interface CachedPipeline {
+  version: number
+  savedAt: number
+  leads: Lead[]
+  rfps: Rfp[]
+  tasks: Task[]
+  reports: WeeklyReport[]
+  activities: Activity[]
+  proposals: Proposal[]
+  consultants: Consultant[]
+  claims: RfpClaim[]
+  settings: UserSettings
+  error: string | null
+}
+
+function snapshotCacheKey(userId: string, seeEveryone: boolean): string {
+  return `pipeline-console:snapshot:${userId}:${seeEveryone ? 'oversight' : 'own'}`
+}
+
+function readSnapshotCache(userId: string, seeEveryone: boolean): CachedPipeline | null {
+  try {
+    const raw = sessionStorage.getItem(snapshotCacheKey(userId, seeEveryone))
+    if (!raw) return null
+    const cached = JSON.parse(raw) as CachedPipeline
+    if (
+      cached.version !== SNAPSHOT_CACHE_VERSION ||
+      Date.now() - cached.savedAt > SNAPSHOT_CACHE_TTL_MS
+    ) {
+      sessionStorage.removeItem(snapshotCacheKey(userId, seeEveryone))
+      return null
+    }
+    return cached
+  } catch {
+    return null
+  }
+}
+
+function writeSnapshotCache(
+  userId: string,
+  seeEveryone: boolean,
+  cached: Omit<CachedPipeline, 'version' | 'savedAt'>,
+): void {
+  try {
+    sessionStorage.setItem(
+      snapshotCacheKey(userId, seeEveryone),
+      JSON.stringify({ ...cached, version: SNAPSHOT_CACHE_VERSION, savedAt: Date.now() }),
+    )
+  } catch {
+    // Storage can be disabled or full. Fresh network data still works.
+  }
+}
 
 /** Persisted across reloads so opening a second tab doesn't re-sync. */
 function lastSyncedAt(): number | null {
@@ -238,7 +292,23 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
-    setLoading(true)
+    const userId = session.user.id
+    const cached = readSnapshotCache(userId, can.seeEveryone)
+    if (cached) {
+      setLeads(cached.leads)
+      setRfps(cached.rfps)
+      setTasks(cached.tasks)
+      setReports(cached.reports)
+      setActivities(cached.activities)
+      setProposals(cached.proposals)
+      setConsultants(cached.consultants)
+      setClaims(cached.claims)
+      setSettings(cached.settings)
+      setError(cached.error)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     try {
       const snapshot = await fetchAll(can.seeEveryone)
       setLeads(snapshot.leads)
@@ -250,21 +320,32 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setConsultants(snapshot.consultants)
       // Claims are read separately and allowed to fail on their own. Losing
       // them should cost the tracker its "taken by" labels, not the tracker.
+      let nextClaims: RfpClaim[] = []
       try {
-        setClaims(await fetchRfpClaims())
+        nextClaims = await fetchRfpClaims()
+        setClaims(nextClaims)
       } catch {
         setClaims([])
       }
       // Settings are small and read on their own; a failure here should not
       // cost the snapshot, so it degrades to the empty defaults.
+      let nextSettings = EMPTY_SETTINGS
       try {
-        setSettings(await fetchSettings())
+        nextSettings = await fetchSettings()
+        setSettings(nextSettings)
       } catch {
         setSettings(EMPTY_SETTINGS)
       }
       // Partial failures surface as a banner while the tables that *did* load
       // still render — a missing table must not look like lost data.
-      setError(snapshot.errors.length ? snapshot.errors.join(' ') : null)
+      const nextError = snapshot.errors.length ? snapshot.errors.join(' ') : null
+      setError(nextError)
+      writeSnapshotCache(userId, can.seeEveryone, {
+        ...snapshot,
+        claims: nextClaims,
+        settings: nextSettings,
+        error: nextError,
+      })
     } catch (cause) {
       setError(message(cause))
     } finally {
