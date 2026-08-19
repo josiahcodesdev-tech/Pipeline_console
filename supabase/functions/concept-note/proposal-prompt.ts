@@ -282,3 +282,52 @@ Two limits on what this template is for:
 
 ${documents}`
 }
+
+const TEMPLATE_STOP_WORDS = new Set([
+  'and', 'are', 'for', 'from', 'has', 'have', 'into', 'its', 'not', 'our',
+  'proposal', 'section', 'template', 'that', 'the', 'their', 'this', 'with',
+])
+
+function selectionWords(value: string): string[] {
+  return (value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+    (word) => word.length >= 3 && !TEMPLATE_STOP_WORDS.has(word),
+  )
+}
+
+/**
+ * Pick one house template for an assignment without putting several competing
+ * structures in the drafting prompt. File-name words and headings carry most
+ * weight; body copy is only a supporting signal. When nothing matches, a
+ * clearly named general/default template wins, then alphabetical order keeps
+ * the fallback predictable.
+ */
+export function selectUploadedTemplate<T extends { name: string; body: string }>(
+  templates: ReadonlyArray<T>,
+  assignment: string,
+): T[] {
+  if (templates.length <= 1) return [...templates]
+
+  const assignmentWords = new Set(selectionWords(assignment))
+  const ranked = templates.map((template) => {
+    const nameWords = new Set(selectionWords(template.name))
+    const headings = [...template.body.matchAll(/^#{1,6}\s+(.+)$/gm)]
+      .map((match) => match[1])
+      .join(' ')
+    const headingWords = new Set(selectionWords(headings))
+    const bodyWords = selectionWords(template.body.slice(0, 12_000))
+    const score =
+      [...nameWords].filter((word) => assignmentWords.has(word)).length * 12 +
+      [...headingWords].filter((word) => assignmentWords.has(word)).length * 4 +
+      new Set(bodyWords.filter((word) => assignmentWords.has(word))).size
+    const isFallback = /(^|[_\s-])(default|general|master)([_\s-]|$)/i.test(template.name)
+    return { template, score, isFallback }
+  })
+
+  ranked.sort((left, right) =>
+    right.score - left.score ||
+    Number(right.isFallback) - Number(left.isFallback) ||
+    left.template.name.localeCompare(right.template.name),
+  )
+
+  return [ranked[0].template]
+}

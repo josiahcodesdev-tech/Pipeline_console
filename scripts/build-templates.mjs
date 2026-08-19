@@ -11,7 +11,7 @@
  *
  *   npm run templates:build
  *
- * Reads .md, .txt and .docx. Word documents are unzipped here rather than
+ * Reads .md, .txt, .html and .docx. Word documents are unzipped here rather than
  * asking anyone to convert them by hand: a proposal template arrives as a Word
  * file roughly always, and a step that begins "first, save as Markdown" is a
  * step that gets skipped.
@@ -78,6 +78,41 @@ function readZipEntry(buffer, wanted) {
 
 const XML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
+function decodeEntities(text) {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replace(/&([a-z]+);/gi, (whole, name) => XML_ENTITIES[name.toLowerCase()] ?? whole)
+    .replace(/&nbsp;/gi, ' ')
+}
+
+/**
+ * Convert a self-contained HTML proposal into compact text for the prompt.
+ * CSS, JavaScript and encoded images can dwarf the actual document, so only
+ * visible content and structural markers cross the Edge Function boundary.
+ */
+function htmlText(html) {
+  return decodeEntities(
+    html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(style|script|svg)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+      .replace(/<img\b[^>]*\balt\s*=\s*(["'])(.*?)\1[^>]*>/gi, '\n[Image: $2]\n')
+      .replace(/<h([1-6])\b[^>]*>/gi, (_match, level) => `\n${'#'.repeat(Number(level))} `)
+      .replace(/<\/h[1-6]\s*>/gi, '\n\n')
+      .replace(/<li\b[^>]*>/gi, '\n- ')
+      .replace(/<\/(li|p|div|section|article|header|footer|aside|nav|figure|figcaption)\s*>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(td|th)\s*>/gi, ' | ')
+      .replace(/<\/tr\s*>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/(?:\s*\|\s*)+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /**
  * The readable text of a .docx, with its paragraph breaks kept.
  *
@@ -111,10 +146,11 @@ function docxText(buffer) {
 function readTemplate(path) {
   const extension = extname(path).toLowerCase()
   if (extension === '.docx') return docxText(readFileSync(path))
+  if (extension === '.html' || extension === '.htm') return htmlText(readFileSync(path, 'utf8'))
   return readFileSync(path, 'utf8')
 }
 
-const READABLE = new Set(['.md', '.txt', '.docx'])
+const READABLE = new Set(['.md', '.txt', '.html', '.htm', '.docx'])
 
 function main() {
   if (!existsSync(SOURCE_DIR)) mkdirSync(SOURCE_DIR, { recursive: true })
@@ -145,7 +181,7 @@ function main() {
 export interface UploadedTemplate {
   /** The file's own name, shown in the console so a draft is traceable to it. */
   name: string
-  /** Its readable text: Markdown headings, or a Word file's headings rebuilt. */
+  /** Its readable text, with document headings and structure preserved. */
   body: string
 }
 

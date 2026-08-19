@@ -29,6 +29,7 @@ import {
 import {
   PROPOSAL_PROMPT,
   proposalTemplate,
+  selectUploadedTemplate,
   uploadedTemplateBlock,
 } from './proposal-prompt.ts'
 import { UPLOADED_TEMPLATES } from './templates.generated.ts'
@@ -422,6 +423,28 @@ Deno.serve(async (request: Request) => {
   // the analysis pass exists to make.
   const analysis = isProposal ? text(context.analysis, 8000) : ''
 
+  // Select one template from the assignment's own language. Multiple complete
+  // structures in one prompt compete with each other and become less reliable
+  // as the library grows.
+  const selectedTemplates = isProposal
+    ? selectUploadedTemplate(
+        UPLOADED_TEMPLATES,
+        [org, segment, rfpTitle, serviceAreas, notes, analysis, text(context.tenderText, MAX_TENDER_CHARS)]
+          .filter(Boolean)
+          .join('\n'),
+      )
+    : []
+
+  if (isProposal && selectedTemplates.length === 0) {
+    return json(
+      {
+        error:
+          'No compiled proposal template is available. Add a supported file to proposal-templates and deploy the concept-note function.',
+      },
+      500,
+    )
+  }
+
   const details = [
     `${isProposal ? 'Issuing organization' : 'Recipient organization'}: ${org}`,
     `Sector / segment: ${segment}`,
@@ -452,7 +475,7 @@ Deno.serve(async (request: Request) => {
     // format and the most specific structural statement there is short of the
     // tender itself, so it should be the last word on headings — and each layer
     // here reads as a refinement of the one above it.
-    isProposal ? uploadedTemplateBlock(UPLOADED_TEMPLATES) : '',
+    isProposal ? uploadedTemplateBlock(selectedTemplates) : '',
     rosterBlock(roster),
     examplesBlock(examples),
   ]
@@ -547,7 +570,7 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
         // rather than merely counted: a draft that came out in the wrong shape
         // should be traceable to the file that shaped it.
         uploadedTemplates: isProposal
-          ? UPLOADED_TEMPLATES.map((template) => ({
+          ? selectedTemplates.map((template) => ({
               name: template.name,
               chars: template.body.length,
             }))

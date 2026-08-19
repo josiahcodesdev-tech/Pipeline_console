@@ -4,7 +4,7 @@ Drop a template in this folder and the drafter writes into it.
 
 ## Adding one
 
-1. Save the template here as `.md`, `.txt` or `.docx`.
+1. Save the template here as `.md`, `.txt`, `.html`, `.htm` or `.docx`.
 2. Deploy: `npm run deploy:fn concept-note`
 
 That second step is not optional. These files are compiled into the Edge
@@ -63,5 +63,12 @@ Phase | Activities | Output — as a table, always.
 what belongs there, exactly as the built-in structure works. Keep it short:
 this is a brief for the drafter, not prose to be reproduced.
 
-With several files here, all of them are sent — so keep it to the one or two
-that genuinely apply, or the structures start competing.
+HTML templates are reduced to their visible text and structure when compiled.
+Styles, scripts and embedded image data are omitted; headings, lists, table
+cells and image descriptions are retained.
+
+When several templates are present, the system selects one for each proposal
+from the tender title, sector, service areas, notes, analysis and tender text.
+Descriptive file names and distinctive headings improve matching. Name a broad
+fallback template `default`, `general` or `master`; if nothing matches and no
+fallback is named, the first file alphabetically is used.
