@@ -20,7 +20,10 @@ export function NotificationMenu({
         className="relative grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-border bg-card text-muted-foreground shadow-brand-sm transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"
         aria-label={`Notifications${notifications.length ? `, ${notifications.length} unread` : ''}`}
       >
-        <BellIcon className="size-4" aria-hidden />
+        <BellIcon
+          className={notifications.length > 0 ? 'size-4 animate-pulse text-danger' : 'size-4'}
+          aria-hidden
+        />
         {notifications.length > 0 && (
           <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-semibold leading-4 text-white">
             {notifications.length > 9 ? '9+' : notifications.length}

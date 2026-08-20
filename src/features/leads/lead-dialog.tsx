@@ -17,7 +17,7 @@ import { usePipeline } from '@/shared/hooks/use-pipeline'
 import {
   LEAD_PRIORITIES,
   LEAD_STATUSES,
-  SEGMENTS,
+  LEAD_SEGMENTS,
   type Lead,
 } from '@/domain/types'
 import { DRAFT_LABELS, type ConceptNoteContext } from '@/services/concept-note'
@@ -154,7 +154,7 @@ export function LeadDialog({
               <SelectField
                 label="Segment"
                 value={draft.segment}
-                options={SEGMENTS}
+                options={LEAD_SEGMENTS}
                 onChange={(value) => set('segment', value)}
               />
               <Field label="Country" htmlFor="lead-country">

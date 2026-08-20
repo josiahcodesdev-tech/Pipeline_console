@@ -19,7 +19,7 @@ import { useAuth } from '@/shared/hooks/use-auth'
 import { formatDateWithYear } from '@/domain/dates'
 import {
   LEAD_STATUSES,
-  SEGMENTS,
+  LEAD_SEGMENTS,
   type Lead,
   type LeadStatus,
   type Segment,
@@ -132,7 +132,7 @@ export function LeadsView({
         />
         <FilterSelect
           value={segment}
-          options={SEGMENTS}
+          options={LEAD_SEGMENTS}
           onChange={setSegment}
           allLabel="All segments"
           ariaLabel="Filter by segment"

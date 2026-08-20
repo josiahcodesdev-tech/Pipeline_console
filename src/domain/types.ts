@@ -62,7 +62,11 @@ export const SEGMENTS = [
   'SOE',
   'University',
   'Development Partner',
+  'Other',
 ] as const
+
+/** Lead-facing choices. SOE remains a valid legacy/RFP segment. */
+export const LEAD_SEGMENTS = SEGMENTS.filter((segment) => segment !== 'SOE')
 
 export const LEAD_STATUSES = [
   'New',
