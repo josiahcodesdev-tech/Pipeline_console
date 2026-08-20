@@ -155,6 +155,8 @@ export type IsoDate = string
 
 export interface Lead {
   id: string
+  /** Member whose pipeline owns this lead. */
+  ownerId: string
   org: string
   segment: Segment
   country: string

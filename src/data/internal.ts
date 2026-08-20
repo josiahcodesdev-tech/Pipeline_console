@@ -14,7 +14,7 @@ import type {
  * this file works with the domain types only.
  */
 
-export type LeadDraft = Omit<Lead, 'id' | 'createdOn' | 'statusUpdatedOn'>
+export type LeadDraft = Omit<Lead, 'id' | 'ownerId' | 'createdOn' | 'statusUpdatedOn'>
 // `inPipeline` is deliberately not part of the draft: it is set by the
 // add/remove action, not by the edit form, so saving a dialog can never
 // silently pull something out of the pipeline.

@@ -32,6 +32,7 @@ import type { ConsultantDraft, LeadDraft, RfpDraft } from './internal'
 export function toLead(row: LeadRow): Lead {
   return {
     id: row.id,
+    ownerId: row.user_id,
     org: row.org,
     segment: isSegment(row.segment) ? row.segment : 'Government',
     country: row.country ?? '',

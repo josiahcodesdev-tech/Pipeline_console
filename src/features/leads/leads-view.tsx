@@ -16,6 +16,7 @@ import { FilterSelect } from '@/shared/components/field'
 import { LeadStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { useAuth } from '@/shared/hooks/use-auth'
+import { useMemberNames } from '@/shared/hooks/use-member-names'
 import { formatDateWithYear } from '@/domain/dates'
 import {
   LEAD_STATUSES,
@@ -41,7 +42,8 @@ export function LeadsView({
   onOpenProfile?: (id: string) => void
 } = {}) {
   const { leads, activities, saveLead, removeLead, setLeadStatus } = usePipeline()
-  const { can } = useAuth()
+  const { can, session } = useAuth()
+  const memberNames = useMemberNames()
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment | 'all'>('all')
   const [status, setStatus] = useState<LeadStatus | 'all'>(initialStatus ?? 'all')
@@ -151,6 +153,7 @@ export function LeadsView({
           <TableHeader>
             <TableRow>
               <TableHead>Organization</TableHead>
+              {can.seeEveryone && <TableHead>Owner</TableHead>}
               <TableHead>Segment</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Contact</TableHead>
@@ -170,6 +173,13 @@ export function LeadsView({
                 className="cursor-pointer"
               >
                 <TableCell className="max-w-[280px] font-medium">{lead.org}</TableCell>
+                {can.seeEveryone && (
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {lead.ownerId === session?.user.id
+                      ? 'You'
+                      : (memberNames.get(lead.ownerId) ?? 'Unknown member')}
+                  </TableCell>
+                )}
                 <TableCell>
                   <span className="inline-block whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                     {lead.segment}
