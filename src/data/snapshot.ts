@@ -98,11 +98,13 @@ async function loadEveryPage<Row>(
 ): Promise<Row[]> {
   const rows: Row[] = []
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select('*')
       .order(order, { ascending: false })
       .range(from, from + PAGE - 1)
+    if (table === 'proposals') query = query.is('archived_at', null)
+    const { data, error } = await query
     if (error) throw new Error(error.message)
     const page = (data ?? []) as Row[]
     rows.push(...page)
@@ -243,7 +245,7 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
     ),
     loadTable(
       'proposals',
-      supabase.from('proposals').select('*').eq('user_id', mine).order('created_at', { ascending: false }),
+      supabase.from('proposals').select('*').eq('user_id', mine).is('archived_at', null).order('created_at', { ascending: false }),
       toProposal,
       'migration 0007',
     ),

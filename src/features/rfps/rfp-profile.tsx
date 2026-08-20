@@ -831,7 +831,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                         {proposal.title || proposal.fileName}
                       </span>
                       <div className="mt-1 text-[11px] text-faint">
-                        {formatDateWithYear(proposal.createdAt.slice(0, 10))}
+                        Version {proposal.versionNo} · {formatDateWithYear(proposal.createdAt.slice(0, 10))}
                         {proposal.fileSize
                           ? ` · ${formatBytes(proposal.fileSize)}`
                           : ''}

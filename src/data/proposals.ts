@@ -172,9 +172,14 @@ export async function proposalFileUrl(filePath: string): Promise<string> {
 }
 
 export async function deleteProposal(proposal: Proposal): Promise<void> {
-  const { error } = await supabase.from('proposals').delete().eq('id', proposal.id)
+  const { error } = await supabase.from('proposals').update({
+    archived_at: new Date().toISOString(),
+    archived_by: await currentUserId(),
+  }).eq('id', proposal.id)
   if (error) throw new Error(error.message)
-  if (proposal.filePath) {
-    await supabase.storage.from(PROPOSAL_BUCKET).remove([proposal.filePath])
-  }
+}
+
+export async function restoreProposal(id: string): Promise<void> {
+  const { error } = await supabase.from('proposals').update({ archived_at: null, archived_by: null }).eq('id', id)
+  if (error) throw new Error(error.message)
 }

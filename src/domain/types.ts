@@ -391,6 +391,10 @@ export interface Proposal {
   notes: string
   /** Use as a worked example when drafting new proposals. */
   isExemplar: boolean
+  /** Sequential history within the tender. */
+  versionNo: number
+  /** Present while retained in the 30-day recycle bin. */
+  archivedAt: string
   createdAt: string
 }
 

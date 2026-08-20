@@ -67,6 +67,8 @@ export function toProposal(row: ProposalRow): Proposal {
     fileSize: row.file_size,
     notes: row.notes ?? '',
     isExemplar: row.is_exemplar ?? false,
+    versionNo: row.version_no ?? 1,
+    archivedAt: row.archived_at ?? '',
     createdAt: row.created_at,
   }
 }

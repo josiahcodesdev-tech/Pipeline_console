@@ -39,6 +39,7 @@ import {
 import { cn } from '@/shared/utils'
 import type { Lead, LeadStatus } from '@/domain/types'
 import type { ViewId } from '@/app/nav'
+import { NotificationMenu } from './notification-menu'
 
 /** How many periods a sparkline shows. Twelve reads as a trend, not a history. */
 const TREND_POINTS = 12
@@ -181,9 +182,12 @@ export function DashboardView({
         title="Dashboard"
         description="See what is moving, what needs attention, and where the team can help today."
         meta={
-          <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground shadow-brand-sm">
-            {formatToday()}
-          </div>
+          <>
+            <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground shadow-brand-sm">
+              {formatToday()}
+            </div>
+            <NotificationMenu rfps={rfps} onOpen={onOpenProfile} />
+          </>
         }
       />
 

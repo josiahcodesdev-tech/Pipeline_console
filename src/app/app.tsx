@@ -22,6 +22,8 @@ import { ReportView } from '@/features/report/report-view'
 import { SettingsView } from '@/features/settings/settings-view'
 import { ConsultantsView } from '@/features/consultants/consultants-view'
 import { MembersView } from '@/features/members/members-view'
+import { RecordsView } from '@/features/records/records-view'
+import { DeadlineAlerts } from '@/shared/components/deadline-alerts'
 
 // Recharts is a large dependency used by this view alone — keep it out of the
 // bundle everyone downloads on first load.
@@ -103,6 +105,7 @@ function Console() {
 
   return (
     <div className="flex min-h-screen">
+      <DeadlineAlerts onOpen={setProfileId} />
       {sidebarCollapsed ? (
         <button
           type="button"
@@ -186,6 +189,7 @@ function Console() {
           {view === 'activity' && <ActivityView />}
           {view === 'tasks' && <TasksView />}
           {view === 'report' && <ReportView />}
+          {view === 'records' && <RecordsView />}
           {view === 'consultants' && PROPOSAL_DRAFTING && <ConsultantsView />}
           {view === 'members' && <MembersView />}
           {view === 'settings' && PROPOSAL_DRAFTING && <SettingsView />}

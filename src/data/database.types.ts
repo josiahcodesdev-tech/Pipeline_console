@@ -51,8 +51,24 @@ export type ProposalRow = {
   file_size: number | null
   notes: string
   is_exemplar: boolean
+  version_no: number
+  archived_at: string | null
+  archived_by: string | null
   created_at: string
   updated_at: string
+}
+
+export type AuditLogRow = {
+  id: number
+  actor_id: string | null
+  owner_id: string | null
+  table_name: string
+  record_id: string
+  action: string
+  changed_fields: string[]
+  old_data: Record<string, unknown> | null
+  new_data: Record<string, unknown> | null
+  created_at: string
 }
 
 export type UserSettingsRow = {
@@ -207,6 +223,12 @@ type Insertable<Row, Optional extends keyof Row> = Omit<Row, Optional> &
 export type Database = {
   public: {
     Tables: {
+      audit_log: {
+        Row: AuditLogRow
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       leads: {
         Row: LeadRow
         Insert: Insertable<LeadRow, Generated | 'created_on'>
@@ -260,7 +282,7 @@ export type Database = {
       }
       proposals: {
         Row: ProposalRow
-        Insert: Insertable<ProposalRow, Generated | 'is_exemplar'>
+        Insert: Insertable<ProposalRow, Generated | 'is_exemplar' | 'version_no' | 'archived_at' | 'archived_by'>
         Update: Partial<ProposalRow>
         Relationships: []
       }

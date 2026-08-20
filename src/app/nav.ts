@@ -9,6 +9,7 @@ import {
   TrendingUpIcon,
   UserRoundIcon,
   ShieldIcon,
+  HistoryIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ export const NAV_ITEMS = [
   { id: 'tasks', label: 'Tasks', icon: ListChecksIcon },
   { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
   { id: 'report', label: 'Reports', icon: FileTextIcon },
+  { id: 'records', label: 'Records', icon: HistoryIcon },
   { id: 'consultants', label: 'Consultants', icon: UserRoundIcon },
   { id: 'members', label: 'Members', icon: ShieldIcon },
   { id: 'settings', label: 'Guidance', icon: SettingsIcon },

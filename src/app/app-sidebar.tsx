@@ -15,6 +15,7 @@ const NAV_ICON: Record<ViewId, string> = {
   tasks: 'tasks',
   progress: 'progress',
   report: 'report',
+  records: 'records',
   consultants: 'consultants',
   members: 'members',
   settings: 'settings',
