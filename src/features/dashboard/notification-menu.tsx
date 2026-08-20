@@ -11,7 +11,7 @@ export function NotificationMenu({
 }) {
   const notifications = rfps
     .map((rfp) => ({ rfp, days: daysUntil(rfp.deadline) }))
-    .filter(({ rfp, days }) => rfp.inPipeline && [1, 2, 3].includes(days ?? -1))
+    .filter(({ rfp, days }) => rfp.inPipeline && [1, 2, 3, 5].includes(days ?? -1))
     .sort((a, b) => (a.days ?? 99) - (b.days ?? 99))
 
   return (
