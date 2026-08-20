@@ -70,7 +70,7 @@ function Console() {
   // Derived rather than corrected in an effect: a role can change under a
   // signed-in session, and a view the member may no longer open should fall
   // back to the dashboard rather than render an empty column.
-  const view = canOpenView(requestedView, can.manageMembers)
+  const view = canOpenView(requestedView, can.manageMembers, can.seeEveryone)
     ? requestedView
     : 'dashboard'
 

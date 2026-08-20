@@ -46,6 +46,8 @@ export type ViewId = (typeof NAV_ITEMS)[number]['id']
  * from it — who has taken which tender — is a column on Proposals instead.
  */
 const SUPER_USER_ONLY: readonly ViewId[] = ['members']
+/** Firm-wide operational records are available to both oversight roles. */
+const OVERSIGHT_ONLY: readonly ViewId[] = ['records']
 
 /**
  * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
@@ -68,15 +70,24 @@ const FLAGGED_NAV_ITEMS = NAV_ITEMS.filter(
  * `profiles`, which every member may read anyway, and every action on it is
  * refused by the server for anyone but the super user.
  */
-export function navItemsFor(canManageMembers: boolean) {
+export function navItemsFor(canManageMembers: boolean, canSeeEveryone: boolean) {
   return FLAGGED_NAV_ITEMS.filter(
-    (item) => !SUPER_USER_ONLY.includes(item.id) || canManageMembers,
+    (item) =>
+      (!SUPER_USER_ONLY.includes(item.id) || canManageMembers) &&
+      (!OVERSIGHT_ONLY.includes(item.id) || canSeeEveryone),
   )
 }
 
 /** Whether this member may open a view at all, for the router's fallback. */
-export function canOpenView(id: ViewId, canManageMembers: boolean): boolean {
-  return !SUPER_USER_ONLY.includes(id) || canManageMembers
+export function canOpenView(
+  id: ViewId,
+  canManageMembers: boolean,
+  canSeeEveryone: boolean,
+): boolean {
+  return (
+    (!SUPER_USER_ONLY.includes(id) || canManageMembers) &&
+    (!OVERSIGHT_ONLY.includes(id) || canSeeEveryone)
+  )
 }
 
 export function isViewId(value: string): value is ViewId {
