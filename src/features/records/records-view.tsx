@@ -12,6 +12,7 @@ type AuditRow = {
   table_name: string
   action: string
   changed_fields: string[]
+  created_at: string
   actor_id: string | null
 }
 type ArchivedRow = { id: string; title: string; version_no: number; archived_at: string }
@@ -48,7 +49,7 @@ export function RecordsView() {
 
   const load = useCallback(async () => {
     const [a, p] = await Promise.all([
-      supabase.from('audit_log').select('id, table_name, action, changed_fields, actor_id').order('created_at', { ascending: false }).limit(200),
+      supabase.from('audit_log').select('id, table_name, action, changed_fields, created_at, actor_id').order('created_at', { ascending: false }).limit(200),
       supabase.from('proposals').select('id, title, version_no, archived_at').not('archived_at', 'is', null).order('archived_at', { ascending: false }),
     ])
     if (a.error) throw new Error(a.error.message)
@@ -79,9 +80,9 @@ export function RecordsView() {
       </section>
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 font-display text-lg"><HistoryIcon className="size-4" /> Audit trail</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Who acted and what they did, including oversight actions.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Who acted, what they did, and when it happened.</p>
         <div className="mt-4 divide-y divide-border">
-          {audit.map((row) => <div key={row.id} className="grid gap-1 py-2.5 text-xs sm:grid-cols-[180px_1fr]"><span className="font-medium text-foreground">{row.actor_id ? (memberNames.get(row.actor_id) ?? 'Unknown member') : 'System'}</span><span className="text-muted-foreground">{describeChange(row)}</span></div>)}
+          {audit.map((row) => <div key={row.id} className="grid gap-1 py-2.5 text-xs sm:grid-cols-[180px_1fr_180px]"><span className="font-medium text-foreground">{row.actor_id ? (memberNames.get(row.actor_id) ?? 'Unknown member') : 'System'}</span><span className="text-muted-foreground">{describeChange(row)}</span><time className="text-muted-foreground" dateTime={row.created_at}>{new Date(row.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</time></div>)}
           {audit.length === 0 && <p className="py-2 text-xs text-muted-foreground">No recorded changes yet.</p>}
         </div>
       </section>
