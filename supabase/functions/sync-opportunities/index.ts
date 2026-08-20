@@ -61,6 +61,28 @@ interface SourceReport {
   detail?: string
 }
 
+function keyPart(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+}
+
+/**
+ * A source-independent identity for the same published procurement notice.
+ * External ids remain the strongest key; title + buyer + deadline catches the
+ * common case where UNGM and UNDP assign different ids to the same tender.
+ */
+function noticeKeys(notice: Pick<Notice, "externalId" | "title" | "org" | "deadline">): string[] {
+  const keys = [`external:${notice.externalId}`]
+  if (notice.deadline) {
+    keys.push(`notice:${keyPart(notice.title)}|${keyPart(notice.org)}|${notice.deadline}`)
+  }
+  return keys
+}
+
 /**
  * The registry.
  *
@@ -124,8 +146,9 @@ async function collect(): Promise<{ notices: Notice[]; reports: SourceReport[] }
   const notices: Notice[] = []
   for (const { notices: batch } of settled) {
     for (const notice of batch) {
-      if (seen.has(notice.externalId)) continue
-      seen.add(notice.externalId)
+      const keys = noticeKeys(notice)
+      if (keys.some((key) => seen.has(key))) continue
+      for (const key of keys) seen.add(key)
       notices.push(notice)
     }
   }
@@ -246,14 +269,47 @@ Deno.serve(async (request: Request) => {
     const failedUsers: string[] = []
     const newlyAddedTenders = new Set<string>()
 
+    // Read the current register once for the whole team. This prevents a
+    // notice being reconsidered as new merely because another portal gave it
+    // a different external id. Paging matters: a firm-wide register can pass
+    // PostgREST's default 1,000-row response limit.
+    const existingByUser = new Map<string, Set<string>>()
+    const pageSize = 1000
+    for (let from = 0; ; from += pageSize) {
+      const { data: existing, error: existingError } = await admin
+        .from("rfps")
+        .select("user_id, external_id, title, org, deadline")
+        .range(from, from + pageSize - 1)
+      if (existingError) throw new Error(`Could not check existing RFPs: ${existingError.message}`)
+      for (const row of existing ?? []) {
+        const keys = existingByUser.get(row.user_id as string) ?? new Set<string>()
+        if (typeof row.external_id === "string" && row.external_id) {
+          keys.add(`external:${row.external_id}`)
+        }
+        if (typeof row.deadline === "string" && row.deadline) {
+          keys.add(`notice:${keyPart(row.title)}|${keyPart(row.org)}|${row.deadline}`)
+        }
+        existingByUser.set(row.user_id as string, keys)
+      }
+      if ((existing ?? []).length < pageSize) break
+    }
+
     for (const userId of userIds) {
+      const existingKeys = existingByUser.get(userId) ?? new Set<string>()
+      const newNotices = notices.filter((notice) =>
+        noticeKeys(notice).every((key) => !existingKeys.has(key))
+      )
+      if (newNotices.length === 0) {
+        perUser[userId] = 0
+        continue
+      }
       // `ignoreDuplicates` against rfps_user_external_id_key makes this
       // idempotent: re-running leaves existing rows untouched, so a status
       // moved to Preparing or notes added locally survive every later sync.
       const { data, error } = await admin
         .from("rfps")
         .upsert(
-          notices.map((notice) => toRow(notice, userId, stamp)),
+          newNotices.map((notice) => toRow(notice, userId, stamp)),
           { onConflict: "user_id,external_id", ignoreDuplicates: true },
         )
         .select("external_id")
