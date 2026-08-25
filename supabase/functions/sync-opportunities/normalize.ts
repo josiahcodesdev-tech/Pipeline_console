@@ -33,6 +33,8 @@ export interface Notice {
   serviceAreas: string
   /** How well it fits what this firm does, 0-100. See scoreFit. */
   fitScore: number
+  /** Short scope excerpt when the source publishes a description. */
+  summary?: string
 }
 
 export function text(value: unknown): string {
@@ -349,6 +351,42 @@ const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readon
       "learning management system", "lms ", "scorm",
       "digital productivity", "digital transformation", "blended learning",
       "virtual training", "remote training", "digital learning",
+    ],
+  },
+  {
+    // Eval 360 Digital Solutions opportunity brief. These are operational
+    // information systems, distinct from the learning platforms above. Keeping
+    // them in the shared capability map means the sync admits, tags and scores
+    // these notices instead of relying on a browser-only filter after import.
+    label: "Digital Solutions",
+    weight: 10,
+    terms: [
+      "meal system", "meal platform", "meal information system",
+      "monitoring and evaluation information system",
+      "monitoring & evaluation information system", "m&e mis",
+      "digital m&e platform", "digital monitoring and evaluation",
+      "project information system", "project monitoring system",
+      "beneficiary management system", "beneficiary information system",
+      "case management system", "digital case management",
+      "grant monitoring system", "grant management system",
+      "project learning and evaluation", "evaluation management system",
+      "recommendation tracking", "strategic plan monitoring",
+      "strategic-plan monitoring", "government performance system",
+      "public sector m&e system",
+      "public sector monitoring and evaluation system",
+    ],
+  },
+  {
+    label: "Performance Appraisal System",
+    weight: 9,
+    terms: [
+      "performance appraisal system", "employee appraisal system",
+      "staff appraisal system", "digital appraisal system",
+      "employee performance management system",
+      "staff performance management system",
+      "performance evaluation system", "appraisal management system",
+      "online performance appraisal", "electronic performance appraisal",
+      "e-performance appraisal", "epms",
     ],
   },
 ]

@@ -31,6 +31,7 @@ import {
   scoreFit,
   serviceAreasFor,
   stillOpen,
+  stripTags,
   text,
   withinLookback,
 } from "../normalize.ts"
@@ -47,6 +48,7 @@ interface RwJob {
   id?: unknown
   fields?: {
     title?: unknown
+    body?: unknown
     url?: unknown
     date?: { created?: unknown; closing?: unknown }
     source?: RwField[]
@@ -84,9 +86,8 @@ export function parseReliefWeb(payload: unknown, now = new Date()): Notice[] {
 
     const categories = names(fields.career_categories)
     const themes = names(fields.theme)
-    // The server-side type filter already did the heavy lifting; this catches
-    // the staff-vacancy-shaped consultancies that slip through it.
-    if (!isRelevant(title, categories.join(" "), themes.join(" "))) continue
+    const body = stripTags(text(fields.body))
+    if (!isRelevant(title, body, categories.join(" "), themes.join(" "))) continue
 
     const org = names(fields.source)[0] ?? "ReliefWeb"
     const country = names(fields.country).join(", ")
@@ -102,8 +103,9 @@ export function parseReliefWeb(payload: unknown, now = new Date()): Notice[] {
       // ReliefWeb files these under jobs, and the tracker's type filter uses
       // the feed's own framing rather than second-guessing it.
       opportunityType: "job",
-      serviceAreas: serviceAreasFor(title, categories.join(" "), themes.join(" ")),
-      fitScore: scoreFit(title, categories.join(" "), themes.join(" ")),
+      serviceAreas: serviceAreasFor(title, body, categories.join(" "), themes.join(" ")),
+      fitScore: scoreFit(title, body, categories.join(" "), themes.join(" ")),
+      summary: body.slice(0, 280),
     })
   }
 
@@ -121,7 +123,7 @@ export async function fetchReliefWeb(appname: string, now = new Date()): Promise
   url.searchParams.set("filter[field]", "type.name")
   url.searchParams.set("filter[value]", "Consultancy")
   for (const field of [
-    "title", "url", "date.created", "date.closing",
+    "title", "body", "url", "date.created", "date.closing",
     "source.name", "country.name", "career_categories.name", "theme.name",
   ]) {
     url.searchParams.append("fields[include][]", field)

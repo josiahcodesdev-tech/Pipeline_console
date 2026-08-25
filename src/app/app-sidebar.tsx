@@ -10,6 +10,7 @@ const NAV_ICON: Record<ViewId, string> = {
   dashboard: 'dashboard',
   leads: 'leads',
   rfps: 'rfps',
+  'digital-solutions': 'rfps',
   pipeline: 'pipeline',
   activity: 'activity',
   tasks: 'tasks',

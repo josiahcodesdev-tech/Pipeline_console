@@ -166,7 +166,10 @@ function toRow(notice: Notice, userId: string, stamp: string) {
     value: null,
     status: "Watching",
     link: notice.link,
-    notes: notice.location ? `Location: ${notice.location}` : "",
+    notes: [
+      notice.location ? `Location: ${notice.location}` : "",
+      notice.summary ? `Scope: ${notice.summary}` : "",
+    ].filter(Boolean).join("\n"),
     source: notice.source,
     opportunity_type: notice.opportunityType,
     kenya: mentionsKenya(notice.title, notice.org, notice.location),

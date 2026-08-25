@@ -15,6 +15,7 @@ import { LeadsView } from '@/features/leads/leads-view'
 import { LeadProfile } from '@/features/leads/lead-profile'
 import { RfpsView } from '@/features/rfps/rfps-view'
 import { TasksView } from '@/features/tasks/tasks-view'
+import { DigitalSolutionsView } from '@/features/digital-solutions/digital-solutions-view'
 import { ActivityView } from '@/features/activity/activity-view'
 import { PipelineView } from '@/features/pipeline/pipeline-view'
 import { RfpProfile } from '@/features/rfps/rfp-profile'
@@ -174,6 +175,9 @@ function Console() {
             />
           )}
           {view === 'rfps' && <RfpsView onOpenProfile={setProfileId} />}
+          {view === 'digital-solutions' && (
+            <DigitalSolutionsView onOpenProfile={setProfileId} />
+          )}
           {view === 'progress' && (
             <Suspense
               fallback={
