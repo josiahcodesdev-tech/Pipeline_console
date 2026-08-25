@@ -10,6 +10,7 @@
     "check:deploys": "node scripts/check-deploys.mjs",
     "deploy:fn": "node scripts/deploy-fn.mjs",
     "templates:build": "node scripts/build-templates.mjs",
+    "schema:build": "node scripts/build-schema.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
