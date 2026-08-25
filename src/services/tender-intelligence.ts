@@ -35,7 +35,12 @@ export async function ingestProposal(file: File) {
 }
 
 async function ingestDocument(file: File, purpose: 'tender' | 'proposal') {
-  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[] }>({ action:'ingest', purpose, base64:await base64(file), fileName:file.name, mimeType:file.type })
+  // `truncated` is set when the transcription hit its output ceiling. It is the
+  // one failure here that does not look like one — the markdown reads as a
+  // complete document and is simply missing its tail, which is where a tender
+  // keeps its submission requirements. Optional because only the Claude path
+  // reports it; the OpenAI path for Office formats does not.
+  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[]; truncated?: boolean }>({ action:'ingest', purpose, base64:await base64(file), fileName:file.name, mimeType:file.type })
 }
 
 export async function analyzeTender(text: string, knowledge: string, url = '') {
