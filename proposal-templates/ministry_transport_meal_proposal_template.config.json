@@ -1,0 +1,27 @@
+{
+  "_comment": "How to read this template. Every field is optional; see proposal-templates/README.md. Written per template because the parser cannot tell a reusable photograph from a diagram captioned with the previous client's name — both are a JPEG with an alt attribute.",
+
+  "sectionSelector": "section.page",
+  "contentSelector": ".page-inner",
+
+  "_images": "Matched against alt text, case-insensitively. assignmentSpecific images are removed with their frame; rebuildAsText ones are replaced by cards the drafter fills, because they are a picture of a page rather than a picture.",
+  "assignmentSpecificImages": [
+    "architecture",
+    "methodology",
+    "eval360",
+    "dashboard"
+  ],
+  "rebuildAsTextImages": [
+    "consultant profile"
+  ],
+
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": ".brand b",
+    "brandClient": ".brand small",
+    "footerClient": ".footer span:nth-of-type(2)",
+    "navLinks": "nav a",
+    "remove": [".edit-note"]
+  }
+}

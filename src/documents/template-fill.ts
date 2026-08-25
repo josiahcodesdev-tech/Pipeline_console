@@ -1,4 +1,11 @@
-import { extractSlots, type Slot } from './template-slots'
+import {
+  contentOf,
+  extractSlots,
+  isSlot,
+  sectionsOf,
+  type Slot,
+  type TemplateConfig,
+} from './template-slots'
 
 /**
  * Writing a drafted proposal back into the designed template.
@@ -38,6 +45,15 @@ export interface FillResult {
   unfilled: Slot[]
   /** Images removed because their wording belonged to the old assignment. */
   removedImages: string[]
+  /**
+   * Furniture selectors that matched nothing.
+   *
+   * Non-empty means this template arranges its chrome differently and needs a
+   * config — and, until it gets one, is shipping the previous client’s name in
+   * whichever place was missed. Silence here is the only way that failure is
+   * ever noticed.
+   */
+  missingFurniture: string[]
 }
 
 /**
@@ -47,8 +63,37 @@ export interface FillResult {
  * than by import: this list also decides *how* each is replaced, which that
  * one has no opinion about.
  */
-const DIAGRAM = /architecture|methodology|eval360|dashboard/i
-const CONSULTANT_PROFILE = /consultant profile/i
+function matcher(patterns: string[] | undefined): (alt: string) => boolean {
+  const compiled = (patterns ?? []).flatMap((pattern) => {
+    try {
+      return [new RegExp(pattern, 'i')]
+    } catch {
+      return []
+    }
+  })
+  return (alt: string) => compiled.some((expression) => expression.test(alt))
+}
+
+/**
+ * Where a template names its client outside the prose.
+ *
+ * The defaults are the first template's vocabulary and are wrong for the next
+ * one, which is why every entry is overridable. They are kept as defaults
+ * rather than dropped because a missing selector fails silently and invisibly:
+ * the proposal reads correctly and the browser tab, the sidebar and the footer
+ * still carry the previous client's name. `fillTemplate` reports which of
+ * these it could not find, so "this template needs config" is something you
+ * are told rather than something a client discovers.
+ */
+const DEFAULT_FURNITURE: Required<NonNullable<TemplateConfig['furniture']>> = {
+  title: true,
+  description: true,
+  brandName: '.brand b',
+  brandClient: '.brand small',
+  footerClient: '.footer span:nth-of-type(2)',
+  navLinks: 'nav a',
+  remove: ['.edit-note'],
+}
 
 /**
  * The nearest wrapper that exists only to hold the picture.
@@ -115,9 +160,14 @@ export function fillTemplate(
   templateHtml: string,
   values: Map<string, string>,
   document_: { title: string; client: string } = { title: '', client: '' },
+  config: TemplateConfig = {},
 ): FillResult {
   const document = new DOMParser().parseFromString(templateHtml, 'text/html')
   const removedImages: string[] = []
+  const missingFurniture: string[] = []
+  const furniture = { ...DEFAULT_FURNITURE, ...(config.furniture ?? {}) }
+  const isDiagram = matcher(config.assignmentSpecificImages)
+  const isRenderedPage = matcher(config.rebuildAsTextImages)
 
   // --- text, BEFORE anything moves -----------------------------------------
   // Order matters and cost an hour to learn. Slot ids carry an ordinal — the
@@ -125,13 +175,16 @@ export function fillTemplate(
   // the node order they were extracted from. Removing an image first renumbers
   // everything after it, and sixteen slots silently kept the template's own
   // wording. Text is filled against the untouched tree; images move afterwards.
-  const slots = extractSlots(templateHtml)
+  const slots = extractSlots(templateHtml, config)
   const unfilled: Slot[] = []
 
+  // Resolved through the same helpers the extractor used, so the two cannot
+  // disagree about what a section is. They kept private copies of this once
+  // and drifted inside an hour.
   const bySection = new Map<string, Element>()
-  for (const section of Array.from(document.querySelectorAll('section.page'))) {
-    const id = section.getAttribute('id')
-    if (id) bySection.set(id, section)
+  let anonymous = 0
+  for (const section of sectionsOf(document, config)) {
+    bySection.set(section.getAttribute('id') ?? `section-${anonymous++}`, section)
   }
 
   for (const slot of slots) {
@@ -141,21 +194,15 @@ export function fillTemplate(
       continue
     }
     const section = bySection.get(slot.section)
-    const inner = section?.querySelector('.page-inner')
-    if (!inner) continue
+    if (!section) continue
+    const inner = contentOf(section, config)
 
     // Walk the same way extractSlots did, so the nth text-bearing element here
     // is the nth slot there.
     const ordinal = Number(slot.id.split('.').pop())
     let seen = 0
     for (const element of Array.from(inner.querySelectorAll('*'))) {
-      const own = Array.from(element.childNodes)
-        .filter((node) => node.nodeType === 3)
-        .map((node) => node.textContent ?? '')
-        .join('')
-        .replace(/\s+/g, ' ')
-        .trim()
-      if (own.length < 2) continue
+      if (!isSlot(element)) continue
       if (seen === ordinal) {
         // Replace only the direct text children, leaving any child elements —
         // a bold run inside a card, an icon span — exactly where they were.
@@ -172,12 +219,12 @@ export function fillTemplate(
   // --- images, after every ordinal has been used ---------------------------
   for (const image of Array.from(document.querySelectorAll('img'))) {
     const alt = image.getAttribute('alt') ?? ''
-    if (DIAGRAM.test(alt)) {
+    if (isDiagram(alt) && !isRenderedPage(alt)) {
       figureOf(image).remove()
       removedImages.push(alt)
       continue
     }
-    if (CONSULTANT_PROFILE.test(alt)) {
+    if (isRenderedPage(alt)) {
       const section = image.closest('section.page')
       const sectionId = section?.getAttribute('id') ?? ''
       figureOf(image).replaceWith(consultantSection(document, values, sectionId))
@@ -206,31 +253,27 @@ export function fillTemplate(
   const description = document.querySelector('meta[name="description"]')
   if (description && title) description.setAttribute('content', fullTitle)
 
-  // The running footer's second span. The first is the firm's own name and
+  // The running footer's client line. The firm's own name sits beside it and
   // stays exactly as it is.
-  for (const footer of Array.from(document.querySelectorAll('.footer'))) {
-    const spans = footer.querySelectorAll('span')
-    if (spans.length > 1 && title) {
-      spans[1].textContent = document_.client ? `${title} • ${document_.client}` : title
-    }
+  const footerNodes = Array.from(document.querySelectorAll(furniture.footerClient))
+  if (footerNodes.length === 0) missingFurniture.push(`footerClient (${furniture.footerClient})`)
+  for (const node of footerNodes) {
+    if (title) node.textContent = document_.client ? `${title} • ${document_.client}` : title
   }
 
-  // The sidebar's own masthead: proposal name over client name, beside the
-  // logo. The last two places the previous assignment survived.
-  const brand = document.querySelector('.brand')
-  if (brand && title) {
-    const name = brand.querySelector('b')
-    if (name) name.textContent = title
-    const client = brand.querySelector('small')
-    if (client && document_.client) client.textContent = document_.client
-  }
+  // The sidebar masthead: proposal name over client name.
+  const brandName = document.querySelector(furniture.brandName)
+  if (!brandName) missingFurniture.push(`brandName (${furniture.brandName})`)
+  else if (title) brandName.textContent = title
 
-  // Sidebar contents. Each entry is `<a><span class="n">01</span>Label</a>`,
-  // and the label has to follow the heading it points at or the contents list
-  // describes a document that no longer exists.
-  for (const link of Array.from(document.querySelectorAll('nav a'))) {
-    const target = link.getAttribute('href')?.replace('#', '') ?? ''
-    const label = heading(target)
+  const brandClient = document.querySelector(furniture.brandClient)
+  if (!brandClient) missingFurniture.push(`brandClient (${furniture.brandClient})`)
+  else if (document_.client) brandClient.textContent = document_.client
+
+  // Contents entries follow the headings they point at, or the list describes
+  // a document that no longer exists.
+  for (const link of Array.from(document.querySelectorAll(furniture.navLinks))) {
+    const label = heading(link.getAttribute('href')?.replace('#', '') ?? '')
     if (!label) continue
     for (const node of Array.from(link.childNodes)) {
       if (node.nodeType === 3) node.remove()
@@ -238,10 +281,17 @@ export function fillTemplate(
     link.append(document.createTextNode(label))
   }
 
-  // The editing banner. The template is also a little editor — click-to-edit,
-  // a Print button — which is right for someone tweaking it by hand and wrong
-  // on a document being handed to a client.
-  document.querySelector('.edit-note')?.remove()
+  // Editing chrome. A template is often also a little editor — click-to-edit,
+  // a Print button, a banner explaining both — which is right for someone
+  // tweaking it by hand and wrong on a document handed to a client.
+  for (const selector of furniture.remove) {
+    for (const node of Array.from(document.querySelectorAll(selector))) node.remove()
+  }
 
-  return { html: `<!doctype html>\n${document.documentElement.outerHTML}`, unfilled, removedImages }
+  return {
+    html: `<!doctype html>\n${document.documentElement.outerHTML}`,
+    unfilled,
+    removedImages,
+    missingFurniture,
+  }
 }
