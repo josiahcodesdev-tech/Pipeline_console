@@ -327,12 +327,27 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       let proposalAnalysis = rfp.analysis.trim()
       let capabilityContext: string
       if (proposalAnalysis) {
-        capabilityContext = await retrieveCapabilityContext()
+        try {
+          capabilityContext = await retrieveCapabilityContext()
+        } catch {
+          capabilityContext = ''
+          toast.warning('Capability retrieval is unavailable; drafting from the tender record.')
+        }
       } else {
         toast.info('Checking and enriching the RFP before drafting…')
-        const checked = await readTender()
-        proposalAnalysis = checked.analysis
-        capabilityContext = checked.capabilityContext
+        try {
+          const checked = await readTender()
+          proposalAnalysis = checked.analysis
+          capabilityContext = checked.capabilityContext
+        } catch {
+          capabilityContext = ''
+          proposalAnalysis = [rfp.title, rfp.org, rfp.notes, rfp.noticeText]
+            .filter(Boolean)
+            .join('\n\n')
+          toast.warning(
+            'Tender intelligence is unavailable; drafting from the stored tender information.',
+          )
+        }
       }
 
       const result = await draftConceptNoteStreaming(
