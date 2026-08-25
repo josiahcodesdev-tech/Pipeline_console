@@ -102,7 +102,9 @@ export function parseUngm(html: string, now = new Date()): {
     const deadline = parseDate(cell(row, /data-description="Deadline"[^>]*>\s*<span>([\s\S]*?)<\/span>/i))
     if (!stillOpen(deadline, now)) continue
 
-    if (!isRelevant(title, noticeType)) continue
+    // noticeType stays in the subject: it is the portal's own short label for
+    // what the contract is, which is exactly what the exclusions read.
+    if (!isRelevant(`${title} ${noticeType}`)) continue
 
     const agency = cell(row, /class="tableCell resultAgency"[^>]*>\s*<span>([\s\S]*?)<\/span>/i)
 

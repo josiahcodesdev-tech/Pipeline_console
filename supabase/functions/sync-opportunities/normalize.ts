@@ -448,6 +448,9 @@ export function scoreFit(...parts: string[]): number {
  * goes the wrong way: "supply and installation of equipment" contains
  * "installation" work nobody here bids on, and "construction supervision
  * consultant" is a civil-engineering role, not this business.
+ *
+ * Every term here describes what a notice IS — which is why `isRelevant` only
+ * ever runs them over its subject. See the note there before adding one.
  */
 const NOT_OUR_WORK = [
   "supply and delivery", "supply and installation", "supply of", "procurement of",
@@ -486,12 +489,29 @@ const NOT_OUR_WORK = [
  * A missed opportunity is a real cost, so CAPABILITIES is written generously
  * with synonyms — but a tracker nobody trusts enough to read is worse than a
  * slightly short one.
+ *
+ * THE TWO GATES READ DIFFERENT TEXT, AND MUST.
+ * `subject` is the notice's own framing — its title, plus any short type label
+ * the portal files it under. `detail` is body prose: a description, a job
+ * advert, a category list.
+ *
+ * Exclusions run over the subject alone. Every NOT_OUR_WORK term names a kind
+ * of contract, and a title is a claim about what the contract is; a body merely
+ * mentions things. A perfectly biddable MEAL-system consultancy will say it
+ * covers "travel" costs, that the team needs "computers", that the budget
+ * excludes "hotel" nights — and scanning bodies for those threw the notice out.
+ * ReliefWeb started passing its full job body here and near enough everything
+ * it fetched was rejected on words like those.
+ *
+ * Capability matching runs over everything. That direction is safe and is the
+ * point of reading bodies at all: a title of "Consultancy Services" says
+ * nothing, while its body names the system being procured.
  */
-export function isRelevant(...parts: string[]): boolean {
-  const haystack = parts.join(" ").toLowerCase()
-  if (!haystack.trim()) return false
-  if (NOT_OUR_WORK.some((term) => haystack.includes(term))) return false
-  return matchCapabilities(haystack).length > 0
+export function isRelevant(subject: string, ...detail: string[]): boolean {
+  const framing = subject.toLowerCase()
+  if (!framing.trim()) return false
+  if (NOT_OUR_WORK.some((term) => framing.includes(term))) return false
+  return matchCapabilities(subject, ...detail).length > 0
 }
 
 /**

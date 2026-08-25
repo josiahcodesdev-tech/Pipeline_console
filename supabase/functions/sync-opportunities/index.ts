@@ -183,6 +183,68 @@ function toRow(notice: Notice, userId: string, stamp: string) {
   }
 }
 
+/** An already-tracked row, enough of it to tell whether its tags are stale. */
+interface TaggedRow {
+  id: string
+  serviceAreas: string
+  fitScore: number
+}
+
+/**
+ * Refreshes the derived tags on rows the register already holds.
+ *
+ * WHY THIS EXISTS. Inserting is idempotent by design — see `ignoreDuplicates`
+ * below — and that guarantee is what lets someone move a tender to Preparing
+ * and add notes without a later sync trampling them. But it also froze
+ * `service_areas` and `fit_score` at whatever the capability map said on the
+ * day the row arrived. So every time CAPABILITIES gained a label, it applied
+ * only to notices nobody had seen yet, and the rows already sitting in the
+ * register stayed invisible to any filter reading that label. The Digital
+ * Solutions tracker landed into exactly that: a new label, a register full of
+ * rows that could never carry it, and an empty page.
+ *
+ * Only the two derived columns are written. Both are computed by this function
+ * from the notice text and neither is editable in the console, so overwriting
+ * them cannot lose anyone's work — which is what separates them from status,
+ * notes and value, and why those are still never touched.
+ *
+ * Reach is deliberately limited to notices in the current run, so this stays
+ * bounded by the lookback window rather than sweeping the whole register on
+ * every sync. Rows older than that keep the tags they were imported with until
+ * their source lists them again; a full backfill is a migration, not this.
+ */
+async function retag(
+  admin: ReturnType<typeof createClient>,
+  notices: Notice[],
+  tagged: Map<string, TaggedRow> | undefined,
+): Promise<number> {
+  if (!tagged || tagged.size === 0) return 0
+
+  const stale = notices.flatMap((notice) => {
+    const row = tagged.get(notice.externalId)
+    if (!row) return []
+    // Unchanged is the overwhelmingly common case — a sync that changed no
+    // capability should issue no writes at all.
+    if (row.serviceAreas === notice.serviceAreas && row.fitScore === notice.fitScore) {
+      return []
+    }
+    return [{ row, notice }]
+  })
+
+  let updated = 0
+  for (const { row, notice } of stale) {
+    const { error } = await admin
+      .from("rfps")
+      .update({ service_areas: notice.serviceAreas, fit_score: notice.fitScore })
+      .eq("id", row.id)
+    // A failed retag is cosmetic — the row is still in the register with its
+    // old tags — so it is logged and stepped over rather than failing the sync.
+    if (error) console.error(`[sync] retag failed for ${row.id}:`, error.message)
+    else updated += 1
+  }
+  return updated
+}
+
 /**
  * Resolves who is calling, and how much they may sync.
  *
@@ -264,35 +326,48 @@ Deno.serve(async (request: Request) => {
     const userIds = (activeProfiles ?? []).map((profile) => profile.id as string)
 
     if (userIds.length === 0) {
-      return json({ fetched: notices.length, users: 0, added: 0, alreadyHave: 0, skipped: [], sources: reports }, 200)
+      return json({ fetched: notices.length, users: 0, added: 0, alreadyHave: 0, retagged: 0, skipped: [], sources: reports }, 200)
     }
 
     const stamp = new Date().toISOString().slice(0, 10)
     const perUser: Record<string, number> = {}
     const failedUsers: string[] = []
     const newlyAddedTenders = new Set<string>()
+    let retagged = 0
 
     // Read the current register once for the whole team. This prevents a
     // notice being reconsidered as new merely because another portal gave it
     // a different external id. Paging matters: a firm-wide register can pass
     // PostgREST's default 1,000-row response limit.
     const existingByUser = new Map<string, Set<string>>()
+    // The same rows again, addressable by external id, so a notice we are about
+    // to skip as already-tracked can still have its derived tags refreshed.
+    // See retagging below for why that is worth carrying.
+    const taggedByUser = new Map<string, Map<string, TaggedRow>>()
     const pageSize = 1000
     for (let from = 0; ; from += pageSize) {
       const { data: existing, error: existingError } = await admin
         .from("rfps")
-        .select("user_id, external_id, title, org, deadline")
+        .select("id, user_id, external_id, title, org, deadline, service_areas, fit_score")
         .range(from, from + pageSize - 1)
       if (existingError) throw new Error(`Could not check existing RFPs: ${existingError.message}`)
       for (const row of existing ?? []) {
-        const keys = existingByUser.get(row.user_id as string) ?? new Set<string>()
+        const userId = row.user_id as string
+        const keys = existingByUser.get(userId) ?? new Set<string>()
         if (typeof row.external_id === "string" && row.external_id) {
           keys.add(`external:${row.external_id}`)
+          const tagged = taggedByUser.get(userId) ?? new Map<string, TaggedRow>()
+          tagged.set(row.external_id, {
+            id: row.id as string,
+            serviceAreas: typeof row.service_areas === "string" ? row.service_areas : "",
+            fitScore: typeof row.fit_score === "number" ? row.fit_score : 0,
+          })
+          taggedByUser.set(userId, tagged)
         }
         if (typeof row.deadline === "string" && row.deadline) {
           keys.add(`notice:${keyPart(row.title)}|${keyPart(row.org)}|${row.deadline}`)
         }
-        existingByUser.set(row.user_id as string, keys)
+        existingByUser.set(userId, keys)
       }
       if ((existing ?? []).length < pageSize) break
     }
@@ -302,6 +377,9 @@ Deno.serve(async (request: Request) => {
       const newNotices = notices.filter((notice) =>
         noticeKeys(notice).every((key) => !existingKeys.has(key))
       )
+
+      retagged += await retag(admin, notices, taggedByUser.get(userId))
+
       if (newNotices.length === 0) {
         perUser[userId] = 0
         continue
@@ -341,6 +419,10 @@ Deno.serve(async (request: Request) => {
         fetched,
         added: addedForCaller,
         alreadyHave: Math.max(0, fetched - addedForCaller),
+        // Rows already held whose service areas or fit changed under a revised
+        // capability map. Reported so a run that added nothing but re-tagged
+        // dozens of rows does not read as a no-op.
+        retagged,
         // Failures only. A source that is deliberately unconfigured — ReliefWeb
         // without an appname — is a setting, not a fault, and warning about it
         // on every single run would train people to ignore the warning. It is
