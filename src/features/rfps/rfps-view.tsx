@@ -8,6 +8,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SearchXIcon,
+  ShareIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
@@ -160,6 +161,7 @@ export function RfpsView({
     setRfpStatus,
     setRfpPipeline,
     claims,
+    sharedWithMe,
     importRfps,
     syncOpportunities,
     autoSync,
@@ -562,6 +564,19 @@ export function RfpsView({
                     </a>
                   ) : (
                     rfp.title
+                  )}
+                  {/* The reader can hold two rows for one notice — their own
+                      copy from the sync and a colleague's worked copy shared
+                      with them. Without this they look like a duplicate the
+                      tracker failed to collapse. */}
+                  {sharedWithMe.has(rfp.id) && (
+                    <span
+                      title={`Shared with you by ${members.get(rfp.ownerId) ?? 'a colleague'} — read only`}
+                      className="ml-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 align-middle text-[10px] font-medium text-muted-foreground"
+                    >
+                      <ShareIcon className="size-2.5" />
+                      {members.get(rfp.ownerId) ?? 'Shared'}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="max-w-[200px] text-muted-foreground">

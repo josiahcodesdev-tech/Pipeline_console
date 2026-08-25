@@ -22,6 +22,7 @@ import { RfpStatusSelect } from '@/shared/components/status-select'
 import { ActivityComposer, ActivityRow } from '@/shared/components/activity-log'
 import { useAuth } from '@/shared/hooks/use-auth'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
+import { TenderAccess } from './tender-access'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { proposalFileUrl } from '@/data/proposals'
 import { PROPOSAL_DRAFTING } from '@/app/features'
@@ -110,6 +111,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     removeProposal,
     setProposalExemplar,
     addPastProposal,
+    sharedWithMe,
   } = usePipeline()
   const { profile, can } = useAuth()
   const memberNames = useMemberNames()
@@ -143,8 +145,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * for the pipeline unable to finish a bid a member had abandoned. Migration
    * 0028 grants the same exemption in the policies, so this is not a hidden
    * button standing in for a server rule.
+   *
+   * A tender someone shared is read-only on the same terms, and on a firmer
+   * footing: a share grants read and nothing else, so every write here would be
+   * refused by the policy rather than merely discouraged. It has to be tested
+   * separately from the claim because a hand-added tender has no external id
+   * and therefore no claim to be held by anyone — and those are exactly the
+   * rows most likely to be shared, being the ones a colleague cannot find in
+   * their own copy of the feed.
    */
-  const viewOnly = heldByOther !== null && !can.seeEveryone
+  const sharedIn = sharedWithMe.has(rfp.id)
+  const viewOnly = !can.seeEveryone && (sharedIn || heldByOther !== null)
 
   const site = siteOf(rfp.link)
 
@@ -668,16 +679,36 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         // Said once, plainly, at the top. Everything below is missing its
         // controls and a reader who does not know why will assume the page is
         // broken before they assume it is deliberate.
+        //
+        // Two different reasons land here and they need different sentences.
+        // A claim means somebody is bidding it and the reader might have
+        // expected to; a share means somebody deliberately handed it over to
+        // be read, and telling that reader about "one proposal per tender"
+        // answers a question they never asked.
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3">
           <LockIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="text-xs leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">
-              {heldByOther} is bidding this tender.
-            </span>{' '}
-            You can read everything here, but not draft, edit, attach a document
-            or log against it — one proposal per tender is what stops two of
-            ours reaching the same buyer. If it should be yours, ask them to
-            hand it back.
+            {heldByOther ? (
+              <>
+                <span className="font-semibold text-foreground">
+                  {heldByOther} is bidding this tender.
+                </span>{' '}
+                You can read everything here, but not draft, edit, attach a
+                document or log against it — one proposal per tender is what
+                stops two of ours reaching the same buyer. If it should be
+                yours, ask them to hand it back.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-foreground">
+                  {memberNames.get(rfp.ownerId) ?? 'A colleague'} shared this
+                  tender with you.
+                </span>{' '}
+                You can read everything here, but not edit, draft, attach a
+                document or log against it. It stays theirs — ask them if you
+                need it to become yours.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1065,6 +1096,8 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               )}
             </div>
           </Panel>
+
+          <TenderAccess rfp={rfp} />
         </div>
       </div>
 

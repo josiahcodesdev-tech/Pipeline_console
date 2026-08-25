@@ -37,6 +37,15 @@ export interface Permissions {
   manageMembers: boolean
   /** See other members' pipelines rather than only their own. */
   seeEveryone: boolean
+  /**
+   * Create teams and set who is in them. Super user only.
+   *
+   * Sharing a single tender is not gated by this and deliberately so — that is
+   * a member's decision about their own work. A team is different: it is a
+   * standing grant of read across whatever it is later shared, which makes it
+   * an access decision, and those have always been in one pair of hands.
+   */
+  manageTeams: boolean
 }
 
 interface AuthValue {
@@ -70,6 +79,7 @@ const NO_PERMISSIONS: Permissions = {
   sync: false,
   manageMembers: false,
   seeEveryone: false,
+  manageTeams: false,
 }
 
 function permissionsFor(role: MemberRole, active: boolean): Permissions {
@@ -81,6 +91,7 @@ function permissionsFor(role: MemberRole, active: boolean): Permissions {
     sync: admin,
     manageMembers: superUser,
     seeEveryone: admin,
+    manageTeams: superUser,
   }
 }
 

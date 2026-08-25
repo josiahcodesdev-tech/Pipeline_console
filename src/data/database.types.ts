@@ -214,6 +214,31 @@ export type RfpClaimRow = {
   title: string
 }
 
+export type TeamRow = {
+  id: string
+  name: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export type TeamMemberRow = {
+  team_id: string
+  user_id: string
+  added_by: string
+  added_at: string
+}
+
+/** See migration 0039. Exactly one of `user_id` / `team_id` is ever set. */
+export type RfpShareRow = {
+  id: string
+  rfp_id: string
+  user_id: string | null
+  team_id: string | null
+  shared_by: string
+  shared_at: string
+}
+
 /** Columns the database fills in when omitted. */
 type Generated = 'id' | 'created_at' | 'updated_at'
 
@@ -311,6 +336,32 @@ export type Database = {
         Row: RfpClaimRow
         Insert: Insertable<RfpClaimRow, "claimed_at" | "title">
         Update: Partial<RfpClaimRow>
+        Relationships: []
+      }
+      teams: {
+        Row: TeamRow
+        Insert: Insertable<TeamRow, Generated>
+        // Only the name is ever edited; membership lives in its own table.
+        Update: Pick<Partial<TeamRow>, 'name'>
+        Relationships: []
+      }
+      team_members: {
+        Row: TeamMemberRow
+        Insert: Insertable<TeamMemberRow, 'added_at'>
+        // Membership is added or removed, never amended in place.
+        Update: never
+        Relationships: []
+      }
+      rfp_shares: {
+        Row: RfpShareRow
+        // `user_id` and `team_id` are mutually exclusive and each is omitted
+        // when the other is the subject — see the check constraint in 0039.
+        // `Generated` names created_at/updated_at, which this table has no use
+        // for — a share is granted or revoked, never edited.
+        Insert: Insertable<RfpShareRow, 'id' | 'shared_at' | 'user_id' | 'team_id'>
+        // A share is granted or revoked. Repointing one at a different member
+        // would be a different grant with the same audit row.
+        Update: never
         Relationships: []
       }
       profiles: {

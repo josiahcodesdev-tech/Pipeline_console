@@ -71,10 +71,23 @@ import type {
   LeadStatus,
   Rfp,
   RfpClaim,
+  RfpShare,
   RfpStatus,
   Task,
+  Team,
   WeeklyReport,
 } from '@/domain/types'
+import {
+  addTeamMember as dbAddTeamMember,
+  createTeam as dbCreateTeam,
+  deleteTeam as dbDeleteTeam,
+  fetchShares,
+  fetchTeams,
+  removeTeamMember as dbRemoveTeamMember,
+  renameTeam as dbRenameTeam,
+  revokeShare as dbRevokeShare,
+  shareRfp as dbShareRfp,
+} from '@/data/sharing'
 import { useAuth } from './use-auth'
 
 /**
@@ -85,7 +98,10 @@ import { useAuth } from './use-auth'
 const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000
 
 const LAST_SYNC_KEY = 'pipeline-console:last-sync'
-const SNAPSHOT_CACHE_VERSION = 1
+// Bumped when `CachedPipeline` gains a field. A snapshot written before the
+// change parses cleanly and is missing the new one, which surfaces as an
+// undefined array somewhere far from here rather than as a cache miss.
+const SNAPSHOT_CACHE_VERSION = 2
 const SNAPSHOT_CACHE_TTL_MS = 15 * 60 * 1000
 
 interface CachedPipeline {
@@ -99,6 +115,8 @@ interface CachedPipeline {
   proposals: Proposal[]
   consultants: Consultant[]
   claims: RfpClaim[]
+  teams: Team[]
+  shares: RfpShare[]
   settings: UserSettings
   error: string | null
 }
@@ -184,6 +202,19 @@ interface PipelineValue {
   rfps: Rfp[]
   /** Who has taken which tender, firm-wide. Keyed by external id. */
   claims: Map<string, RfpClaim>
+  /** Standing groups of members, as share subjects. Everyone may read these. */
+  teams: Team[]
+  /**
+   * Read grants on tenders, keyed by RFP id.
+   *
+   * Both directions live in here — shares the reader granted on their own
+   * tenders and shares pointed at them — because the policy in 0039 returns
+   * both and separating them client-side would mean two lists that have to be
+   * kept in step. `sharedWithMe` below is the one derived answer worth caching.
+   */
+  shares: Map<string, RfpShare[]>
+  /** RFP ids the reader can see only because somebody shared them. */
+  sharedWithMe: Set<string>
   tasks: Task[]
   reports: WeeklyReport[]
   activities: Activity[]
@@ -243,6 +274,17 @@ interface PipelineValue {
   removeActivity: (id: string) => Promise<void>
   /** Writes the call report attached to one client visit. */
   saveCallReport: (id: string, fields: CallReportFields) => Promise<void>
+
+  /** Grants read on one tender to a member or a team. Owner or oversight. */
+  shareRfpWith: (
+    rfpId: string,
+    subject: { kind: 'member'; id: string } | { kind: 'team'; id: string },
+  ) => Promise<void>
+  revokeRfpShare: (shareId: string) => Promise<void>
+  createTeam: (name: string) => Promise<void>
+  renameTeam: (id: string, name: string) => Promise<void>
+  removeTeam: (id: string) => Promise<void>
+  setTeamMember: (teamId: string, userId: string, member: boolean) => Promise<void>
 }
 
 const PipelineContext = createContext<PipelineValue | null>(null)
@@ -252,6 +294,44 @@ function message(error: unknown): string {
 }
 
 /** Replaces a row in place, or prepends it when it is new. */
+function groupSharesByRfp(shares: RfpShare[]): Map<string, RfpShare[]> {
+  const byRfp = new Map<string, RfpShare[]>()
+  for (const share of shares) {
+    const list = byRfp.get(share.rfpId) ?? []
+    list.push(share)
+    byRfp.set(share.rfpId, list)
+  }
+  return byRfp
+}
+
+/**
+ * The tenders this reader can see only because somebody granted them.
+ *
+ * A grant reaches them two ways — pointed at them by name, or at a team they
+ * are in — and both have to be resolved here because the database answered the
+ * same question in SQL (`shared_rfp_ids`) and does not send its working back.
+ * Shares the reader *granted* are excluded by construction: those name someone
+ * else as the subject.
+ */
+function sharedWithMeFrom(
+  shares: RfpShare[],
+  teams: Team[],
+  userId: string | undefined,
+): Set<string> {
+  if (!userId) return new Set()
+  const myTeams = new Set(
+    teams.filter((team) => team.memberIds.includes(userId)).map((team) => team.id),
+  )
+  return new Set(
+    shares
+      .filter(
+        (share) =>
+          share.memberId === userId || (share.teamId !== null && myTeams.has(share.teamId)),
+      )
+      .map((share) => share.rfpId),
+  )
+}
+
 function upsertInto<T extends { id: string }>(list: T[], row: T): T[] {
   const index = list.findIndex((item) => item.id === row.id)
   if (index === -1) return [row, ...list]
@@ -265,6 +345,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [rfps, setRfps] = useState<Rfp[]>([])
   const [claims, setClaims] = useState<RfpClaim[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [shares, setShares] = useState<RfpShare[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -288,6 +370,11 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setActivities([])
       setProposals([])
       setConsultants([])
+      // Cleared on sign-out unlike the rest, which the next sign-in overwrites
+      // anyway: these two say who may read what, and the wrong answer left
+      // sitting in memory is the one that marks a tender editable.
+      setTeams([])
+      setShares([])
       setSettings(EMPTY_SETTINGS)
       setLoading(false)
       return
@@ -303,6 +390,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setProposals(cached.proposals)
       setConsultants(cached.consultants)
       setClaims(cached.claims)
+      setTeams(cached.teams)
+      setShares(cached.shares)
       setSettings(cached.settings)
       setError(cached.error)
       setLoading(false)
@@ -327,6 +416,22 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       } catch {
         setClaims([])
       }
+      // Teams and shares, on the same terms as claims: a tender the reader can
+      // see stays visible whether or not the sharing tables answered. What is
+      // lost on failure is the "shared with" labels and the read-only marking,
+      // and the second of those is why they are read together — a snapshot
+      // with shares but no teams could not resolve a team grant and would show
+      // a tender as nobody's.
+      let nextTeams: Team[] = []
+      let nextShares: RfpShare[] = []
+      try {
+        ;[nextTeams, nextShares] = await Promise.all([fetchTeams(), fetchShares()])
+        setTeams(nextTeams)
+        setShares(nextShares)
+      } catch {
+        setTeams([])
+        setShares([])
+      }
       // Settings are small and read on their own; a failure here should not
       // cost the snapshot, so it degrades to the empty defaults.
       let nextSettings = EMPTY_SETTINGS
@@ -343,6 +448,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       writeSnapshotCache(userId, can.seeEveryone, {
         ...snapshot,
         claims: nextClaims,
+        teams: nextTeams,
+        shares: nextShares,
         settings: nextSettings,
         error: nextError,
       })
@@ -787,6 +894,64 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     setReports((current) => upsertInto(current, saved))
   }, [])
 
+  const shareRfpWith = useCallback(
+    async (
+      rfpId: string,
+      subject: { kind: 'member'; id: string } | { kind: 'team'; id: string },
+    ) => {
+      const saved = await dbShareRfp(rfpId, subject)
+      setShares((current) => [...current, saved])
+    },
+    [],
+  )
+
+  const revokeRfpShare = useCallback(async (shareId: string) => {
+    await dbRevokeShare(shareId)
+    setShares((current) => current.filter((share) => share.id !== shareId))
+  }, [])
+
+  const createTeam = useCallback(async (name: string) => {
+    const saved = await dbCreateTeam(name)
+    setTeams((current) => [...current, saved].sort((a, b) => a.name.localeCompare(b.name)))
+  }, [])
+
+  const renameTeam = useCallback(async (id: string, name: string) => {
+    await dbRenameTeam(id, name)
+    setTeams((current) =>
+      current
+        .map((team) => (team.id === id ? { ...team, name: name.trim() } : team))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    )
+  }, [])
+
+  const removeTeam = useCallback(async (id: string) => {
+    await dbDeleteTeam(id)
+    setTeams((current) => current.filter((team) => team.id !== id))
+    // The database cascades these; dropping them here keeps the console from
+    // showing a grant to a team that no longer exists until the next refresh.
+    setShares((current) => current.filter((share) => share.teamId !== id))
+  }, [])
+
+  const setTeamMember = useCallback(
+    async (teamId: string, userId: string, member: boolean) => {
+      if (member) await dbAddTeamMember(teamId, userId)
+      else await dbRemoveTeamMember(teamId, userId)
+      setTeams((current) =>
+        current.map((team) =>
+          team.id !== teamId
+            ? team
+            : {
+                ...team,
+                memberIds: member
+                  ? Array.from(new Set([...team.memberIds, userId]))
+                  : team.memberIds.filter((id) => id !== userId),
+              },
+        ),
+      )
+    },
+    [],
+  )
+
   const value = useMemo<PipelineValue>(
     () => ({
       leads,
@@ -794,6 +959,17 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       // A map because every row in the tracker asks "is this one taken?" — a
       // linear scan per row turns the render quadratic on a few hundred rows.
       claims: new Map(claims.map((claim) => [claim.externalId, claim])),
+      teams,
+      // Grouped by tender for the same reason claims are mapped: the register
+      // asks "is this one shared?" once per row.
+      shares: groupSharesByRfp(shares),
+      // Read off the grants themselves rather than inferred from "not mine".
+      // For a standard user the two agree — a row they do not own can only
+      // have arrived by a share — but for oversight they do not: an admin sees
+      // every member's tenders by role, and calling those shared would both
+      // mislabel them and, since this drives the read-only marking, take away
+      // the editing 0028 deliberately granted.
+      sharedWithMe: sharedWithMeFrom(shares, teams, session?.user.id),
       tasks,
       reports,
       activities,
@@ -836,10 +1012,25 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       logActivity,
       removeActivity,
       saveCallReport,
+      shareRfpWith,
+      revokeRfpShare,
+      createTeam,
+      renameTeam,
+      removeTeam,
+      setTeamMember,
     }),
     [
       leads,
       claims,
+      teams,
+      shares,
+      session,
+      shareRfpWith,
+      revokeRfpShare,
+      createTeam,
+      renameTeam,
+      removeTeam,
+      setTeamMember,
       rfps,
       tasks,
       reports,

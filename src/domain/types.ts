@@ -17,7 +17,7 @@ export const ROLE_LABEL: Record<MemberRole, string> = {
 
 export const ROLE_DESCRIPTION: Record<MemberRole, string> = {
   super_user:
-    'Full access, plus adding members and setting their access. Sees every pipeline.',
+    'Full access, plus adding members, setting their access, and creating the teams a tender can be shared with. Sees every pipeline.',
   admin:
     'Everything the super user has except two things: cannot add or manage members, and cannot delete records. Sees every pipeline, every activity and the firm-wide figures, and can run the sync.',
   user:
@@ -53,6 +53,36 @@ export interface Profile {
 
 export function isMemberRole(value: unknown): value is MemberRole {
   return MEMBER_ROLES.includes(value as MemberRole)
+}
+
+/**
+ * A standing group of members, used as the subject of a share.
+ *
+ * Membership is carried on the team rather than fetched per team: the console
+ * never wants a team without knowing who is in it — every screen showing one
+ * either lists the members or counts them.
+ */
+export interface Team {
+  id: string
+  name: string
+  memberIds: string[]
+  createdAt: string
+}
+
+/**
+ * Read access to one tender, granted to one member or one team.
+ *
+ * `memberId` and `teamId` are mutually exclusive — the database enforces it —
+ * and which one is set is what the share means, so neither is optional in the
+ * sense of being absent by accident. See migration 0039.
+ */
+export interface RfpShare {
+  id: string
+  rfpId: string
+  memberId: string | null
+  teamId: string | null
+  sharedBy: string
+  sharedAt: string
 }
 
 export const SEGMENTS = [

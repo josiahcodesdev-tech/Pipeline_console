@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/shared/hooks/use-auth'
 import { createImpersonationLogin, createMember, fetchMembers, setMemberActive, setMemberRole, resetMemberPassword, removeMember, fetchTeamOverview, fetchTeamPipeline, type CreatedMember, type TeamOverview, type TeamPipelineItem } from '@/data/members'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
+import { TeamsPanel } from './teams-panel'
 import {
   MEMBER_ROLES,
   ROLE_DESCRIPTION,
@@ -567,6 +568,8 @@ export function MembersView() {
           </Table>
         )}
       </Panel>
+
+      <TeamsPanel members={members} />
 
       <Panel title="What each level can do">
         <ul className="flex flex-col gap-2.5">

@@ -208,7 +208,19 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       'rfps',
       supabase
         .from('rfps')
-        .select('*').eq('user_id', mine)
+        // The one table here read without `.eq('user_id', mine)`, and the
+        // omission is deliberate. Since migration 0039 a member can be shared
+        // a colleague's tender, and the policy is what decides which rows come
+        // back — own plus shared. Filtering to `mine` as well would take the
+        // shared ones away again on the way out, which is a filter the reader
+        // never asked for and cannot see.
+        //
+        // The reader may therefore hold two rows for one notice: their own
+        // untouched copy from the sync, and the colleague's worked copy. Both
+        // are labelled by owner in the register rather than collapsed, because
+        // the shared one is the point — it carries the notes, the reading and
+        // the draft that made it worth sharing.
+        .select('*')
         // Newest first — the views sort too, but this keeps the raw
         // snapshot in the same order they present.
         .order('created_at', { ascending: false }),
