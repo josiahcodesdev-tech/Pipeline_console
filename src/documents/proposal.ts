@@ -37,8 +37,15 @@ function inline(
  *
  * Not sampled from a rendering — read out of that file's own XML, so these are
  * the exact values the document was built with rather than an eyeballed match.
- * An earlier pass guessed at a brighter gold from a compressed PDF and was
- * wrong; the real accent is noticeably more muted.
+ * READ OFF THE TEMPLATE, NOT OFF A PDF. These are the CSS custom properties
+ * declared in proposal-templates/ministry_transport_meal_proposal_template.html
+ * — `--burgundy`, `--gold`, `--cream`, `--soft`, `--ink` — which is the same
+ * stylesheet that renders the house document. Two earlier passes sampled a
+ * compressed PDF instead and were wrong both times, in the direction sampling
+ * always is: the gold came out brighter and the ink came out black. If the
+ * house style changes, change it in that stylesheet and copy the values here;
+ * there is no way to derive one from the other automatically, because the
+ * template is HTML and this is Word.
  *
  * Usage counts in that document, which is also the hierarchy: maroon carries
  * every heading and label, gold is the accent and rules, cream and tan
@@ -46,25 +53,28 @@ function inline(
  */
 const BRAND = {
   /** Headings, labels, header and footer. The dominant brand colour. */
-  maroon: '6B0F1A',
+  maroon: '5B1017',
   /** Accent: rules under headings, sub-headings, cover flourishes. */
-  gold: 'C5973A',
+  gold: 'D19A1C',
   /** Alternating table rows and callout boxes. */
-  cream: 'F9F3E8',
+  cream: 'FFFAF0',
   /** The label column of a two-column table, a shade down from cream. */
-  tan: 'F5E6C8',
+  tan: 'F5EFE2',
   /** Body text. Deliberately not pure black. */
-  ink: '1A1A1A',
+  ink: '2C2926',
   white: 'FFFFFF',
 } as const
 
 /**
- * The single typeface, matching the template — every run in it is Arial.
+ * The single typeface, matching the template — every run in it is Georgia.
  *
- * A previous version paired Cambria headings with Calibri body, which was a
- * reasonable guess and not what the house actually uses.
+ * `font-family:Georgia,serif` is what the template's stylesheet declares, on
+ * the body and on every heading. Two previous versions guessed otherwise —
+ * Cambria headings over Calibri body, then Arial throughout — and both changed
+ * the document from a serif to something it is not. Georgia ships with Windows
+ * and with Office on macOS, so a proposal opened by a client renders as sent.
  */
-const FONT = 'Arial'
+const FONT = 'Georgia'
 
 /** Fixed house details, as they appear in the template's header and footer. */
 const ORG = 'Vantage Africa School of Leadership'
