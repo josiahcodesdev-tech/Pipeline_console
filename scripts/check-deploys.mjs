@@ -60,13 +60,20 @@ function git(...args) {
  * token being echoed into a terminal once already.
  */
 function accessToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN
-  if (!existsSync('.env.local')) return ''
+  if (process.env.SUPABASE_ACCESS_TOKEN) {
+    // The environment wins over the file, which is conventional and is also the
+    // one way this check fails while the CLI works by hand: a stale token
+    // exported in a shell profile silently outranks the good one in .env.local.
+    // Named in the error below so the two are told apart in one run rather than
+    // two.
+    return { token: process.env.SUPABASE_ACCESS_TOKEN, from: 'the SUPABASE_ACCESS_TOKEN environment variable' }
+  }
+  if (!existsSync('.env.local')) return { token: '', from: 'nowhere — no .env.local and no environment variable' }
   for (const line of readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
     const match = /^\s*SUPABASE_ACCESS_TOKEN\s*=\s*(.*)$/.exec(line)
-    if (match) return match[1].trim()
+    if (match) return { token: match[1].trim(), from: '.env.local' }
   }
-  return ''
+  return { token: '', from: 'nowhere — .env.local has no SUPABASE_ACCESS_TOKEN line' }
 }
 
 /** What Supabase currently runs, as {slug: {version, updatedAt}}. */
@@ -76,14 +83,51 @@ function deployedFunctions(token) {
   // passing an args array alongside shell:true works but is deprecated, since
   // arguments would be concatenated rather than escaped. Nothing here is
   // interpolated — the token travels in the environment, not the command.
-  const raw = execSync('npx supabase functions list', {
-    encoding: 'utf8',
-    env: { ...process.env, SUPABASE_ACCESS_TOKEN: token },
-  })
+  let raw
+  try {
+    raw = execSync('npx supabase functions list', {
+      encoding: 'utf8',
+      env: { ...process.env, SUPABASE_ACCESS_TOKEN: token },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (cause) {
+    // execSync's own message is "Command failed: npx supabase functions list",
+    // which says only that something went wrong. The CLI already wrote the
+    // reason — an expired token, a malformed one, an unreachable project — and
+    // it is sitting on the error object.
+    //
+    // On STDOUT, as JSON, not on stderr: `{"_tag":"Error","error":{"code":...,
+    // "message":"Invalid access token format..."}}`, with stderr left empty.
+    // Reaching for stderr first with `??` therefore finds "" and stops there,
+    // because `??` falls through on null and undefined and an empty string is
+    // neither — which is how this swallowed the one useful sentence it had.
+    const output = [cause.stdout, cause.stderr].map((s) => String(s ?? '').trim()).find(Boolean) ?? ''
+    let said = output
+    try {
+      const parsed = JSON.parse(output)
+      if (parsed?.error?.message) said = parsed.error.message
+    } catch {
+      // Not JSON — some CLI failures are plain text. Use the first few lines.
+      said = output.split(/\r?\n/).filter(Boolean).slice(0, 3).join(' | ')
+    }
+    throw new Error(said.slice(0, 400) || cause.message)
+  }
 
   // The CLI prints warnings (a missing Docker, mostly) above its JSON.
   const line = raw.split(/\r?\n/).find((l) => l.trimStart().startsWith('{'))
-  if (!line) throw new Error('Could not find JSON in the CLI output')
+  if (!line) {
+    // Quote what it actually said. "Could not find JSON" describes this
+    // parser's disappointment, not the fault: the CLI explains itself perfectly
+    // well — an expired token, a project it cannot reach, a login it wants —
+    // and swallowing that leaves the reader with nothing to act on. Truncated
+    // because a stack trace of CLI noise is its own kind of unhelpful.
+    const said = raw.trim().split(/\r?\n/).slice(0, 4).join(' | ').slice(0, 400)
+    throw new Error(
+      said
+        ? `the CLI returned no JSON. It said: ${said}`
+        : 'the CLI returned nothing at all — check network access to supabase.com',
+    )
+  }
 
   const deployed = new Map()
   for (const fn of JSON.parse(line).functions ?? []) {
@@ -151,9 +195,9 @@ function main() {
   }
 
   // ----------------------------------------------------------- Edge Functions
-  const token = accessToken()
+  const { token, from } = accessToken()
   if (!token) {
-    console.log('\nEdge Functions\n  ? SUPABASE_ACCESS_TOKEN not set — not checked')
+    console.log(`\nEdge Functions\n  ? SUPABASE_ACCESS_TOKEN comes from ${from} — not checked`)
     unchecked.push('Edge Functions')
     return { problems, unchecked }
   }
@@ -163,6 +207,7 @@ function main() {
     deployed = deployedFunctions(token)
   } catch (cause) {
     console.log(`\nEdge Functions\n  ? could not reach Supabase — ${cause.message}`)
+    console.log(`  the token came from ${from}`)
     unchecked.push('Edge Functions')
     return { problems, unchecked }
   }
