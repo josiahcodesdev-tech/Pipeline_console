@@ -1,4 +1,5 @@
 import { formatDateLong, formatKes } from '@/domain/dates'
+import { BRAND_FONT, BRAND_HEX } from './brand'
 import { parseProposal, type Block } from './proposal-markdown'
 import type { Rfp } from '@/domain/types'
 
@@ -51,19 +52,7 @@ function inline(
  * every heading and label, gold is the accent and rules, cream and tan
  * alternate as table fills.
  */
-const BRAND = {
-  /** Headings, labels, header and footer. The dominant brand colour. */
-  maroon: '5B1017',
-  /** Accent: rules under headings, sub-headings, cover flourishes. */
-  gold: 'D19A1C',
-  /** Alternating table rows and callout boxes. */
-  cream: 'FFFAF0',
-  /** The label column of a two-column table, a shade down from cream. */
-  tan: 'F5EFE2',
-  /** Body text. Deliberately not pure black. */
-  ink: '2C2926',
-  white: 'FFFFFF',
-} as const
+const BRAND = BRAND_HEX
 
 /**
  * The single typeface, matching the template — every run in it is Georgia.
@@ -74,7 +63,7 @@ const BRAND = {
  * the document from a serif to something it is not. Georgia ships with Windows
  * and with Office on macOS, so a proposal opened by a client renders as sent.
  */
-const FONT = 'Georgia'
+const FONT = BRAND_FONT
 
 /** Fixed house details, as they appear in the template's header and footer. */
 const ORG = 'Vantage Africa School of Leadership'

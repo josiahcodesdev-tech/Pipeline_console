@@ -10,6 +10,7 @@ import {
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/utils'
 import type { PromptPreview, TemplateSection } from '@/services/concept-note'
+import { BRAND } from '@/documents/brand'
 
 /**
  * The prompt the drafter would be given, shown before it is given.
@@ -154,9 +155,8 @@ export function PromptPreviewDialog({
  * prescribes its own structure overrides all of this, which is stated once
  * above the list rather than repeated against each row.
  */
-const MAROON = '#6B0F1A'
-const GOLD = '#C5973A'
-const CREAM = '#F9F3E8'
+
+const { maroon: MAROON, gold: GOLD, cream: CREAM } = BRAND
 
 const STATUS_STYLE: Record<TemplateSection['status'], string> = {
   Always: 'bg-success-soft text-success',

@@ -1,4 +1,6 @@
 import { Fragment } from 'react'
+import { BRAND } from '@/documents/brand'
+const { maroon: MAROON, gold: GOLD, cream: CREAM, tan: TAN, ink: INK } = BRAND
 import { parseProposal, boldRuns, type Block } from '@/documents/proposal-markdown'
 
 /**
@@ -13,11 +15,6 @@ import { parseProposal, boldRuns, type Block } from '@/documents/proposal-markdo
  * on purpose: this pane is a picture of the Word file, not part of the console's
  * own surface, so it must not drift when the console is restyled.
  */
-const MAROON = '#6B0F1A'
-const GOLD = '#C5973A'
-const CREAM = '#F9F3E8'
-const TAN = '#F5E6C8'
-const INK = '#1A1A1A'
 
 /** Renders `**bold**` runs. Odd segments sat between a matched pair. */
 function Rich({ text }: { text: string }) {

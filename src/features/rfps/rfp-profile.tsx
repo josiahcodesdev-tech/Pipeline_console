@@ -34,6 +34,7 @@ import {
   type PromptPreview,
 } from '@/services/concept-note'
 import { downloadProposalDocx } from '@/documents/proposal'
+import { BRAND } from '@/documents/brand'
 import { MAX_TENDER_CHARS } from '@/services/pdf-text'
 import {
   analysisMarkdown,
@@ -555,7 +556,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             <div className="mx-auto max-w-[68ch] rounded-md border border-border bg-white px-9 py-8 shadow-sm">
               <ProposalPreview markdown={draftPreview} />
               {drafting && (
-                <span className="inline-block animate-pulse font-bold" style={{ color: '#C5973A' }}>
+                <span className="inline-block animate-pulse font-bold" style={{ color: BRAND.gold }}>
                   ▍
                 </span>
               )}
