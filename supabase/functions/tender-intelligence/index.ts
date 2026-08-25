@@ -204,9 +204,15 @@ function ingestDocument(base64: string, fileName: string, mimeType: string, purp
   const extension = fileName.toLowerCase().split('.').pop() ?? ''
   const mime = DOCUMENT_MIME[extension] ?? mimeType
   if (!mime) throw new Error('Use a PDF, Word, OpenDocument, RTF or text file.')
-  return CLAUDE_READABLE.has(mime)
-    ? claudeDocument(base64, mime, purpose)
-    : openaiDocument(base64, fileName, mime, purpose)
+  if (CLAUDE_READABLE.has(mime)) return claudeDocument(base64, mime, purpose)
+  // Word, OpenDocument and RTF have no Claude path — the document block does
+  // not take them. Said plainly here rather than left to surface as an OpenAI
+  // quota error, which tells the uploader nothing they can act on: the thing
+  // they can act on is saving the file as a PDF.
+  if (!env('OPENAI_API_KEY')) {
+    throw new ServiceError('Claude cannot read Word, OpenDocument or RTF files. Save the document as a PDF and upload that.')
+  }
+  return openaiDocument(base64, fileName, mime, purpose)
 }
 
 async function openai(path: string, body: unknown) {
@@ -226,6 +232,18 @@ async function openai(path: string, body: unknown) {
     )
   }
   return response.json()
+}
+
+/**
+ * Why the knowledge base is currently off, in one sentence for the caller.
+ *
+ * The two degraded paths report rather than throw, and "degraded: true" with no
+ * reason is the kind of silence that gets diagnosed twice.
+ */
+function embeddingsFault(cause: unknown): string {
+  return cause instanceof ServiceError
+    ? cause.message
+    : 'The embeddings provider is unavailable.'
 }
 
 async function embedding(input: string): Promise<number[]> {
@@ -304,7 +322,7 @@ Deno.serve(async (request) => {
       if (completion.stop_reason === 'max_tokens') {
         return json({error:'The tender is too long to analyse in one pass. Split it and try again.'},413)
       }
-      if (!content) throw new Error('Claude returned no analysis.')
+      if (!content) throw new ServiceError('Claude returned no analysis.')
       return json({ analysis:JSON.parse(content), noticeText:fetched.text, noticeProblem:fetched.problem })
     }
 
@@ -377,9 +395,24 @@ Deno.serve(async (request) => {
       if (existing?.metadata && (existing.metadata as Record<string,unknown>).fingerprint === contentFingerprint) {
         return json({indexed:0,unchanged:true})
       }
-      await supabase.from('knowledge_chunks').delete().eq('source_type',sourceType).eq('source_id',sourceId)
+      // Embed first, delete second. This used to clear the old chunks before
+      // embedding the new ones, so a provider failure part-way through left the
+      // source with no chunks at all — the previous indexing destroyed and
+      // nothing put back. Building the rows first means a failure costs the
+      // re-index and nothing else.
       const rows = []
-      for (const [index, part] of chunks(content).slice(0, MAX_KNOWLEDGE_CHUNKS).entries()) rows.push({user_id:user.id,source_type:sourceType,source_id:sourceId,title,content:part,metadata:{chunk:index,fingerprint:contentFingerprint},embedding:await embedding(part)})
+      try {
+        for (const [index, part] of chunks(content).slice(0, MAX_KNOWLEDGE_CHUNKS).entries()) {
+          rows.push({user_id:user.id,source_type:sourceType,source_id:sourceId,title,content:part,metadata:{chunk:index,fingerprint:contentFingerprint},embedding:await embedding(part)})
+        }
+      } catch (cause) {
+        // Same reasoning as `retrieve`: indexing is what makes future drafts
+        // better, not what makes this one possible, so an unfunded embeddings
+        // key should not fail the upload that triggered it.
+        console.warn('[tender-intelligence] indexing unavailable:', cause)
+        return json({indexed:0,degraded:true,reason:embeddingsFault(cause)})
+      }
+      await supabase.from('knowledge_chunks').delete().eq('source_type',sourceType).eq('source_id',sourceId)
       const {error} = await supabase.from('knowledge_chunks').insert(rows)
       if (error) throw error
       return json({indexed:rows.length})
@@ -388,7 +421,19 @@ Deno.serve(async (request) => {
     if (action === 'retrieve') {
       const query = String(body.query ?? '').trim()
       if (!query) return json({error:'Query is required.'},400)
-      const vector = await embedding(query)
+      // Retrieval is an enhancement, not a prerequisite. It adds prior evidence
+      // to a draft; without it the draft is written from the tender alone,
+      // which is what happened before the knowledge base existed. Since it
+      // needs OpenAI for the query vector, failing hard here means an unfunded
+      // embeddings key takes down drafting itself — a far larger outage than
+      // the feature that actually broke. So it degrades to "no matches".
+      let vector: number[]
+      try {
+        vector = await embedding(query)
+      } catch (cause) {
+        console.warn('[tender-intelligence] retrieval unavailable:', cause)
+        return json({matches:[],degraded:true,reason:embeddingsFault(cause)})
+      }
       const {data,error} = await supabase.rpc('match_knowledge_chunks',{query_embedding:vector,match_count:body.limit ?? 12,minimum_similarity:body.minimumSimilarity ?? 0.35})
       if (error) throw error
       return json({matches:data ?? []})

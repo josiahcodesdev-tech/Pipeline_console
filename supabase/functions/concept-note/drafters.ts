@@ -44,6 +44,7 @@ export interface Drafter {
   run(job: DraftJob): AsyncGenerator<DraftEvent>
 }
 
+
 // ---------------------------------------------------------------- Anthropic
 
 const CLAUDE_MODEL = 'claude-opus-5'
@@ -282,6 +283,14 @@ export function selectDrafter(): Drafter | null {
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')?.trim()
   if (anthropicKey) return anthropicDrafter(anthropicKey)
 
+  // No automatic GPT fallback, and the attempt at one is worth remembering. A
+  // wrapper here caught every primary failure before the first token and tried
+  // the other provider — including "ANTHROPIC_API_KEY is not configured", which
+  // it then reported as whatever OpenAI said. With the GPT account out of
+  // credit, every Claude misconfiguration surfaced as "OpenAI quota spent": a
+  // sentence naming the wrong provider, sending whoever read it to check the
+  // wrong key. Anything reinstating this needs the primary's failure to reach
+  // the caller either way, or the next outage gets diagnosed twice.
   const openaiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
   if (openaiKey) return openaiDrafter(openaiKey)
 
