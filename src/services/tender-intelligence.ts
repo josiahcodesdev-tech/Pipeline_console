@@ -9,38 +9,9 @@ export interface TenderAnalysis {
   gaps: Array<{ requirementIds: string[]; severity: string; description: string; action: string }>
 }
 
-/**
- * The useful half of a failed Edge Function call.
- *
- * A non-2xx arrives as a FunctionsHttpError whose `message` is the bare string
- * "Edge Function returned a non-2xx status code" — the same sentence whether
- * the key is missing, the quota is spent or the PDF was rejected. Everything
- * that distinguishes them is in the response body hanging off `context`.
- *
- * The same helper exists in data/members.ts and services/concept-note.ts; this
- * is the third copy and worth folding into one shared module next time any of
- * them is touched.
- */
-async function functionError(error: unknown): Promise<string | null> {
-  const context = (error as { context?: unknown })?.context
-  if (!(context instanceof Response)) return null
-  try {
-    const body = (await context.json()) as { error?: string }
-    return body?.error ?? null
-  } catch {
-    return null
-  }
-}
-
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T & { error?: string }>('tender-intelligence', { body })
-  if (error) {
-    const detail = await functionError(error)
-    throw new Error(
-      detail ??
-        `The tender intelligence service failed (${error.message}). Check that tender-intelligence is deployed and its keys are set.`,
-    )
-  }
+  if (error) throw new Error(error.message)
   if (data?.error) throw new Error(data.error)
   if (!data) throw new Error('The tender intelligence service returned no data.')
   return data
@@ -64,12 +35,7 @@ export async function ingestProposal(file: File) {
 }
 
 async function ingestDocument(file: File, purpose: 'tender' | 'proposal') {
-  // `truncated` is set when the transcription hit its output ceiling. It is the
-  // one failure here that does not look like one — the markdown reads as a
-  // complete document and is simply missing its tail, which is where a tender
-  // keeps its submission requirements. Optional because only the Claude path
-  // reports it; the OpenAI path for Office formats does not.
-  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[]; truncated?: boolean }>({ action:'ingest', purpose, base64:await base64(file), fileName:file.name, mimeType:file.type })
+  return invoke<{ provider: string; model: string; pages: number; markdown: string; tables: unknown[]; paragraphs: unknown[] }>({ action:'ingest', purpose, base64:await base64(file), fileName:file.name, mimeType:file.type })
 }
 
 export async function analyzeTender(text: string, knowledge: string, url = '') {

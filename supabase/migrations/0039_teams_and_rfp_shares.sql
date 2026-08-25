@@ -100,10 +100,9 @@ create index if not exists rfp_shares_team_idx on public.rfp_shares (team_id);
 -- thing entirely: a function taking the row's own id cannot be hoisted out of
 -- the row filter, so it runs once per row examined. That is precisely the
 -- mistake 0019 was written to undo — it found `is_admin()` being called 478
--- times to read 478 RFPs. Returning the whole set instead lets the policy
--- unnest it in an uncorrelated subquery, which the planner runs once and
--- hashes. See the note on `rfps_select` for the form that does and does not
--- parse — the obvious spelling of this is a type error, not a slow query.
+-- times to read 478 RFPs. Returning the whole set instead lets the policy say
+-- `id = any ((select ...))`, which Postgres evaluates once per statement as an
+-- InitPlan and then treats as a constant array.
 --
 -- SECURITY DEFINER because the policy on `rfps` calls this, and this reads
 -- `rfp_shares`, whose own policy reads `rfps` to find out who owns the row. As
@@ -216,26 +215,14 @@ create policy rfp_shares_delete on public.rfp_shares
 
 -- The one policy this whole migration exists to widen. Same shape as 0019 left
 -- it, with shared tenders added as a third way in; the admin check stays first
--- so the common case still short-circuits before reaching the subquery.
---
--- WHY `in (select unnest(...))` AND NOT `= any ((select ...))`.
--- The second is what this said first, and it does not parse. `ANY` has two
--- forms — one taking an array expression, one taking a subquery — and a bare
--- SELECT inside its parentheses is read as the subquery form, which expects a
--- set of uuid rows. `shared_rfp_ids()` returns a single uuid[], so Postgres
--- compares uuid to uuid[] and refuses: 42883, operator does not exist.
---
--- The `(select ...)` wrapper was there to force single evaluation, per 0019.
--- Unnesting into an uncorrelated subquery keeps that property by a different
--- route: nothing in it depends on the row, so the planner runs it once and
--- hashes the result rather than calling the function per row.
+-- so the common case still short-circuits before touching the array.
 drop policy if exists rfps_select on public.rfps;
 create policy rfps_select on public.rfps
   for select to authenticated
   using (
     (select public.is_admin())
     or user_id = (select auth.uid())
-    or id in (select unnest(public.shared_rfp_ids()))
+    or id = any ((select public.shared_rfp_ids()))
   );
 
 comment on table public.teams is
