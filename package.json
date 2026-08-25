@@ -10,6 +10,7 @@
     "check:deploys": "node scripts/check-deploys.mjs",
     "deploy:fn": "node scripts/deploy-fn.mjs",
     "templates:build": "node scripts/build-templates.mjs",
+    "templates:check": "node scripts/check-templates.mjs",
     "schema:build": "node scripts/build-schema.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -38,6 +39,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "esbuild": "^0.28.2",
+    "linkedom": "^0.18.13",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"

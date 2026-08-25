@@ -72,3 +72,86 @@ from the tender title, sector, service areas, notes, analysis and tender text.
 Descriptive file names and distinctive headings improve matching. Name a broad
 fallback template `default`, `general` or `master`; if nothing matches and no
 fallback is named, the first file alphabetically is used.
+
+---
+
+# Designed HTML templates
+
+Everything above is about a template as *structure and voice* — headings the
+drafter follows and prose it imitates, reaching the drafter as text. An HTML
+template can also be used a second way: kept whole, with only its words
+replaced, so the finished proposal carries the original's cover, cards, tables,
+photographs and stylesheet. The design survives because it is never rebuilt.
+
+That path needs to know two things about your file that no parser can work out
+on its own.
+
+## Check a template before trusting it
+
+```
+npm run templates:check
+```
+
+It runs the real extractor over every `.html` here and prints what it found —
+sections, how many text slots, and of what kind — then what it could not work
+out. It exits non-zero when something needs a decision, so it can gate a
+commit.
+
+Run it when you add a template and again after editing one. The failures here
+are all silent ones: a selector that matches nothing does not raise an error,
+it leaves the previous client's name in the browser tab and the running footer
+while the proposal itself reads perfectly.
+
+## The sidecar config
+
+Next to `my_template.html`, optionally `my_template.config.json`. Every field
+has a default; supply only what differs.
+
+```jsonc
+{
+  // Where the sections and their prose live. Defaults cover the common
+  // containers — section, article, .page, .slide — and fall back to <body>
+  // for a single-page template.
+  "sectionSelector": "section.page",
+  "contentSelector": ".page-inner",
+
+  // Images whose wording is part of the picture. Matched against alt text.
+  "assignmentSpecificImages": ["architecture", "dashboard"],
+
+  // Images that are a rendered page rather than a picture — a consultant
+  // profile laid out and exported as a JPEG. Replaced by cards the drafter
+  // fills, because a picture of a page cannot be reworded.
+  "rebuildAsTextImages": ["consultant profile"],
+
+  // Where the client is named outside the prose.
+  "furniture": {
+    "brandName": ".brand b",
+    "brandClient": ".brand small",
+    "footerClient": ".footer span:nth-of-type(2)",
+    "navLinks": "nav a",
+    "remove": [".edit-note"]
+  }
+}
+```
+
+## Why the images need you
+
+`templates:check` will list every image and refuse to decide. That is
+deliberate, and it is the one part of this you cannot skip.
+
+Nothing in HTML separates a photograph of your team in Rwanda from a diagram
+captioned "Eval360 for a Ministry of Transport". Both are a JPEG with an alt
+attribute. Guess "reusable" and a bid goes out carrying another client's name
+in a picture, where no evidence rule can see it. Guess "assignment-specific"
+and your own photographs are stripped from every proposal you send.
+
+So you look once, per template, and write the answer down. Anything you list is
+removed along with its frame, so no empty bordered box is left behind. Anything
+you do not list is kept.
+
+## What it will not do
+
+The same evidence rules as above, and for the same reason. A figure, client
+name or past assignment sitting in the template is not evidence — it belongs to
+the document it was written for. This path replaces the words; it does not
+license reusing them.
