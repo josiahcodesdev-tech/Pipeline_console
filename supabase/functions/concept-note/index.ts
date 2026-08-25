@@ -59,6 +59,16 @@ interface DraftContext {
   tenderText?: unknown
   /** Opt in to the newline-delimited JSON stream instead of a buffered reply. */
   stream?: unknown
+  /**
+   * One section of a designed template to fill, with its slots.
+   *
+   * Present only for kind 'proposal-section'. The client owns the template —
+   * it parses it, holds the markup and writes the answers back — so what
+   * reaches here is just the words that need writing and how much room each
+   * has. See src/documents/template-slots.ts.
+   */
+  section?: unknown
+  slots?: unknown
 }
 
 /**
@@ -353,6 +363,16 @@ Deno.serve(async (request: Request) => {
   const isPerformanceReport = kind === 'performance-report'
   const isAnalysis = kind === 'tender-analysis'
   /**
+   * Filling one section of a designed template rather than writing a document.
+   *
+   * Shares everything above the task with a proposal — the same doctrine, the
+   * same house rules, the same roster and the same refusal to treat a
+   * template's figures as evidence — because it is the same bid written into a
+   * different container. Only the instruction at the end differs, and the reply
+   * comes back as values rather than prose.
+   */
+  const isSection = kind === 'proposal-section'
+  /**
    * Show the assembled prompt instead of writing anything with it.
    *
    * For troubleshooting a draft that came out wrong. The prompt is built from
@@ -367,8 +387,14 @@ Deno.serve(async (request: Request) => {
    */
   const isPreview = context.preview === true
 
-  const quotaAction = isProposal ? 'proposal' : isAnalysis ? 'tender-analysis' : isPerformanceReport ? 'performance-report' : 'concept-note'
-  const quotaMax = isProposal ? 10 : isPerformanceReport ? 10 : 30
+  const quotaAction = isSection ? 'proposal-section' : isProposal ? 'proposal' : isAnalysis ? 'tender-analysis' : isPerformanceReport ? 'performance-report' : 'concept-note'
+  // A designed proposal is one document and roughly nineteen calls, one per
+  // section. Counted at the ordinary rate it would exhaust the hour halfway
+  // through the second one, and the failure arrives mid-document — eleven
+  // sections written, eight refused, nothing usable. The allowance is per call
+  // so it has to be raised to match: this is about six documents an hour,
+  // including a retry or two, rather than six times the work.
+  const quotaMax = isSection ? 120 : isProposal ? 10 : isPerformanceReport ? 10 : 30
   if (!isPreview) {
     const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
       quota_action: quotaAction,
@@ -466,7 +492,7 @@ Deno.serve(async (request: Request) => {
       ? TENDER_ANALYSIS_PROMPT
       : isPerformanceReport
         ? PERFORMANCE_REPORT_PROMPT
-        : isProposal
+        : isProposal || isSection
           ? PROPOSAL_PROMPT
           : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
@@ -476,6 +502,9 @@ Deno.serve(async (request: Request) => {
     // tender itself, so it should be the last word on headings — and each layer
     // here reads as a refinement of the one above it.
     isProposal ? uploadedTemplateBlock(selectedTemplates) : '',
+    // Deliberately not in section mode. There the template is the container
+    // being written into, not a structure to imitate, and handing the drafter
+    // its prose again is an invitation to lift from it.
     rosterBlock(roster),
     examplesBlock(examples),
   ]
@@ -500,7 +529,7 @@ Deno.serve(async (request: Request) => {
   // meant the reading pass could never see an uploaded ToR — the one source
   // that outranks the notice — and reported "no ToR is stored" while holding it.
   const tender =
-    isProposal || isAnalysis ? text(context.tenderText, MAX_TENDER_CHARS) : ''
+    isProposal || isAnalysis || isSection ? text(context.tenderText, MAX_TENDER_CHARS) : ''
 
   // What the model has been given changes what it should do about the gaps, so
   // this is stated either way rather than assuming the thin case. Getting it
@@ -553,7 +582,55 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
 }`
     : `Draft a ${what} using this context:\n\n${details}`
 
-  const job = { system: systemPrompt, task, heavy: isProposal || isPerformanceReport }
+  /**
+   * The slots this call has to write, when filling a designed template.
+   *
+   * Capped because the request arrives from a browser. One section of a real
+   * template runs to a few dozen; a hand-rolled request asking for thousands
+   * would spend the project's key on one call.
+   */
+  const slotBriefs = Array.isArray(context.slots)
+    ? (context.slots as Array<Record<string, unknown>>).slice(0, 120).map((slot) => ({
+        id: text(slot.id, 80),
+        kind: text(slot.kind, 40) || 'body',
+        original: text(slot.original, 2_000),
+        budget: Math.min(4_000, Math.max(24, Number(slot.budget) || 200)),
+      }))
+    : []
+
+  const sectionTask = `Write one section of the firm's designed proposal template for this tender.
+
+You are not writing a document. You are replacing the words in a layout that already exists: ${slotBriefs.length} pieces of text, each in a fixed place, each with a fixed amount of room. The design does not reflow — a paragraph written where a three-word label belongs breaks the page it sits on.
+
+## Section
+${text((context.section as Record<string, unknown>)?.title, 200) || 'Untitled section'}
+
+## Rules for this call
+- Answer with one value per slot id below. Every id, exactly once.
+- \`kind\` tells you what sort of text belongs there. A \`stat-value\` is a figure or two or three words. A \`card-title\` is a short label. A \`lead\` opens the section. A \`heading\` names it. A \`table-cell\` is a cell, not a sentence.
+- \`budget\` is the room available in characters. Treat it as a ceiling, not a target.
+- \`original\` is what the template says for a different client. It is there to show you the register, the rhythm and the job each slot does. Its facts are not yours: no figure, client name, country, accreditation, testimonial or past assignment from it may appear in your answer.
+- Where this section needs evidence the bid does not have, write the honest marker — [INFORMATION REQUIRED: ...] or [INSERT VERIFIED ...] — in the slot, at the length the slot allows.
+- Plain text only. No Markdown, no HTML: these strings go straight into elements that are already styled.
+
+## The tender
+${details}
+${tender ? `\n## Tender document (authoritative)\n\n${tender}` : ''}
+${analysis ? `\n## What this assignment is, as already read\n\n${analysis}` : ''}
+
+## Slots
+${slotBriefs
+  .map((slot) => `- ${slot.id} | kind: ${slot.kind} | room: ${slot.budget} chars | currently: ${JSON.stringify(slot.original)}`)
+  .join('\n')}`
+
+  const job = {
+    system: systemPrompt,
+    task: isSection ? sectionTask : task,
+    // Never heavy. A section is a few hundred words spread over short strings,
+    // and the effort that makes a full proposal worth waiting for would spend
+    // nineteen times over here for no gain.
+    heavy: (isProposal || isPerformanceReport) && !isSection,
+  }
 
   // Everything above is assembly; nothing below it is reached in preview mode.
   // Returned as the two separate messages rather than one blob, because which
@@ -601,6 +678,42 @@ The notice could not be read${noticeProblem ? `: ${noticeProblem}` : '.'} You ha
 
   const refusedMessage =
     'The drafting service declined this request. Try rephrasing the notes on this record.'
+
+  /**
+   * Filling a template section. Values back, not prose.
+   *
+   * Placed before the streaming branch because it is neither streamed nor
+   * buffered text: the answer is a fixed set of short strings the caller writes
+   * into elements it already holds. Nothing downstream of here would know what
+   * to do with it.
+   */
+  if (isSection) {
+    if (slotBriefs.length === 0) {
+      return json({ error: 'No slots were supplied to fill.' }, 400)
+    }
+    if (!drafter.fillSlots) {
+      // Only reachable when the drafting key belongs to a provider without a
+      // structured path. Named rather than described as a generic failure: the
+      // fix is a key, and saying which turns a support question into a setting.
+      return json(
+        { error: `${drafter.label} cannot fill a designed template. This needs an Anthropic key.` },
+        501,
+      )
+    }
+    try {
+      const values = await drafter.fillSlots(job, slotBriefs)
+      // Reported rather than reconciled here. The caller holds the template and
+      // knows which element each id belongs to; all this can say is which ids
+      // came back, and let the filler decide what a gap means.
+      const returned = new Set(values.map((value) => value.id))
+      const missing = slotBriefs.filter((slot) => !returned.has(slot.id)).map((slot) => slot.id)
+      return json({ values, missing, model: drafter.label }, 200)
+    } catch (cause) {
+      const detail = describeDraftFailure(cause, drafter.label)
+      console.error(`concept-note section fill failed (${drafter.label})`, cause)
+      return json({ error: detail }, 502)
+    }
+  }
 
   /**
    * Streaming is opt-in via `stream: true` in the request body.

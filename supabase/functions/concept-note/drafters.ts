@@ -38,11 +38,61 @@ export interface DraftJob {
   heavy: boolean
 }
 
+/** One text slot in a designed template, as the drafter sees it. */
+export interface SlotBrief {
+  id: string
+  /** What sort of text belongs here — a label, a lead, a table cell. */
+  kind: string
+  /** What the template says today. The voice reference, never the content. */
+  original: string
+  /** Roughly how many characters the design has room for. */
+  budget: number
+}
+
 export interface Drafter {
   /** Shown in errors and logs so a bad draft can be traced to a model. */
   readonly label: string
   run(job: DraftJob): AsyncGenerator<DraftEvent>
+  /**
+   * Writes one section of a designed template, slot by slot.
+   *
+   * A different shape of work from `run`, and deliberately a different method.
+   * `run` streams a document; this returns a fixed set of short strings that
+   * have to land in specific elements, so it is a structured call with a schema
+   * rather than prose to be parsed afterwards. Asking for JSON in a prose
+   * stream and hoping works until a proposal contains a brace.
+   *
+   * Optional because it is not a capability every provider has to have. A
+   * drafter without it fails one feature loudly instead of failing the whole
+   * function at import time.
+   */
+  fillSlots?(job: DraftJob, slots: readonly SlotBrief[]): Promise<Array<{ id: string; text: string }>>
 }
+
+/**
+ * The shape a slot-filling reply must take.
+ *
+ * An array of pairs rather than an object keyed by slot id, because slot ids
+ * are generated — `executive.14` — and a JSON Schema cannot name properties it
+ * has never seen. Strict mode needs every property declared, so the ids travel
+ * as values.
+ */
+const SLOT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['values'],
+  properties: {
+    values: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'text'],
+        properties: { id: { type: 'string' }, text: { type: 'string' } },
+      },
+    },
+  },
+} as const
 
 
 // ---------------------------------------------------------------- Anthropic
@@ -135,6 +185,47 @@ function anthropicDrafter(apiKey: string): Drafter {
         truncated: message.stop_reason === 'max_tokens',
         refused: message.stop_reason === 'refusal',
       }
+    },
+
+    async fillSlots(job: DraftJob, slots: readonly SlotBrief[]) {
+      // Not streamed. The reply is a few hundred short strings rather than a
+      // document, so it returns well inside the Edge Function's idle limit, and
+      // a schema-constrained response has no partial state worth showing —
+      // half a JSON object is not half an answer.
+      const message = await client.messages.create({
+        model: CLAUDE_MODEL,
+        // Sized from the slots themselves rather than a flat ceiling: a section
+        // of eight labels needs a fraction of what one of forty paragraphs
+        // does, and asking for the maximum every time pays for silence.
+        max_tokens: Math.min(
+          32_000,
+          Math.max(2_000, slots.reduce((total, slot) => total + slot.budget, 0) * 2),
+        ),
+        system: job.system,
+        messages: [{ role: 'user', content: job.task }],
+        thinking: { type: 'adaptive' },
+        output_config: {
+          effort: CLAUDE_NOTE_EFFORT,
+          format: { type: 'json_schema', schema: SLOT_SCHEMA },
+        },
+      })
+
+      if (message.stop_reason === 'refusal') {
+        throw new Error('The model declined to write this section.')
+      }
+      // A truncated schema response is invalid JSON rather than a short answer,
+      // so it fails at the parse below with a message about syntax. Said here
+      // instead, where the cause is known.
+      if (message.stop_reason === 'max_tokens') {
+        throw new Error('This section is longer than one pass allows. Split it.')
+      }
+
+      const text = message.content
+        .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
+      const parsed = JSON.parse(text) as { values?: Array<{ id: string; text: string }> }
+      return parsed.values ?? []
     },
   }
 }
