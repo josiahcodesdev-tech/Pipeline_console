@@ -74,6 +74,23 @@ const DOCUMENT_MIME: Record<string,string> = {
   odt:'application/vnd.oasis.opendocument.text', rtf:'application/rtf', txt:'text/plain',
 }
 
+/**
+ * A failure whose message is safe to send back.
+ *
+ * The catch-all below answers everything with an opaque reference on purpose —
+ * an unexpected exception can carry a query, a path or a fragment of someone's
+ * tender, and none of that belongs in a browser. But it swallowed the faults
+ * that are neither unexpected nor sensitive along with them: an unset key, a
+ * spent quota, a provider saying no. Those are deployment facts, they are
+ * actionable, and answering them with "Reference: 3e74b1de" sends whoever is
+ * looking to the function logs to rediscover something the function already
+ * knew.
+ *
+ * So the rule is: a message written here, by hand, for a fault we predicted, is
+ * shown. Anything thrown from anywhere else still gets the reference.
+ */
+class ServiceError extends Error {}
+
 const CLAUDE_MODEL = 'claude-opus-5'
 
 /**
@@ -90,7 +107,9 @@ const CLAUDE_EFFORT = 'low'
 
 function claude(): Anthropic {
   const key = env('ANTHROPIC_API_KEY')
-  if (!key) throw new Error('ANTHROPIC_API_KEY is not configured.')
+  if (!key) {
+    throw new ServiceError('ANTHROPIC_API_KEY is not configured on this function. Set it with `supabase secrets set ANTHROPIC_API_KEY=...` and redeploy.')
+  }
   return new Anthropic({ apiKey: key, maxRetries: 4 })
 }
 
@@ -192,11 +211,19 @@ function ingestDocument(base64: string, fileName: string, mimeType: string, purp
 
 async function openai(path: string, body: unknown) {
   const key = env('OPENAI_API_KEY')
-  if (!key) throw new Error('OPENAI_API_KEY is not configured.')
+  if (!key) {
+    throw new ServiceError('OPENAI_API_KEY is not configured on this function. Embeddings and Office-format uploads need it; see the note at the top of this file.')
+  }
   const response = await fetch(`https://api.openai.com/v1/${path}`, { method:'POST', headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'}, body:JSON.stringify(body) })
   if (!response.ok) {
     console.error('OpenAI request failed', response.status, (await response.text()).slice(0, 1000))
-    throw new Error(`The document intelligence provider failed (${response.status}).`)
+    // Named, now that two providers can fail here. "The provider failed" sent
+    // people to check the wrong key more than once.
+    throw new ServiceError(
+      response.status === 429
+        ? 'OpenAI refused the request: the quota or rate limit is spent. Embeddings and Office-format uploads still run on OpenAI.'
+        : `OpenAI refused the request (${response.status}).`,
+    )
   }
   return response.json()
 }
@@ -368,6 +395,22 @@ Deno.serve(async (request) => {
     }
     return json({error:'Unknown action'},400)
   } catch (cause) {
+    // Predicted and safe to say out loud — see ServiceError. 503 rather than
+    // 500: nothing is wrong with the request, the service is not configured or
+    // its upstream refused.
+    if (cause instanceof ServiceError) {
+      console.error('[tender-intelligence] service fault:', cause.message)
+      return json({error:cause.message},503)
+    }
+    // The Anthropic SDK's own errors. The status is the useful part and is not
+    // sensitive — a 400 here means this function built a request the API would
+    // not take, which is a bug worth seeing rather than a reference number.
+    // The body is deliberately not forwarded; it can echo the prompt back.
+    const status = (cause as { status?: unknown })?.status
+    if (typeof status === 'number') {
+      console.error('[tender-intelligence] Claude request failed:', status, cause)
+      return json({error:`Claude refused the request (${status}). The function log has the detail.`},502)
+    }
     const incident = crypto.randomUUID()
     console.error(`[tender-intelligence:${incident}]`, cause)
     return json({error:`Tender intelligence failed. Reference: ${incident}`},500)
