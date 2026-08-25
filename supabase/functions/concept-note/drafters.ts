@@ -1,8 +1,9 @@
 /**
  * Which model actually writes the document.
  *
- * Full proposals use OpenAI's flagship GPT model through the Responses API.
- * Anthropic remains an operational fallback when no OpenAI key is configured.
+ * Proposals are written by Claude. OpenAI's flagship GPT model through the
+ * Responses API remains an operational fallback when no Anthropic key is
+ * configured — see selectDrafter for why the order is what it is.
  *
  * Both providers are driven as a *stream* even when the caller wanted a
  * buffered reply. Two reasons: a 16,000-token document is long enough to hit an
@@ -262,17 +263,27 @@ export function describeDraftFailure(cause: unknown): string {
 // ------------------------------------------------------------------ Choosing
 
 /**
- * Picks the drafter from whichever key is configured, preferring OpenAI so
- * proposal runs use the flagship GPT model configured above.
+ * Picks the drafter from whichever key is configured, preferring Claude.
+ *
+ * Order matters and only the first configured key is ever used — this is a
+ * choice of provider, not a chain that retries the other one. So with both keys
+ * set, whichever is named first is the only one that drafts.
+ *
+ * Claude leads because it writes the better proposal, which is what index.ts
+ * has documented since this function was written; the order had drifted to
+ * OpenAI-first without that note being updated, so the file said one thing and
+ * did another. Anything relying on GPT should say so here rather than by
+ * reordering silently.
+ *
  * Returns null when neither is set, which the handler reports as a 500 — that
  * is a deployment fault, not a bad request.
  */
 export function selectDrafter(): Drafter | null {
-  const openaiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
-  if (openaiKey) return openaiDrafter(openaiKey)
-
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')?.trim()
   if (anthropicKey) return anthropicDrafter(anthropicKey)
+
+  const openaiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
+  if (openaiKey) return openaiDrafter(openaiKey)
 
   return null
 }
