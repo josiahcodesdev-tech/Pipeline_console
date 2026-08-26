@@ -57,26 +57,30 @@ import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
 import { RfpDialog } from './rfp-dialog'
 import { PromptPreviewDialog } from './prompt-preview'
+import { TenderIntelligence, type IntelligenceTab } from './tender-intelligence'
+
+/**
+ * The tabs, in the order somebody works through a tender.
+ *
+ * What it is, then what came with it, then what the model made of it, then the
+ * two questions that follow from that. Overview first because it is what most
+ * visits are for.
+ */
+type ProfileTab = 'overview' | IntelligenceTab
+
+const TABS: ReadonlyArray<{ id: ProfileTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'intelligence', label: 'AI intelligence' },
+  { id: 'capability', label: 'Capability match' },
+  { id: 'similar', label: 'Similar past bids' },
+]
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return ''
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-/** Pull the short opening explanation out of the structured tender reading. */
-function assignmentSummary(analysis: string): string {
-  const heading = /^#{1,3}\s+What this assignment is\s*$/im
-  const match = heading.exec(analysis)
-  if (!match) return ''
-
-  const body = analysis.slice(match.index + match[0].length)
-  return body
-    .split(/^#{1,3}\s+/m, 1)[0]
-    .replace(/\*\*/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
@@ -177,6 +181,12 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [pasting, setPasting] = useState(false)
   const [playbooks, setPlaybooks] = useState<string[]>([])
   /**
+   * Which tab is showing. Overview by default, and it stays the default —
+   * the record is what most visits are for, and the intelligence is what you
+   * go and look at.
+   */
+  const [tab, setTab] = useState<ProfileTab>('overview')
+  /**
    * Sections as they land, shown live in the side panel.
    *
    * The designed proposal is filled section by section rather than written as a
@@ -229,10 +239,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         .map((proposal) => proposal.content.slice(0, MAX_EXEMPLAR_CHARS)),
     [exemplars],
   )
-  const summary = useMemo(
-    () => assignmentSummary(rfp.analysis) || rfp.notes.trim(),
-    [rfp.analysis, rfp.notes],
-  )
+
   const left = daysUntil(rfp.deadline)
 
   async function retrieveCapabilityContext(): Promise<string> {
@@ -269,6 +276,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     const knowledge = await retrieveCapabilityContext()
     const source = rfp.tenderText.trim() || [rfp.title, rfp.org, rfp.notes, rfp.noticeText].filter(Boolean).join('\n\n')
     const structured = await analyzeTender(source, knowledge, rfp.link)
+
+    // Said out loud rather than absorbed. Procurement portals block automated
+    // fetches often, and when one does the reading is built from the title and
+    // whatever the sync scraped — which produces a proposal that reads exactly
+    // as confidently as one written from the real tender. This runs on the way
+    // into drafting, which is the moment it matters.
+    if (structured.noticeProblem && !rfp.tenderText.trim()) {
+      toast.warning(
+        `The source link could not be read (${structured.noticeProblem}). This draft will be written from the title and the synced details only — attach the Terms of Reference for a real one.`,
+      )
+    }
     const review = analysisMarkdown(structured.analysis)
     let enrichment: Record<string, unknown> | undefined
     try {
@@ -880,15 +898,51 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         </div>
       )}
 
-      <section className="mb-5 rounded-xl border border-border bg-card px-4 py-3.5">
-        <div className="eyebrow mb-1.5 text-clay">Assignment summary</div>
-        <p className="max-w-[90ch] text-[13px] leading-relaxed text-foreground">
-          {summary ||
-            'No assignment summary is available yet. Read the tender or attach its Terms of Reference to create one.'}
-        </p>
-      </section>
+      {/*
+        The tabs.
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        Overview is everything this page already was, unchanged and still the
+        default — the tender's own record, the drafter, the proposals, the
+        activity. The other four are the intelligence layer's, and they are
+        tabs rather than more panels on an already long page because they
+        answer a different question: not "what is this tender" but "is it worth
+        bidding, and what did the model make of it".
+
+        Overview is hidden with CSS rather than unmounted, and that is the one
+        deliberate exception: a proposal takes several minutes to write, and
+        unmounting the page mid-draft would throw away the progress and the
+        finished document with it. The intelligence tabs mount on demand, since
+        each one is a fresh read from the database anyway.
+      */}
+      <div className="mb-5 flex flex-wrap gap-1 border-b border-border">
+        {TABS.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            onClick={() => setTab(entry.id)}
+            aria-current={tab === entry.id ? 'page' : undefined}
+            className={cn(
+              '-mb-px cursor-pointer border-b-2 px-3 py-2 text-[12.5px] transition-colors',
+              tab === entry.id
+                ? 'border-primary font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== 'overview' && (
+        <TenderIntelligence rfp={rfp} tab={tab} viewOnly={viewOnly} />
+      )}
+
+      <div
+        className={cn(
+          'grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]',
+          tab !== 'overview' && 'hidden',
+        )}
+      >
         <div className="min-w-0">
           {PROPOSAL_DRAFTING && !viewOnly && (
           <>

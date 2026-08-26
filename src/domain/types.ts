@@ -549,3 +549,83 @@ export const EMPTY_CONSULTANT: Omit<Consultant, 'id'> = {
   cvFileName: '',
   cvSize: null,
 }
+
+/**
+ * One AI reading of one tender, from the Python intelligence layer.
+ *
+ * Written by ai_tender_intelligence/, never by the console — see migration
+ * 0041. Read-only here in the strongest sense: there is no write policy for an
+ * authenticated session, so an insert from the browser is refused by the
+ * database rather than by a convention somebody could forget.
+ *
+ * Every list may be empty and usually some are. That is the analyser reporting
+ * what the tender does not say rather than filling the gap, and it is the
+ * reason `missingInformation` is worth showing at all.
+ */
+export interface AiAnalysis {
+  id: string
+  rfpId: string
+  /** The paragraph shown at the top of the AI tab. Assembled, never generated. */
+  summary: string
+  /** Capability match against the statement, 0-100. */
+  score: number
+  /** Resemblance to past wins, 0-100. Zero when there is too little history. */
+  winProbability: number
+  /** 'Pursue', 'Consider' or 'Decline'. Advice; nothing acts on it. */
+  recommendation: string
+  keywords: string[]
+  themes: string[]
+  matchedCapabilities: Array<{
+    service: string
+    weight: number
+    score: number
+    matched_terms: string[]
+  }>
+  requirements: string[]
+  risks: string[]
+  missingInformation: string[]
+  similarBids: Array<{
+    rfp_id: string
+    title: string
+    outcome: string
+    similarity: number
+    shared: string[]
+  }>
+  /** The sentences behind the score, in the order the analyser made them. */
+  reasons: string[]
+  /**
+   * Which build of the model produced this.
+   *
+   * Shown because a score is only interpretable next to the thing that made
+   * it, and "the score fell" is a different fact from "the model changed".
+   */
+  modelVersion: string
+  /** 'notice', 'tor', 'notice+tor' or 'title-only' — what it was read from. */
+  sourceKind: string
+  createdAt: string
+}
+
+/**
+ * A file attached to a tender: the TOR, the RFP, evaluation criteria, annexes.
+ *
+ * Until migration 0041 an uploaded tender PDF was read for its text and then
+ * dropped. This keeps the file, which is what makes re-reading page 14 or
+ * sending an annex to a partner possible at all.
+ */
+export interface RfpDocument {
+  id: string
+  rfpId: string
+  fileName: string
+  /** Object path in the private `tenders` bucket. */
+  filePath: string
+  fileSize: number | null
+  mimeType: string
+  /** 'tor', 'rfp', 'evaluation', 'annex' or 'other'. */
+  kind: string
+  /** Layout-aware text. Empty until something has read it. */
+  extractedText: string
+  /** What the AI layer made of it, or why it could not. */
+  aiSummary: string
+  uploadedDate: string
+  createdAt: string
+}

@@ -250,9 +250,83 @@ type Generated = 'id' | 'created_at' | 'updated_at'
 type Insertable<Row, Optional extends keyof Row> = Omit<Row, Optional> &
   Partial<Pick<Row, Optional>>
 
+/**
+ * Written by the Python intelligence layer, never by this client.
+ *
+ * `Insert: never` and `Update: never` are the type system agreeing with the
+ * database: migration 0041 gives these tables no write policy for an
+ * authenticated session, so an insert from the browser is refused at the
+ * server. Saying so here means it is also refused at compile time, which is
+ * the cheaper of the two places to find out.
+ */
+export type AiAnalysisRow = {
+  id: string
+  rfp_id: string
+  summary: string
+  score: number
+  win_probability: number
+  recommendation: string
+  keywords: unknown
+  themes: unknown
+  matched_capabilities: unknown
+  requirements: unknown
+  risks: unknown
+  missing_information: unknown
+  similar_bids: unknown
+  reasons: unknown
+  model_version: string
+  source_kind: string
+  created_at: string
+}
+
+export type BidLearningRow = {
+  id: string
+  rfp_id: string
+  outcome: string
+  learned_patterns: Record<string, unknown>
+  note: string
+  recorded_at: string
+  created_at: string
+}
+
+/** A file attached to a tender. This one the console does write. */
+export type RfpDocumentRow = {
+  id: string
+  rfp_id: string
+  user_id: string
+  file_name: string
+  file_path: string
+  file_size: number | null
+  mime_type: string
+  kind: string
+  extracted_text: string
+  ai_summary: string
+  uploaded_date: string
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
+      ai_analysis: {
+        Row: AiAnalysisRow
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      bid_learning: {
+        Row: BidLearningRow
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      rfp_documents: {
+        Row: RfpDocumentRow
+        Insert: Insertable<RfpDocumentRow, Generated | 'uploaded_date' | 'ai_summary' | 'extracted_text' | 'file_size' | 'mime_type' | 'kind'>
+        Update: Partial<RfpDocumentRow>
+        Relationships: []
+      }
       audit_log: {
         Row: AuditLogRow
         Insert: never

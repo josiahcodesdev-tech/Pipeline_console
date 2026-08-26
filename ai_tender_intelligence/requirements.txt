@@ -1,0 +1,30 @@
+# Pinned to majors rather than exact versions: this is a service run from a
+# checkout, not a library other things depend on, and a lockfile nobody
+# refreshes is how a security patch goes uninstalled for a year.
+
+# --- the service ---------------------------------------------------------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+# Not optional despite looking it. /extract-rfp-document takes an UploadFile,
+# and FastAPI raises at import time without this — the service does not fail
+# on the first upload, it fails to start at all.
+python-multipart>=0.0.9,<1.0
+
+# --- the database --------------------------------------------------------
+SQLAlchemy>=2.0,<3.0
+psycopg[binary]>=3.1,<4.0        # the driver config.py normalises the URL for
+httpx>=0.27,<1.0                 # reading files out of Supabase Storage
+
+# --- reading and scoring -------------------------------------------------
+pandas>=2.2,<3.0
+scikit-learn>=1.4,<2.0
+PyMuPDF>=1.24,<2.0
+
+# --- optional, and genuinely optional ------------------------------------
+# Both improve the analysis; neither is required to run it. See nlp_engine.py:
+# a missing model is reported through /health and worked around, not raised.
+# spaCy also needs its model downloaded separately:
+#     python -m spacy download en_core_web_sm
+spacy>=3.7,<4.0
+sentence-transformers>=3.0,<6.0
