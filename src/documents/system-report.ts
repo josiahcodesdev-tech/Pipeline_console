@@ -11,7 +11,7 @@ import {
 } from '@/features/report/inventory'
 
 export function systemReportFileName(): string {
-  return `Pipeline Console - capability report - ${today()}.docx`
+  return `Vantage Africa - capability report - ${today()}.docx`
 }
 
 export async function downloadSystemReportDocx(
@@ -85,15 +85,15 @@ export async function downloadSystemReportDocx(
     })
 
   const document = new Document({
-    creator: 'Pipeline Console',
-    title: 'Pipeline Console — capability report',
+    creator: 'Vantage Africa',
+    title: 'Vantage Africa — capability report',
     description: 'What the system does today, and what it does not do yet',
     sections: [
       {
         children: [
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
-            children: [new TextRun('Pipeline Console — capability report')],
+            children: [new TextRun('Vantage Africa — capability report')],
           }),
           new Paragraph({
             spacing: { after: 120 },

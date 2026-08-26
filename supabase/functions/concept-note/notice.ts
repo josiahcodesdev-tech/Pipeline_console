@@ -134,7 +134,7 @@ export async function fetchNotice(link: string): Promise<NoticeResult> {
         headers: {
         // Several of these sites serve a stub to unknown agents.
         'User-Agent':
-          'Mozilla/5.0 (compatible; PipelineConsole/1.0; +https://vantageafricaleaders.com)',
+          'Mozilla/5.0 (compatible; VantageAfrica/1.0; +https://vantageafricaleaders.com)',
         Accept: 'text/html,application/xhtml+xml,application/pdf;q=0.8,*/*;q=0.5',
         },
       })

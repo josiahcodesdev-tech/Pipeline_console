@@ -13,7 +13,7 @@ export const isSupabaseConfigured = Boolean(url && anonKey)
 
 if (!isSupabaseConfigured) {
   console.warn(
-    '[pipeline-console] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set. ' +
+    '[vantage-africa] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set. ' +
       'Copy .env.example to .env.local and fill them in.',
   )
 }

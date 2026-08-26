@@ -54,11 +54,11 @@ export function SignInView() {
             aria-hidden
             className="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-clay to-primary font-display text-[15px] text-white shadow-brand-md"
           >
-            JM
+            VA
           </span>
           <div className="eyebrow mb-2 text-clay">Corporate Dept · BDE</div>
           <h1 className="font-display text-[30px] leading-tight text-foreground">
-            Pipeline Console
+            Vantage Africa
           </h1>
           <p className="mt-2 text-xs text-muted-foreground">
             Lead generation &amp; RFP tracking

@@ -274,7 +274,7 @@ export async function downloadProposalDocx(
   }
 
   const document = new Document({
-    creator: 'Pipeline Console',
+    creator: 'Vantage Africa',
     // Tells Word there are fields needing calculation, so it prompts to update
     // them on open. Without this the contents page stays empty.
     features: { updateFields: true },

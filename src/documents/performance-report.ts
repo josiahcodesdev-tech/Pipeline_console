@@ -112,7 +112,7 @@ export async function downloadPerformanceReportDocx(
   }
 
   const document = new Document({
-    creator: 'Pipeline Console',
+    creator: 'Vantage Africa',
     title: `Performance report — ${periodLabel}`,
     sections: [{ children: children as never[] }],
   })

@@ -1,4 +1,4 @@
-# Pipeline Console
+# Vantage Africa
 
 Lead generation and RFP tracking for the Corporate Department BDE function at
 Vantage Africa School of Leadership.

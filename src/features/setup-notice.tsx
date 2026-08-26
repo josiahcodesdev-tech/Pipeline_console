@@ -9,7 +9,7 @@ export function SetupNotice() {
       <div className="w-full max-w-[520px] rounded-lg border border-border bg-card p-6">
         <h1 className="font-display text-lg font-semibold">Finish the setup</h1>
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          Pipeline Console needs a Supabase project before it can store anything.
+          Vantage Africa needs a Supabase project before it can store anything.
           Create <code className="text-primary">.env.local</code> in the project
           root with:
         </p>

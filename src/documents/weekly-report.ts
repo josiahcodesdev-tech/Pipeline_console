@@ -78,7 +78,7 @@ export async function downloadReportDocx(payload: ReportPayload): Promise<void> 
     })
 
   const document = new Document({
-    creator: 'Pipeline Console',
+    creator: 'Vantage Africa',
     title: `Lead Generation Report — ${label ?? formatDateLong(metrics.weekStart)}`,
     sections: [
       {
