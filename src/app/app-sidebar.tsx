@@ -51,7 +51,7 @@ export function AppSidebar({
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[17px] leading-tight text-foreground">
-            Pipeline Console
+            Vantage Africa
           </h1>
           <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
             {/* Josiah Mwangi
