@@ -20,6 +20,14 @@ export type ConsultantBrief = Omit<Consultant, 'id' | 'longBio'>
 export type DraftKind =
   | 'concept-note'
   | 'proposal'
+  /**
+   * One section of the firm's designed template, answered as slot values.
+   *
+   * What the "Draft proposal" button actually sends, nineteen times. `proposal`
+   * remains for the Markdown path, which the prompt preview and the doctrine
+   * are still shared with.
+   */
+  | 'proposal-section'
   | 'performance-report'
   | 'tender-analysis'
 
@@ -68,6 +76,10 @@ export interface ConceptNoteContext {
   boilerplate?: string
   /** Worked examples to imitate. */
   examples?: string[]
+  /** Which section of the designed template this call writes. Section kind only. */
+  section?: { title: string }
+  /** The text to write into it. Section kind only. */
+  slots?: readonly SlotBrief[]
 }
 
 /** UI labels, so the dialog and the buttons never disagree. */
@@ -85,6 +97,11 @@ export const DRAFT_LABELS: Record<
     action: 'Draft proposal',
     loading: 'Drafting proposal…',
   },
+  'proposal-section': {
+    title: 'Template section',
+    action: 'Fill this section',
+    loading: 'Filling the section…',
+  },
   'tender-analysis': {
     title: 'What this tender is',
     action: 'Read this tender',
@@ -100,6 +117,7 @@ export const DRAFT_LABELS: Record<
 /** What to call this kind of document in an error message. */
 function labelFor(kind: DraftKind): string {
   if (kind === 'proposal') return 'proposal'
+  if (kind === 'proposal-section') return 'proposal section'
   if (kind === 'performance-report') return 'performance report'
   if (kind === 'tender-analysis') return 'tender analysis'
   return 'concept note'
@@ -351,4 +369,66 @@ export async function draftConceptNoteStreaming(
   }
 
   return { text, truncated: truncated || !finished, playbooks }
+}
+
+/**
+ * One slot as the drafter is told about it. Mirrors `Slot` in template-slots,
+ * minus the fields only the filler needs.
+ */
+export interface SlotBrief {
+  id: string
+  kind: string
+  /** What the template says here for a different client — register, not fact. */
+  original: string
+  /** Room available, in characters. */
+  budget: number
+}
+
+export interface SectionFill {
+  /** One value per slot id, as the model returned them. */
+  values: Array<{ id: string; text: string }>
+  /** Ids asked for that did not come back. Left holding template wording. */
+  missing: string[]
+  /** Which assignment playbooks the server matched this tender to. */
+  playbooks: string[]
+}
+
+/**
+ * Fills one section of the designed template.
+ *
+ * Not streamed and not a document: the reply is a fixed set of short strings,
+ * schema-constrained server-side, and half a JSON object is not half an answer.
+ * A whole proposal is one of these per section — nineteen for the house
+ * template — which is why the server counts this against its own, much larger,
+ * hourly allowance.
+ *
+ * Errors are thrown rather than swallowed. The caller runs these in a fleet and
+ * decides what a failed section means for the document; this only reports.
+ */
+export async function draftTemplateSection(
+  context: ConceptNoteContext,
+  section: { title: string },
+  slots: readonly SlotBrief[],
+): Promise<SectionFill> {
+  const { data, error } = await supabase.functions.invoke<
+    Partial<SectionFill> & { error?: string }
+  >('concept-note', {
+    body: { ...context, kind: 'proposal-section', section, slots },
+  })
+
+  if (error) {
+    throw new Error(
+      `Could not write "${section.title}": ${error.message}. Check that the concept-note function is deployed and an ANTHROPIC_API_KEY is set.`,
+    )
+  }
+  if (data?.error) throw new Error(`Could not write "${section.title}": ${data.error}`)
+  if (!data?.values) {
+    throw new Error(`The drafting service returned nothing for "${section.title}".`)
+  }
+
+  return {
+    values: data.values,
+    missing: data.missing ?? [],
+    playbooks: data.playbooks ?? [],
+  }
 }

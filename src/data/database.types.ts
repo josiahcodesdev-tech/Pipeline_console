@@ -50,6 +50,11 @@ export type ProposalRow = {
   file_name: string
   file_size: number | null
   notes: string
+  /**
+   * Filled slot values, when this was drafted into a designed template.
+   * `{}` for Markdown drafts and for uploads. See migration 0040.
+   */
+  design: Record<string, unknown>
   is_exemplar: boolean
   version_no: number
   archived_at: string | null
@@ -307,7 +312,7 @@ export type Database = {
       }
       proposals: {
         Row: ProposalRow
-        Insert: Insertable<ProposalRow, Generated | 'is_exemplar' | 'version_no' | 'archived_at' | 'archived_by'>
+        Insert: Insertable<ProposalRow, Generated | 'is_exemplar' | 'version_no' | 'archived_at' | 'archived_by' | 'design'>
         Update: Partial<ProposalRow>
         Relationships: []
       }

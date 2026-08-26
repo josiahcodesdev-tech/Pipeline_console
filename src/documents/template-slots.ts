@@ -237,14 +237,35 @@ export function isSlot(element: Element): boolean {
   return !SKIP.has(element.tagName) && ownText(element).length >= 2
 }
 
-export function extractSlots(html: string, config: TemplateConfig = {}): Slot[] {
+/**
+ * One section of the template, with the slots it holds.
+ *
+ * The unit a drafting call is made in. A whole template is three hundred-odd
+ * slots, which is one prompt nobody can hold in mind and one reply that fails
+ * entirely whenever any part of it does. A section is a coherent brief — an
+ * executive summary, a schedule, a risk table — and a section that fails leaves
+ * the other eighteen standing.
+ *
+ * The title is what the drafter is told it is writing. Read from the section's
+ * own heading rather than from a list kept here, because a list kept here goes
+ * stale the first time a template is edited and then briefs the drafter on a
+ * section that no longer exists.
+ */
+export interface SectionBrief {
+  id: string
+  title: string
+  slots: Slot[]
+}
+
+export function sectionBriefs(html: string, config: TemplateConfig = {}): SectionBrief[] {
   const document = new DOMParser().parseFromString(html, 'text/html')
-  const slots: Slot[] = []
+  const briefs: SectionBrief[] = []
 
   let anonymous = 0
   for (const section of sectionsOf(document, config)) {
     const sectionId = section.getAttribute('id') ?? `section-${anonymous++}`
     const inner = contentOf(section, config)
+    const slots: Slot[] = []
 
     let ordinal = 0
     for (const element of Array.from(inner.querySelectorAll('*'))) {
@@ -258,9 +279,30 @@ export function extractSlots(html: string, config: TemplateConfig = {}): Slot[] 
         budget: budgetFor(own),
       })
     }
+
+    briefs.push({
+      id: sectionId,
+      // A cover page carries no heading, so this falls through to the id —
+      // which is "cover", and reads correctly in a prompt.
+      title:
+        inner.querySelector('h1, h2, h3')?.textContent?.replace(/\s+/g, ' ').trim() ||
+        sectionId,
+      slots,
+    })
   }
 
-  return slots
+  return briefs
+}
+
+/**
+ * Every editable slot in the template, in document order.
+ *
+ * The flattened view of `sectionBriefs`, derived from it rather than walking the
+ * document a second time: slot ids are positional, so two walks disagreeing by
+ * one element would write every answer one slot out.
+ */
+export function extractSlots(html: string, config: TemplateConfig = {}): Slot[] {
+  return sectionBriefs(html, config).flatMap((brief) => brief.slots)
 }
 
 /**

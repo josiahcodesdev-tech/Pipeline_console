@@ -1,5 +1,5 @@
 import { supabase } from './client'
-import type { Proposal } from '@/domain/types'
+import type { Proposal, ProposalDesign } from '@/domain/types'
 import { unwrap, currentUserId } from './internal'
 import { toProposal } from './mappers'
 
@@ -80,11 +80,19 @@ export async function savePastedProposal(
   return toProposal(row)
 }
 
-/** Saves generated text against an RFP so a draft survives closing the tab. */
+/**
+ * Saves a generated draft against an RFP so it survives closing the tab.
+ *
+ * `content` is the readable text either way — it is what the preview shows and
+ * what a starred model answer teaches the drafter. `design` is present only for
+ * a proposal written into the designed template, and holds the answers rather
+ * than the document: see ProposalDesign and migration 0040.
+ */
 export async function saveDraftProposal(
   rfpId: string,
   title: string,
   content: string,
+  design: ProposalDesign | null = null,
 ): Promise<Proposal> {
   const row = unwrap(
     await supabase
@@ -95,6 +103,7 @@ export async function saveDraftProposal(
         kind: 'draft',
         title,
         content,
+        design: design ? (design as unknown as Record<string, unknown>) : {},
         file_path: '',
         file_name: '',
         file_size: null,

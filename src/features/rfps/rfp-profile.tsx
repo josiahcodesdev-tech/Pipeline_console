@@ -27,14 +27,19 @@ import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { proposalFileUrl } from '@/data/proposals'
 import { PROPOSAL_DRAFTING } from '@/app/features'
 import {
-  draftConceptNoteStreaming,
   MAX_EXEMPLARS,
   MAX_EXEMPLAR_CHARS,
   previewPrompt,
   type PromptPreview,
 } from '@/services/concept-note'
 import { downloadProposalDocx } from '@/documents/proposal'
-import { BRAND } from '@/documents/brand'
+import {
+  draftIntoTemplate,
+  renderDesignedProposal,
+  type DraftProgress,
+} from '@/documents/template-draft'
+import { loadProposalTemplate } from '@/documents/template-source'
+import { sectionBriefs } from '@/documents/template-slots'
 import { MAX_TENDER_CHARS } from '@/services/pdf-text'
 import {
   analysisMarkdown,
@@ -51,7 +56,6 @@ import { cn } from '@/shared/utils'
 import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
 import { RfpDialog } from './rfp-dialog'
-import { ProposalPreview } from './proposal-preview'
 import { PromptPreviewDialog } from './prompt-preview'
 
 function formatBytes(bytes: number | null): string {
@@ -172,21 +176,33 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [pasteText, setPasteText] = useState('')
   const [pasting, setPasting] = useState(false)
   const [playbooks, setPlaybooks] = useState<string[]>([])
-  /** The document as it arrives, shown live in the side panel. */
-  const [draftPreview, setDraftPreview] = useState('')
+  /**
+   * Sections as they land, shown live in the side panel.
+   *
+   * The designed proposal is filled section by section rather than written as a
+   * stream of words, so there is no text to watch arrive. What there is instead
+   * is nineteen briefs completing out of order, which is worth showing for the
+   * same reason: a minute of a disabled button is indistinguishable from a hang.
+   */
+  const [draftSteps, setDraftSteps] = useState<DraftProgress[]>([])
+  const [draftTotal, setDraftTotal] = useState(0)
+  /** The finished document, held so it can be opened without a round trip. */
+  const [draftHtml, setDraftHtml] = useState('')
+  const [draftWarnings, setDraftWarnings] = useState<string[]>([])
   const [readingTender, setReadingTender] = useState(false)
+  const [openingProposal, setOpeningProposal] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
   const tenderInput = useRef<HTMLInputElement>(null)
   const previewScroll = useRef<HTMLDivElement>(null)
 
-  // Follow the text as it is written, the way a document scrolls while you
-  // type. Only while drafting — once it has finished, the reader is in charge
-  // and yanking them back to the bottom would be obnoxious.
+  // Follow the sections as they complete, the way a log scrolls. Only while
+  // drafting — once it has finished the reader is in charge, and yanking them
+  // back to the bottom would be obnoxious.
   useEffect(() => {
     if (!drafting) return
     const pane = previewScroll.current
     if (pane) pane.scrollTop = pane.scrollHeight
-  }, [draftPreview, drafting])
+  }, [draftSteps, drafting])
 
   const ownActivities = useMemo(
     () => activities.filter((activity) => activity.rfpId === rfp.id),
@@ -287,8 +303,27 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   async function handlePreviewPrompt() {
     setPreviewing(true)
     try {
+      // The first section of the template that would actually be filled. The
+      // prompt is per section now, so previewing the old whole-document task
+      // would answer "why did it write that?" with a prompt nothing is written
+      // from. One section is enough: the doctrine, playbook, house rules and
+      // roster above it are identical for all nineteen.
+      const template = await loadProposalTemplate(
+        [rfp.title, rfp.serviceAreas, rfp.notes].filter(Boolean).join(' '),
+      )
+      const first = sectionBriefs(template.html, template.config).find(
+        (section) => section.slots.length > 0,
+      )
+
       const preview = await previewPrompt({
-        kind: 'proposal',
+        kind: 'proposal-section',
+        section: { title: first?.title ?? 'Executive Summary' },
+        slots: (first?.slots ?? []).map((slot) => ({
+          id: slot.id,
+          kind: slot.kind,
+          original: slot.original,
+          budget: slot.budget,
+        })),
         org: rfp.org,
         segment: rfp.segment,
         notes: rfp.notes,
@@ -317,7 +352,10 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       return
     }
     setDrafting(true)
-    setDraftPreview('')
+    setDraftSteps([])
+    setDraftTotal(0)
+    setDraftHtml('')
+    setDraftWarnings([])
     try {
       if (!rfp.tenderText.trim() && !rfp.link.trim()) {
         toast.error('Attach the tender document or add its source link before drafting')
@@ -351,9 +389,12 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         }
       }
 
-      const result = await draftConceptNoteStreaming(
-        {
-          kind: 'proposal',
+      // The designed proposal, filled section by section. Everything the
+      // Markdown drafter was told is still told — doctrine, playbook, house
+      // rules, roster, retrieved evidence, the tender itself — only the
+      // container changed, from a document it writes to a layout it fills.
+      const result = await draftIntoTemplate({
+        context: {
           org: rfp.org,
           segment: rfp.segment,
           notes: rfp.notes,
@@ -374,19 +415,57 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           // 99-character title, which is where invented scopes come from.
           analysis: proposalAnalysis,
         },
-        // The panel renders from this, so the document appears as it is written
-        // rather than after a minute of a disabled button.
-        (_chunk, soFar) => setDraftPreview(soFar),
-      )
-      // Saved, but deliberately not downloaded. A draft is worth reading before
-      // it is worth keeping, and firing a .docx into the downloads folder on
-      // every attempt left a trail of near-identical files to sort out later.
-      // The preview panel and the list below both offer the download.
-      await saveDraftProposal(rfp.id, `Draft — ${formatDateWithYear(new Date().toISOString().slice(0, 10))}`, result.text)
+        // What the finished document calls itself, and who it is addressed to.
+        // Without these the browser tab, the sidebar and the running footer keep
+        // the name of whichever client the template was first written for.
+        document: { title: rfp.title, client: rfp.org },
+        onProgress: (progress) => {
+          setDraftTotal(progress.total)
+          setDraftSteps((current) => [...current, progress])
+        },
+      })
+
+      setDraftHtml(result.html)
       setPlaybooks(result.playbooks)
-      if (result.truncated) {
-        toast.warning('The draft hit the length limit — check the ending.')
+
+      // Said plainly rather than counted quietly. Every one of these means the
+      // document still carries wording written for the Ministry of Transport,
+      // and the only way that gets fixed is somebody being told where.
+      const warnings: string[] = []
+      if (result.failures.length > 0) {
+        warnings.push(
+          `${result.failures.length} section${result.failures.length === 1 ? '' : 's'} could not be written: ${result.failures.map((failure) => failure.section).join(', ')}. Those keep the template's own wording — redraft before sending.`,
+        )
       }
+      if (result.unfilled.length > 0) {
+        warnings.push(
+          `${result.unfilled.length} of ${result.slotCount} pieces of text were left as the template had them.`,
+        )
+      }
+      if (result.missingFurniture.length > 0) {
+        warnings.push(
+          `This template needs configuration for: ${result.missingFurniture.join(', ')}. Until it has it, the previous client's name survives there.`,
+        )
+      }
+      setDraftWarnings(warnings)
+
+      // Saved, but deliberately not opened. A draft is worth reading before it
+      // is worth keeping, and the panel and the list below both offer it.
+      //
+      // The text is stored, not the markup: see ProposalDesign. The document is
+      // rebuilt from the current template whenever anybody opens it.
+      await saveDraftProposal(
+        rfp.id,
+        `Draft — ${formatDateWithYear(new Date().toISOString().slice(0, 10))}`,
+        result.text,
+        {
+          template: result.templateName,
+          values: result.values,
+          unfilled: result.unfilled.map((slot) => slot.id),
+          failures: result.failures.map((failure) => failure.section),
+        },
+      )
+      for (const warning of warnings) toast.warning(warning)
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -498,25 +577,80 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     }
   }
 
+  /**
+   * Opens a finished proposal in its own tab.
+   *
+   * A blob URL rather than a data URL: the document is a few megabytes with its
+   * images inlined, and Chrome refuses to navigate to a data URL that size. The
+   * object URL is released on a timer instead of immediately — revoking it
+   * before the new tab has finished reading leaves a blank window.
+   *
+   * The template carries its own Print / Save PDF button, so this is also how a
+   * PDF is produced. Nothing here needs to reimplement that.
+   */
+  function openHtml(html: string) {
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+    // No `noopener` in the feature string: passing it makes window.open return
+    // null by specification, which is indistinguishable here from the pop-up
+    // having been blocked — and reporting a blocked pop-up while the tab opens
+    // behind it is worse than not reporting one. The opener is severed after.
+    const opened = window.open(url, '_blank')
+    if (!opened) {
+      URL.revokeObjectURL(url)
+      toast.error('Allow pop-ups for this site to open the proposal.')
+      return
+    }
+    try {
+      opened.opener = null
+    } catch {
+      // Nothing to do about it, and nothing that depends on it.
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  /**
+   * Rebuilds a saved proposal from the template it was written into.
+   *
+   * The draft stores its answers, not its markup, so the document does not exist
+   * until somebody asks for it — which is also what lets a correction to the
+   * house design reach proposals written before the correction.
+   */
+  async function openDesigned(proposal: Proposal) {
+    if (!proposal.design) return
+    setOpeningProposal(proposal.id)
+    try {
+      const built = await renderDesignedProposal(proposal.design, {
+        title: rfp.title,
+        client: rfp.org,
+      })
+      openHtml(built.html)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setOpeningProposal('')
+    }
+  }
+
   return (
     <>
       {/*
-        The document as it is written, pinned to the side of the screen.
+        The template filling up, pinned to the side of the screen.
 
-        A proposal is a substantial document and can take close to a minute, which
-        as a disabled button is indistinguishable from a hang. It stays open
-        after the draft finishes so the text can be read without digging the
-        .docx out of the downloads folder, and closing it does not cancel
-        anything — the save and the download have already happened.
+        There is no stream of words to watch here — the drafter answers a
+        section at a time and each answer arrives whole — so what this shows is
+        the nineteen sections completing, out of order, three at a time. Same
+        job as the old typing preview: several minutes of a disabled button is
+        indistinguishable from a hang.
+
+        It stays open after the draft finishes so the warnings can be read, and
+        closing it cancels nothing — the save has already happened.
       */}
-      {(drafting || draftPreview) && (
+      {(drafting || draftHtml) && (
         <aside
-          // Half the screen: at 440px the document reflowed so narrowly that it
-          // gave no sense of how the finished page would look, which is most of
-          // the point of watching it being written. Full width below `sm`,
-          // where a split view has nothing to split.
-          className="fixed right-0 top-0 z-40 flex h-screen w-full flex-col border-l border-border bg-background shadow-2xl sm:w-1/2"
-          aria-label="Proposal draft preview"
+          // Narrower than the old document preview, which was half the screen so
+          // the prose could be read at a realistic measure. This is a checklist.
+          className="fixed right-0 top-0 z-40 flex h-screen w-full flex-col border-l border-border bg-background shadow-2xl sm:w-[420px]"
+          aria-label="Proposal draft progress"
         >
           <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
             <div className="min-w-0">
@@ -524,17 +658,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 {drafting ? (
                   <>
                     <SparklesIcon className="size-3 animate-pulse" />
-                    Writing…
+                    Writing into the template…
                   </>
                 ) : (
-                  'Draft ready · saved to this RFP'
+                  'Proposal ready · saved to this RFP'
                 )}
               </p>
               <p className="truncate text-xs text-faint">{rfp.title}</p>
             </div>
             <button
               type="button"
-              onClick={() => setDraftPreview('')}
+              onClick={() => setDraftHtml('')}
               className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
               // Hidden mid-draft: closing would leave the panel unable to show
               // the rest, and the draft carries on regardless.
@@ -544,46 +678,63 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             </button>
           </header>
 
-          <div ref={previewScroll} className="flex-1 overflow-y-auto bg-muted/40 p-5">
-            {/* Shaped like a page so it reads as the document being built,
-                rather than as a log of text arriving. The max width is a
-                readable measure rather than the full pane — a line of body text
-                running the whole width of half a monitor is unreadable, and the
-                finished Word file will not look like that either. */}
-            {/* White page rather than the themed card: this is a picture of
-                the Word file, so it should look like paper regardless of how
-                the console around it is styled. */}
-            <div className="mx-auto max-w-[68ch] rounded-md border border-border bg-white px-9 py-8 shadow-sm">
-              <ProposalPreview markdown={draftPreview} />
-              {drafting && (
-                <span className="inline-block animate-pulse font-bold" style={{ color: BRAND.gold }}>
-                  ▍
-                </span>
-              )}
-              {drafting && !draftPreview && (
-                <p className="text-[13px] italic text-faint">
-                  Reading the notice and your house rules…
-                </p>
-              )}
+          {draftTotal > 0 && (
+            <div className="h-1 w-full bg-surface-2">
+              <div
+                className="h-full bg-primary transition-[width] duration-300"
+                style={{ width: `${Math.round((draftSteps.length / draftTotal) * 100)}%` }}
+              />
             </div>
+          )}
+
+          <div ref={previewScroll} className="flex-1 overflow-y-auto p-4">
+            {draftSteps.length === 0 && drafting && (
+              <p className="text-[12px] italic text-faint">
+                Reading the template and your house rules…
+              </p>
+            )}
+            <ol className="space-y-1.5">
+              {draftSteps.map((step, index) => (
+                <li
+                  key={`${step.label}-${index}`}
+                  className={cn(
+                    'flex items-start gap-2 text-[12px] leading-relaxed',
+                    step.failed ? 'text-danger' : 'text-muted-foreground',
+                  )}
+                >
+                  <span className="mt-[1px] shrink-0 font-mono text-[10px] text-faint">
+                    {step.failed ? '✕' : '✓'}
+                  </span>
+                  <span className="min-w-0">{step.label}</span>
+                </li>
+              ))}
+            </ol>
+
+            {/* Said in the panel as well as in a toast. A toast that scrolled
+                past is a warning nobody received, and every one of these means
+                the document still carries the previous client's wording. */}
+            {draftWarnings.length > 0 && (
+              <div className="mt-4 space-y-2 rounded-lg border border-warning/40 bg-warning-soft p-3 text-[11.5px] leading-relaxed text-warning">
+                {draftWarnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            )}
           </div>
 
           <footer className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5">
             <span className="text-[10.5px] text-faint">
-              {draftPreview.trim()
-                ? `${draftPreview.trim().split(/\s+/).length.toLocaleString()} words`
+              {draftTotal > 0
+                ? `${draftSteps.length} of ${draftTotal} sections`
                 : 'Starting…'}
-              {!drafting && draftPreview.trim() && ' · saved to this RFP'}
+              {!drafting && draftHtml && ' · saved to this RFP'}
             </span>
-            {/* Downloading is a decision, not a side effect of drafting. */}
-            {!drafting && draftPreview.trim() && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => void downloadProposalDocx(rfp, draftPreview)}
-              >
-                <DownloadIcon />
-                Download Word
+            {/* Opening is a decision, not a side effect of drafting. The
+                template carries its own Print / Save PDF button. */}
+            {!drafting && draftHtml && (
+              <Button variant="ghost" size="xs" onClick={() => openHtml(draftHtml)}>
+                <ExternalLinkIcon />
+                Open proposal
               </Button>
             )}
           </footer>
@@ -787,10 +938,13 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
           <Panel title="Draft a proposal">
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-              Writes a full technical proposal against this notice — method,
-              work plan, team, risk and QA — plus internal bid-readiness notes
-              listing what you still have to supply. Appears as it is written,
-              and is kept below; download it as Word when you want it.
+              Fills the firm's designed proposal template against this notice —
+              same layout, same house styling, this tender's content. Every
+              piece of text is rewritten from the tender and your house rules;
+              diagrams captioned for a previous client are removed rather than
+              carried over. Anything the bid cannot evidence arrives as a marked
+              placeholder for you to resolve. Saved below, and opened as a page
+              you can print to PDF.
             </p>
             {!rfp.analysis && !rfp.tenderText && (
               <p className="mb-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11.5px] leading-relaxed text-warning">
@@ -926,7 +1080,23 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                           <DownloadIcon />
                           Open
                         </Button>
+                      ) : proposal.design ? (
+                        /* Written into the designed template, so it opens as
+                           the document rather than downloading as Word — the
+                           layout is the point, and Word cannot carry it. The
+                           page has its own Print / Save PDF button. */
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          disabled={openingProposal === proposal.id}
+                          onClick={() => void openDesigned(proposal)}
+                        >
+                          <ExternalLinkIcon />
+                          {openingProposal === proposal.id ? 'Opening…' : 'Open'}
+                        </Button>
                       ) : (
+                        /* A draft from before the designed template, or a
+                           pasted past proposal. Still Markdown, still Word. */
                         <Button
                           variant="ghost"
                           size="xs"

@@ -428,7 +428,7 @@ Deno.serve(async (request: Request) => {
     .slice(0, MAX_EXEMPLARS)
 
   // Proposals only: a concept note has no scope to staff against yet.
-  const roster = isProposal && Array.isArray(context.consultants)
+  const roster = (isProposal || isSection) && Array.isArray(context.consultants)
     ? rankRoster(
         context.consultants.filter(
           (entry): entry is RosterEntry =>
@@ -440,14 +440,14 @@ Deno.serve(async (request: Request) => {
 
   // Only proposals get a playbook — a concept note is outreach, not a response
   // to a scope, so there is no assignment type to match against yet.
-  const playbooks = isProposal
+  const playbooks = isProposal || isSection
     ? selectPlaybooks(`${rfpTitle} ${serviceAreas} ${notes} ${segment}`)
     : []
 
   // The stored reading of the tender, when one has been produced. A proposal
   // written from this rather than from a 99-character title is the difference
   // the analysis pass exists to make.
-  const analysis = isProposal ? text(context.analysis, 8000) : ''
+  const analysis = isProposal || isSection ? text(context.analysis, 8000) : ''
 
   // Select one template from the assignment's own language. Multiple complete
   // structures in one prompt compete with each other and become less reliable
@@ -654,15 +654,20 @@ ${slotBriefs
           : [],
         model: drafter.label,
         system: systemPrompt,
-        task,
+        // The section brief when that is what would be sent. Previewing the
+        // document task while the button writes sections would answer "why did
+        // it say that?" with a prompt nothing was written from.
+        task: isSection ? sectionTask : task,
         sources: {
           doctrine: isAnalysis
             ? 'TENDER_ANALYSIS_PROMPT'
             : isPerformanceReport
               ? 'PERFORMANCE_REPORT_PROMPT'
-              : isProposal
-                ? 'PROPOSAL_PROMPT'
-                : 'CONCEPT_NOTE_PROMPT',
+              : isSection
+                ? 'PROPOSAL_PROMPT (one template section)'
+                : isProposal
+                  ? 'PROPOSAL_PROMPT'
+                  : 'CONCEPT_NOTE_PROMPT',
           playbooks: playbooks.map((playbook) => playbook.label),
           houseRules: guidance.length,
           boilerplate: boilerplate.length,
@@ -707,7 +712,19 @@ ${slotBriefs
       // came back, and let the filler decide what a gap means.
       const returned = new Set(values.map((value) => value.id))
       const missing = slotBriefs.filter((slot) => !returned.has(slot.id)).map((slot) => slot.id)
-      return json({ values, missing, model: drafter.label }, 200)
+      // Which method this was written against, same as the document path
+      // reports. A leadership playbook on an evaluation tender means the
+      // service areas need correcting, and that is worth knowing before
+      // reading nineteen sections.
+      return json(
+        {
+          values,
+          missing,
+          model: drafter.label,
+          playbooks: playbooks.map((playbook) => playbook.label),
+        },
+        200,
+      )
     } catch (cause) {
       const detail = describeDraftFailure(cause, drafter.label)
       console.error(`concept-note section fill failed (${drafter.label})`, cause)

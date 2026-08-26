@@ -67,6 +67,7 @@ import type {
   Consultant,
   Lead,
   Proposal,
+  ProposalDesign,
   UserSettings,
   LeadStatus,
   Rfp,
@@ -255,7 +256,12 @@ interface PipelineValue {
 
   saveReport: (draft: WeeklyReportDraft) => Promise<void>
 
-  saveDraftProposal: (rfpId: string, title: string, content: string) => Promise<void>
+  saveDraftProposal: (
+    rfpId: string,
+    title: string,
+    content: string,
+    design?: ProposalDesign | null,
+  ) => Promise<void>
   uploadProposal: (rfpId: string, file: File, notes: string, content?: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
@@ -772,8 +778,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const saveDraftProposal = useCallback(
-    async (rfpId: string, title: string, content: string) => {
-      const saved = await dbSaveDraftProposal(rfpId, title, content)
+    async (
+      rfpId: string,
+      title: string,
+      content: string,
+      design: ProposalDesign | null = null,
+    ) => {
+      const saved = await dbSaveDraftProposal(rfpId, title, content, design)
       setProposals((current) => [saved, ...current])
       toast.success('Draft saved to this RFP')
     },

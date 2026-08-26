@@ -410,6 +410,26 @@ export const PROPOSAL_KINDS = ['draft', 'submitted'] as const
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number]
 
 /**
+ * A proposal written into the firm's designed template, stored as its answers.
+ *
+ * Not as markup. The template is 3.6MB, nearly all of it images identical in
+ * every proposal ever written from it, and saving the filled document would
+ * both repeat that per draft and freeze the design at the moment of drafting —
+ * fix a colour in the template and every proposal already written keeps the old
+ * one. Rebuilt on demand from the current template and these values instead.
+ */
+export interface ProposalDesign {
+  /** File name in `proposal-templates/`, without its extension. */
+  template: string
+  /** Slot id to the words written into it. */
+  values: Record<string, string>
+  /** Slots that were never answered and still hold the template's own wording. */
+  unfilled: string[]
+  /** Sections the drafter could not write, named so they can be retried. */
+  failures: string[]
+}
+
+/**
  * Something written for an RFP. A `draft` holds generated text so it survives
  * closing the tab; a `submitted` record points at the file that actually went
  * to the buyer.
@@ -420,6 +440,14 @@ export interface Proposal {
   kind: ProposalKind
   title: string
   content: string
+  /**
+   * What was written into the designed template, when one was used.
+   *
+   * The proposal itself is rebuilt from the current template and these values
+   * rather than stored as markup — see migration 0040. Null for a Markdown
+   * draft and for an uploaded file.
+   */
+  design: ProposalDesign | null
   /** Storage object path. Empty on drafts. */
   filePath: string
   fileName: string

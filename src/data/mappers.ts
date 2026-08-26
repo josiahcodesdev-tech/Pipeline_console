@@ -9,6 +9,7 @@ import {
   type Activity,
   type Lead,
   type Proposal,
+  type ProposalDesign,
   type Rfp,
   type Task,
   type TaskPriority,
@@ -56,6 +57,28 @@ export function toLead(row: LeadRow): Lead {
   }
 }
 
+/**
+ * The design column, or null where there is nothing usable in it.
+ *
+ * Guarded rather than cast. The column is jsonb with a `{}` default, so every
+ * proposal written before migration 0040 and every uploaded file arrives here
+ * as an empty object — and a half-written one would otherwise reach the
+ * renderer as a template name with no values, which renders the previous
+ * client's proposal.
+ */
+function toProposalDesign(value: unknown): ProposalDesign | null {
+  if (typeof value !== 'object' || value === null) return null
+  const design = value as Partial<ProposalDesign>
+  if (typeof design.template !== 'string' || !design.template) return null
+  if (typeof design.values !== 'object' || design.values === null) return null
+  return {
+    template: design.template,
+    values: design.values as Record<string, string>,
+    unfilled: Array.isArray(design.unfilled) ? design.unfilled : [],
+    failures: Array.isArray(design.failures) ? design.failures : [],
+  }
+}
+
 export function toProposal(row: ProposalRow): Proposal {
   return {
     id: row.id,
@@ -63,6 +86,7 @@ export function toProposal(row: ProposalRow): Proposal {
     kind: isProposalKind(row.kind) ? row.kind : 'draft',
     title: row.title ?? '',
     content: row.content ?? '',
+    design: toProposalDesign(row.design),
     filePath: row.file_path ?? '',
     fileName: row.file_name ?? '',
     fileSize: row.file_size,

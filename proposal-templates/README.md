@@ -2,20 +2,36 @@
 
 Drop a template in this folder and the drafter writes into it.
 
+**Two paths use this folder, and they use it differently.**
+
+- **Draft proposal, on an RFP's page** — fills the designed `.html` template
+  here and produces the house document: same stylesheet, same layout, same
+  institutional images, this tender's words. Read
+  [Designed HTML templates](#designed-html-templates) below; that is the path
+  that matters most, and the one with a config file to write.
+- **The quick draft in the Add/Edit RFP dialog** — writes Markdown, using the
+  template's *text* as a structure and voice reference. That copy is compiled
+  into the Edge Function, which is what the deploy step below is for.
+
 ## Adding one
 
 1. Save the template here as `.md`, `.txt`, `.html`, `.htm` or `.docx`.
-2. Deploy: `npm run deploy:fn concept-note`
+2. Rebuild the app, so the browser can fetch it: `npm run build`.
+3. Deploy: `npm run deploy:fn concept-note`.
 
-That second step is not optional. These files are compiled into the Edge
-Function, so a template sitting here undeployed is a template the drafter has
-never seen. `deploy:fn` runs the compile step for you; `npm run templates:build`
-runs it alone if you want to check the result first.
+Steps two and three are for the two paths respectively, and neither is
+optional. The designed path fetches the file over the network — vite.config.ts
+serves this folder directly, so there is no second copy to keep in step, but a
+build that predates the file will not serve it. The Markdown path compiles the
+file's text into the Edge Function, so a template sitting here undeployed is a
+template that drafter has never seen. `deploy:fn` runs the compile step for
+you; `npm run templates:build` runs it alone if you want to check the result
+first.
 
 This is the trade that comes with keeping templates in the repo rather than
 behind an upload form: adding one is a commit and a deploy, not a click.
 
-## What the drafter does with it
+## What the Markdown drafter does with it
 
 Two things, both of them:
 
@@ -78,10 +94,24 @@ fallback is named, the first file alphabetically is used.
 # Designed HTML templates
 
 Everything above is about a template as *structure and voice* — headings the
-drafter follows and prose it imitates, reaching the drafter as text. An HTML
-template can also be used a second way: kept whole, with only its words
-replaced, so the finished proposal carries the original's cover, cards, tables,
-photographs and stylesheet. The design survives because it is never rebuilt.
+drafter follows and prose it imitates, reaching the drafter as text.
+
+**This is what the Draft proposal button does.** The `.html` file is kept
+whole and only its words are replaced, so the finished proposal carries the
+original's cover, cards, tables, photographs and stylesheet. The design
+survives because it is never rebuilt.
+
+Mechanically: the browser fetches the file, reads it as a list of text slots
+(`npm run templates:check` prints them), and asks the drafter for one section
+at a time — nineteen calls for the template in this folder, three at a time.
+The answers are written back into the elements they came from. Markup, classes,
+inline styles and institutional images are never touched.
+
+A saved draft stores the *answers*, not the document, and the proposal is
+rebuilt from this folder each time somebody opens it. Two consequences worth
+knowing: correcting the template improves every proposal already written from
+it, and **renaming or deleting a template breaks the proposals written into
+it** — they will refuse to open rather than render in some other design.
 
 That path needs to know two things about your file that no parser can work out
 on its own.
