@@ -36,17 +36,46 @@ export interface TenderAssignment {
   terminology: string[]
 }
 
+/**
+ * The bid/no-bid reading. Shown, never acted on.
+ *
+ * `Under Review` is the default and the honest answer most of the time. A
+ * verdict is disqualifying only where the tender states a condition the
+ * company knowledge positively contradicts — never where it is merely silent,
+ * because an incomplete knowledge base would otherwise close real
+ * opportunities on its own.
+ */
+export interface TenderQualification {
+  status: 'Qualified' | 'Disqualified' | 'Under Review'
+  /** One or two sentences naming the fact that decided it. */
+  reason: string
+  /** Stated conditions to resolve before bidding. Empty when there are none. */
+  blockers: string[]
+}
+
+/** Whether what was read is the real scope or only an announcement of it. */
+export interface TenderDocumentSource {
+  /** True only when the text sets out scope, not merely that a tender exists. */
+  isTermsOfReference: boolean
+  /** Scope in the attached document and nowhere in the published notice. */
+  torOnlyNotes: string | null
+}
+
 export interface TenderAnalysis {
   summary: string
   /**
    * Optional in the type, required in the schema.
    *
-   * Every fresh analysis has it. Analyses stored before this field existed do
-   * not, and `analysisMarkdown` is run over stored JSON as well as fresh —
-   * marking it optional is what stops an old record from crashing the page that
-   * displays it.
+   * Every fresh analysis has them. Analyses stored before these fields existed
+   * do not, and `analysisMarkdown` is run over stored JSON as well as fresh —
+   * marking them optional is what stops an old record from crashing the page
+   * that displays it.
    */
+  qualification?: TenderQualification
   assignment?: TenderAssignment
+  documentSource?: TenderDocumentSource
+  /** Technologies, methods, accreditations and skills the tender requires. */
+  technicalRequirements?: string[]
   metadata: Record<string, string | null>
   evaluation: Array<{ criterion: string; weight: number | null; evidence: string; source: string }>
   deliverables: Array<{ name: string; format: string | null; due: string | null; source: string }>
@@ -142,6 +171,37 @@ function listBlock(heading: string, items: string[] | undefined): string[] {
 export function analysisMarkdown(value: TenderAnalysis): string {
   const lines = [`## What this assignment is`, '', value.summary, '']
 
+  // First, because it is the question asked before any of the others, and
+  // because a reader who stops after one section should have read this one.
+  const verdict = value.qualification
+  if (verdict) {
+    lines.push(
+      '## Bid assessment',
+      '',
+      `**${verdict.status}.** ${verdict.reason}`,
+      '',
+      ...(verdict.blockers.length > 0
+        ? ['**Resolve before bidding:**', '', ...verdict.blockers.map((item) => `- ${item}`), '']
+        : []),
+    )
+  }
+
+  // Said plainly because it changes how much the rest of this is worth. An
+  // analysis of a published notice reads exactly as confidently as an analysis
+  // of a full Terms of Reference, and only one of them is a scope.
+  const source = value.documentSource
+  if (source) {
+    lines.push(
+      source.isTermsOfReference
+        ? '*Read from a document setting out the scope of work.*'
+        : '*Read from a published notice only — this is an announcement, not a scope. Attach the Terms of Reference before writing a proposal from it.*',
+      '',
+    )
+    if (source.torOnlyNotes) {
+      lines.push(`**In the attached document and not in the notice:** ${source.torOnlyNotes}`, '')
+    }
+  }
+
   // Before the paperwork, because this is what the proposal is about and the
   // paperwork is what surrounds it. Omitted entirely for analyses stored before
   // this section existed — an empty heading reads as "the tender said nothing",
@@ -174,6 +234,8 @@ export function analysisMarkdown(value: TenderAnalysis): string {
       '',
     )
   }
+
+  lines.push(...listBlock('What the bidder must have or use', value.technicalRequirements), '')
 
   lines.push('## Key facts', '', '| Item | Value |', '|---|---|')
   for (const [key, item] of Object.entries(value.metadata)) lines.push(`| ${key.replace(/([A-Z])/g, ' $1')} | ${item ?? 'Not stated'} |`)

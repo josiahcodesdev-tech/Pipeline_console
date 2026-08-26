@@ -90,23 +90,88 @@ const ASSIGNMENT_FIELDS = {
   terminology: { type: 'array', items: { type: 'string' } },
 } as const
 
+/**
+ * The paperwork around the contract. Every value nullable, none inferred.
+ *
+ * `questionsDeadline` and `projectStartDate` joined `deadline` because one date
+ * was never enough to act on: the clarification window usually closes one to two
+ * weeks before submission, and a tender you decide to bid after it has closed is
+ * one you must bid with your questions unanswered.
+ */
+const METADATA_FIELDS = [
+  'client','contractingAuthority','implementingPartners','donor','projectOwner',
+  'title','reference','deadline','questionsDeadline','projectStartDate',
+  'budgetCeiling','currency','location','duration','submissionMethod',
+] as const
+
+/**
+ * The bid/no-bid reading, reported and never acted on.
+ *
+ * Deliberately separate from `gaps`, which says what is missing from a bid we
+ * have decided to write. This answers the question before that one, and the
+ * console shows it beside the summary rather than moving anything: a model does
+ * not get to close an opportunity.
+ *
+ * The default is 'Under Review', and the prompt is emphatic about why. A
+ * verdict engine that reasons "no ISO certificate in the company knowledge, so
+ * disqualified" silently kills real opportunities on the strength of an
+ * incomplete knowledge base. Disqualification requires the tender to state a
+ * condition that the supplied knowledge positively contradicts — not one it
+ * merely fails to mention.
+ */
+const QUALIFICATION_FIELDS = {
+  status: { enum: ['Qualified','Disqualified','Under Review'] },
+  reason: { type: 'string' },
+  blockers: { type: 'array', items: { type: 'string' } },
+} as const
+
+/**
+ * Whether what was read is the real Terms of Reference or only the notice.
+ *
+ * The distinction the console could never see. A published notice is a title, a
+ * buyer and a deadline; a ToR is the scope. Both arrive here as text and both
+ * produce a confident-looking analysis, and only one of them is worth writing a
+ * proposal from. `torOnlyNotes` is the scope that exists in the attached
+ * document and nowhere in the notice — which is the concrete answer to "was it
+ * worth uploading the PDF?"
+ */
+const SOURCE_FIELDS = {
+  isTermsOfReference: { type: 'boolean' },
+  torOnlyNotes: { type: ['string','null'] },
+} as const
+
 const ANALYSIS_SCHEMA = {
   name: 'tender_analysis', strict: true,
   schema: {
     type: 'object', additionalProperties: false,
-    required: ['summary','assignment','metadata','evaluation','deliverables','requirements','gaps'],
+    required: ['summary','qualification','assignment','documentSource','metadata','technicalRequirements','evaluation','deliverables','requirements','gaps'],
     properties: {
       summary: { type: 'string' },
+      qualification: {
+        type: 'object', additionalProperties: false,
+        required: Object.keys(QUALIFICATION_FIELDS),
+        properties: QUALIFICATION_FIELDS,
+      },
       assignment: {
         type: 'object', additionalProperties: false,
         required: Object.keys(ASSIGNMENT_FIELDS),
         properties: ASSIGNMENT_FIELDS,
       },
+      documentSource: {
+        type: 'object', additionalProperties: false,
+        required: Object.keys(SOURCE_FIELDS),
+        properties: SOURCE_FIELDS,
+      },
       metadata: {
         type: 'object', additionalProperties: false,
-        required: ['client','contractingAuthority','implementingPartners','donor','projectOwner','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'],
-        properties: Object.fromEntries(['client','contractingAuthority','implementingPartners','donor','projectOwner','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'].map((key) => [key, { type: ['string','null'] }]))
+        required: METADATA_FIELDS,
+        properties: Object.fromEntries(METADATA_FIELDS.map((key) => [key, { type: ['string','null'] }]))
       },
+      // The same items the requirements matrix carries under category
+      // 'Technical', pulled out flat. Buried in a forty-row table they are read
+      // as compliance; listed, they are the shortlist of what the bid has to
+      // demonstrate it can do, which is what a reader wants in ten seconds.
+      technicalRequirements: { type: 'array', items: { type: 'string' } },
       evaluation: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['criterion','weight','evidence','source'], properties: { criterion:{type:'string'}, weight:{type:['number','null']}, evidence:{type:'string'}, source:{type:'string'} } } },
       deliverables: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name','format','due','source'], properties: { name:{type:'string'}, format:{type:['string','null']}, due:{type:['string','null']}, source:{type:'string'} } } },
       requirements: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id','verbatim','strength','category','timing','source','evidenceAvailable','gapAction'], properties: { id:{type:'string'}, verbatim:{type:'string'}, strength:{enum:['Mandatory','Scored','Recommended','Informational']}, category:{enum:['Eligibility','Technical','Deliverable','Personnel','Commercial','Submission','Legal','Safeguarding','Data protection','Other']}, timing:{type:['string','null']}, source:{type:'string'}, evidenceAvailable:{type:'boolean'}, gapAction:{type:['string','null']} } } },
@@ -370,7 +435,7 @@ Deno.serve(async (request) => {
           // ANALYSIS_SCHEMA keeps that shape because the constant is shared.
           format: { type: 'json_schema', schema: ANALYSIS_SCHEMA.schema },
         },
-        system:'Extract tender facts only. Never infer missing values. Resolve and distinguish the contracting authority, implementing partner(s), donor/funder, project owner and beneficiaries; do not substitute an aggregator or tracker label for the buyer named in the authoritative tender. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.\n\nThe assignment object describes the work itself, for whoever has to write the proposal rather than check compliance. Take problem, objectives, scope and outcomes from the tender in the tender\'s own words rather than paraphrasing them into yours — a proposal that answers in the buyer\'s vocabulary scores better, and these are the words it will use. Scope is the thematic or technical areas the work must cover, one per entry. Participants describes who is trained, served or targeted, including their roles and organisations; participantCount is that as a number only where a number is stated. DurationDays is working days where the tender states them; do not convert months or weeks into days. Terminology is the buyer\'s own recurring terms of art — programme names, framework names, indicator sets — that a response should reuse verbatim. Every field here is null or empty where the tender does not state it; a stated-nowhere value is never estimated, rounded or carried over from what is typical.',
+        system:'Extract tender facts only. Never infer missing values. Resolve and distinguish the contracting authority, implementing partner(s), donor/funder, project owner and beneficiaries; do not substitute an aggregator or tracker label for the buyer named in the authoritative tender. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.\n\nThe assignment object describes the work itself, for whoever has to write the proposal rather than check compliance. Take problem, objectives, scope and outcomes from the tender in the tender\'s own words rather than paraphrasing them into yours — a proposal that answers in the buyer\'s vocabulary scores better, and these are the words it will use. Scope is the thematic or technical areas the work must cover, one per entry. Participants describes who is trained, served or targeted, including their roles and organisations; participantCount is that as a number only where a number is stated. DurationDays is working days where the tender states them; do not convert months or weeks into days. Terminology is the buyer\'s own recurring terms of art — programme names, framework names, indicator sets — that a response should reuse verbatim. Every field here is null or empty where the tender does not state it; a stated-nowhere value is never estimated, rounded or carried over from what is typical.\n\nTechnicalRequirements lists the technologies, methods, systems, accreditations, certifications and specialist skills the tender requires a bidder to have or use, one per entry, phrased as the tender phrases them. It is the same ground the requirements matrix covers under the Technical category, restated flat because a reader needs the shortlist before the matrix.\n\nDocumentSource says what you were actually given. IsTermsOfReference is true only when the text sets out the scope of work — objectives, tasks, deliverables, methodology or schedule — rather than merely announcing that a tender exists. A published notice, a procurement portal listing, or a page of title, buyer and deadline is false. TorOnlyNotes states the scope that appears in the attached document and nowhere in the published source, or null when there is no attached document or it adds nothing; where both are supplied, the published source appears under a "Published source" heading.\n\nQualification is a bid/no-bid reading for a Kenyan consulting firm delivering monitoring and evaluation, capacity development, institutional strengthening and performance management, and it is reported for a human to act on rather than acted on. Status is Disqualified ONLY where the tender states a condition that the supplied company knowledge positively contradicts — a national registration the firm does not hold, a sector it does not work in, a deadline already past, a mandatory certification the knowledge explicitly says is absent. Status is Qualified where the stated mandatory conditions are met by the supplied knowledge and the work is within that scope. In every other case, including every case where the tender is silent, the knowledge is thin, or you are weighing it up, the status is Under Review. Absence of evidence is never disqualifying: an unmentioned certificate means the knowledge base is incomplete, not that the firm lacks it, and a Disqualified verdict on that reasoning throws away real work. Reason is one or two sentences naming the single fact that decided it. Blockers lists only conditions stated in the tender that would have to be resolved before bidding, each quoting or closely paraphrasing the tender, and is empty when there are none.',
         messages:[
           {role:'user',content:`COMPANY KNOWLEDGE\n${knowledge || 'None supplied'}\n\nTENDER\n${source}`}
         ]
