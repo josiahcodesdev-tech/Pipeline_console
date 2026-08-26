@@ -128,6 +128,44 @@ export async function setRfpPipeline(
 ): Promise<Rfp> {
   const userId = await currentUserId()
 
+  /**
+   * Taking a tender on is something you do to your own copy.
+   *
+   * This used to be enforced by accident and is now enforced on purpose. The
+   * update below was scoped by row-level security to the caller's own rows, so
+   * acting on somebody else's matched nothing and the error on the far side of
+   * it explained why. Then 0028 added `is_admin()` to the update policy — so
+   * that oversight could fix a colleague's tender — and the accident stopped
+   * happening.
+   *
+   * What that produced is subtle enough to have run unnoticed. The firm-wide
+   * tracker collapses each tender to one row, which is frequently a colleague's
+   * copy. An admin clicking "take on" there claimed it in their own name and
+   * set `in_pipeline` on the colleague's row, and the two tables disagreed from
+   * then on: the colleague was shown as bidding a tender they had never seen,
+   * while the claim belonged to the admin. Two of Regina's rows in production
+   * are exactly this.
+   *
+   * Only adding is restricted. Removing stays open to oversight, which 0028
+   * wanted deliberately — an abandoned bid has to be releasable by somebody
+   * other than the member who abandoned it. Handing a tender over is what
+   * `reassignRfp` is for, and it moves the row, the work and the claim
+   * together.
+   */
+  if (inPipeline) {
+    const { data: owner, error: ownerError } = await supabase
+      .from('rfps')
+      .select('user_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (ownerError) throw new Error(ownerError.message)
+    if (owner && owner.user_id !== userId) {
+      throw new Error(
+        'This tender belongs to another member, so it cannot be added to your pipeline. Use Reassign to hand it over.',
+      )
+    }
+  }
+
   if (externalId && inPipeline) {
     const { error } = await supabase
       .from('rfp_claims')
@@ -163,12 +201,14 @@ export async function setRfpPipeline(
     if (error) throw new Error(`Could not hand this tender back: ${error.message}`)
   }
 
-  // `maybeSingle`, not `single`. Row-level security scopes an update to your
-  // own rows, so acting on another member's copy matches nothing and updates
-  // nothing — and `single` turns that into "Cannot coerce the result to a
-  // single JSON object", which tells the reader nothing about what went wrong
-  // or what to do. An admin reading the whole firm's pipeline hits this the
-  // moment they try to tidy somebody else's row.
+  // `maybeSingle`, not `single`. An update matching no row is a real outcome
+  // here — a standard user acting on a colleague's copy — and `single` turns
+  // it into "Cannot coerce the result to a single JSON object", which tells
+  // the reader nothing about what went wrong or what to do.
+  //
+  // Note this no longer guards against an admin flagging somebody else's row:
+  // since 0028 the update policy admits oversight, so that write succeeds. The
+  // ownership check at the top of this function is what refuses it now.
   const { data, error } = await supabase
     .from('rfps')
     .update({ in_pipeline: inPipeline })
