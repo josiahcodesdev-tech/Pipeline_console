@@ -80,7 +80,40 @@ export function useStickyState<T>(
  * should start at the top, because that is a new visit rather than a return.
  */
 export function useRestoredScroll(key: string, ready: boolean): void {
+  const latest = useRef(0)
   const restored = useRef(false)
+
+  /**
+   * The position is tracked continuously, not read when the view closes.
+   *
+   * READING IT AT UNMOUNT DOES NOT WORK, which is what the first attempt did.
+   * An effect cleanup can run after React has already removed this view's DOM,
+   * and the profile replacing it is a fraction of the height — so the browser
+   * has clamped the page toward the top by then and `window.scrollY` returns
+   * something close to zero. The position saved is the collapse, not the
+   * position, and it restores faithfully to the top.
+   *
+   * A listener assigning one number is cheap enough to leave unthrottled;
+   * `passive` keeps it off the scrolling critical path.
+   */
+  useEffect(() => {
+    const onScroll = () => {
+      latest.current = window.scrollY
+    }
+    latest.current = window.scrollY
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      try {
+        sessionStorage.setItem(key, String(latest.current))
+      } catch {
+        // Position lost, navigation unaffected.
+      }
+    }
+  }, [key])
 
   useLayoutEffect(() => {
     if (restored.current || !ready) return
@@ -97,12 +130,20 @@ export function useRestoredScroll(key: string, ready: boolean): void {
     }
 
     restored.current = true
+
+    /**
+     * Retried across frames until it sticks, then cleared.
+     *
+     * A filter can be applied before the first paint; a scroll position cannot,
+     * because the page has to be tall enough to scroll to and it only becomes
+     * tall once the rows lay out. Half a second of frames covers a long table
+     * and a web font landing; the key is cleared only on success, so a failure
+     * leaves the position for the next attempt rather than losing it.
+     */
     let frames = 0
     const attempt = () => {
       window.scrollTo(0, target)
-      // Landed, or the page is genuinely shorter than it was — either way there
-      // is nothing further to wait for.
-      if (Math.abs(window.scrollY - target) < 2 || frames > 8) {
+      if (Math.abs(window.scrollY - target) < 2) {
         try {
           sessionStorage.removeItem(key)
         } catch {
@@ -110,22 +151,10 @@ export function useRestoredScroll(key: string, ready: boolean): void {
         }
         return
       }
+      if (frames > 30) return
       frames += 1
       requestAnimationFrame(attempt)
     }
     requestAnimationFrame(attempt)
   }, [key, ready])
-
-  // Saved on the way out rather than on every scroll event: this runs once per
-  // navigation, where a scroll listener runs on every wheel tick of a four
-  // hundred row list.
-  useEffect(() => {
-    return () => {
-      try {
-        sessionStorage.setItem(key, String(window.scrollY))
-      } catch {
-        // Position lost, navigation unaffected.
-      }
-    }
-  }, [key])
 }
