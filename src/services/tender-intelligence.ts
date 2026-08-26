@@ -1,7 +1,52 @@
 import { supabase } from '@/data/client'
 
+/**
+ * The work itself, as the tender describes it.
+ *
+ * Separate from `metadata`, which is the contract's paperwork — who is buying,
+ * by when, for how much. This is what the proposal has to be *about*, and it
+ * exists because the designed template asks for it: a stat card wants
+ * "18 working days", an executive summary wants the buyer's stated problem in
+ * the buyer's own words, a methodology page wants the areas the work covers.
+ *
+ * Every field is null or empty where the tender does not state it. That is the
+ * point: an unstated figure becomes a visible placeholder rather than a
+ * plausible invention.
+ */
+export interface TenderAssignment {
+  /** The client's stated problem, in the client's words. */
+  problem: string | null
+  /** Stated objectives, as written. */
+  objectives: string[]
+  /** Thematic or technical areas the work must cover. */
+  scope: string[]
+  /** Who is trained, served or targeted — roles and organisations. */
+  participants: string | null
+  /** Only where the tender states a number. */
+  participantCount: number | null
+  /** Working days, only where stated as days. */
+  durationDays: number | null
+  /** In-person, virtual, blended, residential — as stated. */
+  deliveryMode: string | null
+  /** Where delivery happens. */
+  locations: string[]
+  /** Stated expected results and success measures. */
+  outcomes: string[]
+  /** The buyer's own terms of art, worth reusing verbatim. */
+  terminology: string[]
+}
+
 export interface TenderAnalysis {
   summary: string
+  /**
+   * Optional in the type, required in the schema.
+   *
+   * Every fresh analysis has it. Analyses stored before this field existed do
+   * not, and `analysisMarkdown` is run over stored JSON as well as fresh —
+   * marking it optional is what stops an old record from crashing the page that
+   * displays it.
+   */
+  assignment?: TenderAssignment
   metadata: Record<string, string | null>
   evaluation: Array<{ criterion: string; weight: number | null; evidence: string; source: string }>
   deliverables: Array<{ name: string; format: string | null; due: string | null; source: string }>
@@ -88,8 +133,49 @@ export async function retrieveKnowledge(query: string, limit = 12) {
   return invoke<{ matches: Array<{ source_type:string; source_id:string; title:string; content:string; metadata:Record<string,unknown>; similarity:number }> }>({ action:'retrieve', query, limit })
 }
 
+/** A list as a bulleted block, or a line saying the tender did not say. */
+function listBlock(heading: string, items: string[] | undefined): string[] {
+  if (!items || items.length === 0) return [`**${heading}:** Not stated`]
+  return [`**${heading}:**`, '', ...items.map((item) => `- ${item}`), '']
+}
+
 export function analysisMarkdown(value: TenderAnalysis): string {
-  const lines = [`## What this assignment is`, '', value.summary, '', '## Key facts', '', '| Item | Value |', '|---|---|']
+  const lines = [`## What this assignment is`, '', value.summary, '']
+
+  // Before the paperwork, because this is what the proposal is about and the
+  // paperwork is what surrounds it. Omitted entirely for analyses stored before
+  // this section existed — an empty heading reads as "the tender said nothing",
+  // which is a different and more damaging claim than "this was not asked".
+  const work = value.assignment
+  if (work) {
+    lines.push(
+      '## The work itself',
+      '',
+      `**The client's stated problem:** ${work.problem ?? 'Not stated'}`,
+      '',
+      ...listBlock('Stated objectives', work.objectives),
+      '',
+      ...listBlock('Areas the work must cover', work.scope),
+      '',
+      `**Who it is for:** ${work.participants ?? 'Not stated'}${work.participantCount === null ? '' : ` (${work.participantCount} stated)`}`,
+      '',
+      `**Duration:** ${work.durationDays === null ? 'Not stated in days' : `${work.durationDays} working days`}`,
+      '',
+      `**Delivery mode:** ${work.deliveryMode ?? 'Not stated'}`,
+      '',
+      `**Where:** ${work.locations.length > 0 ? work.locations.join(', ') : 'Not stated'}`,
+      '',
+      ...listBlock('Expected results', work.outcomes),
+      '',
+      // Listed rather than described. A proposal that answers in the buyer's
+      // vocabulary scores better than one that paraphrases it into ours, and
+      // these are the words the drafter should be reaching for.
+      ...listBlock("The buyer's own terms, to reuse verbatim", work.terminology),
+      '',
+    )
+  }
+
+  lines.push('## Key facts', '', '| Item | Value |', '|---|---|')
   for (const [key, item] of Object.entries(value.metadata)) lines.push(`| ${key.replace(/([A-Z])/g, ' $1')} | ${item ?? 'Not stated'} |`)
   lines.push('', '## Evaluation matrix', '', '| Criterion | Weight / points | Evidence | Source |', '|---|---:|---|---|')
   for (const row of value.evaluation) lines.push(`| ${row.criterion} | ${row.weight ?? 'Not stated'} | ${row.evidence} | ${row.source} |`)

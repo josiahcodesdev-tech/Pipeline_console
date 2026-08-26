@@ -58,13 +58,50 @@ const MAX_PDF_BASE64_CHARS = 21 * 1024 * 1024
 const MAX_KNOWLEDGE_CHARS = 200_000
 const MAX_KNOWLEDGE_CHUNKS = 50
 
+/**
+ * What the drafter needs, over and above what a compliance reviewer needs.
+ *
+ * This schema was written for a bid/no-bid decision: can we comply, what is
+ * scored, what are we missing. Proposals are now written into the firm's
+ * designed template, and a designed page asks different questions. A stat card
+ * wants "18 working days" and "45 county monitoring officers", not a
+ * requirements matrix; an executive summary wants the buyer's stated problem in
+ * the buyer's own words; a methodology page wants the thematic areas the work
+ * has to cover.
+ *
+ * None of that was extracted, so every one of those slots came back as
+ * [INFORMATION REQUIRED] while the answer sat in the tender. Hence `assignment`.
+ *
+ * The rule above it is unchanged and is the reason each field is nullable: this
+ * reports what the tender states and nothing else. A duration nobody wrote down
+ * is null, and a null becomes a placeholder somebody resolves — which is the
+ * failure that can be seen, rather than a plausible figure that cannot.
+ */
+const ASSIGNMENT_FIELDS = {
+  problem: { type: ['string','null'] },
+  objectives: { type: 'array', items: { type: 'string' } },
+  scope: { type: 'array', items: { type: 'string' } },
+  participants: { type: ['string','null'] },
+  participantCount: { type: ['number','null'] },
+  durationDays: { type: ['number','null'] },
+  deliveryMode: { type: ['string','null'] },
+  locations: { type: 'array', items: { type: 'string' } },
+  outcomes: { type: 'array', items: { type: 'string' } },
+  terminology: { type: 'array', items: { type: 'string' } },
+} as const
+
 const ANALYSIS_SCHEMA = {
   name: 'tender_analysis', strict: true,
   schema: {
     type: 'object', additionalProperties: false,
-    required: ['summary','metadata','evaluation','deliverables','requirements','gaps'],
+    required: ['summary','assignment','metadata','evaluation','deliverables','requirements','gaps'],
     properties: {
       summary: { type: 'string' },
+      assignment: {
+        type: 'object', additionalProperties: false,
+        required: Object.keys(ASSIGNMENT_FIELDS),
+        properties: ASSIGNMENT_FIELDS,
+      },
       metadata: {
         type: 'object', additionalProperties: false,
         required: ['client','contractingAuthority','implementingPartners','donor','projectOwner','title','reference','deadline','budgetCeiling','currency','location','duration','submissionMethod'],
@@ -333,7 +370,7 @@ Deno.serve(async (request) => {
           // ANALYSIS_SCHEMA keeps that shape because the constant is shared.
           format: { type: 'json_schema', schema: ANALYSIS_SCHEMA.schema },
         },
-        system:'Extract tender facts only. Never infer missing values. Resolve and distinguish the contracting authority, implementing partner(s), donor/funder, project owner and beneficiaries; do not substitute an aggregator or tracker label for the buyer named in the authoritative tender. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.',
+        system:'Extract tender facts only. Never infer missing values. Resolve and distinguish the contracting authority, implementing partner(s), donor/funder, project owner and beneficiaries; do not substitute an aggregator or tracker label for the buyer named in the authoritative tender. Source locations must cite supplied page markers or section headings. Capture every shall, must, should, required, mandatory, submit, include and provide clause. EvidenceAvailable is true only when the supplied company knowledge directly supports it.\n\nThe assignment object describes the work itself, for whoever has to write the proposal rather than check compliance. Take problem, objectives, scope and outcomes from the tender in the tender\'s own words rather than paraphrasing them into yours — a proposal that answers in the buyer\'s vocabulary scores better, and these are the words it will use. Scope is the thematic or technical areas the work must cover, one per entry. Participants describes who is trained, served or targeted, including their roles and organisations; participantCount is that as a number only where a number is stated. DurationDays is working days where the tender states them; do not convert months or weeks into days. Terminology is the buyer\'s own recurring terms of art — programme names, framework names, indicator sets — that a response should reuse verbatim. Every field here is null or empty where the tender does not state it; a stated-nowhere value is never estimated, rounded or carried over from what is typical.',
         messages:[
           {role:'user',content:`COMPANY KNOWLEDGE\n${knowledge || 'None supplied'}\n\nTENDER\n${source}`}
         ]
