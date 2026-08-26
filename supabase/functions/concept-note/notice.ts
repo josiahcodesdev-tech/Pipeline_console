@@ -111,6 +111,113 @@ function stripHtml(html: string): string {
     .trim()
 }
 
+/**
+ * ReliefWeb, which refuses to be scraped and offers an API instead.
+ *
+ * reliefweb.int answers an automated GET of any posting with 403 — not a stub,
+ * not a rate limit, a flat refusal. Scraping it was therefore never going to
+ * work, and the failure was invisible in the worst way: the fetch returned
+ * nothing, the analyser wrote a reading from the title and whatever the sync
+ * had scraped, and the result read exactly as confidently as one written from
+ * the real notice.
+ *
+ * Their API serves the same posting in full, keyed by an appname that has to be
+ * pre-approved. sync-opportunities already holds one in RELIEFWEB_APPNAME and
+ * uses it to pull listings; this reuses the same secret to read one.
+ *
+ * The id is in the path: /job/4226834/slug, /report/4226834/slug, or a bare
+ * /node/4226834. The collection differs by content type, and a /node/ link does
+ * not say which, so that case tries each in turn.
+ */
+const RELIEFWEB_COLLECTIONS: Record<string, string> = {
+  job: 'jobs',
+  report: 'reports',
+  training: 'training',
+}
+
+function isReliefWeb(url: URL): boolean {
+  return /(^|\.)reliefweb\.int$/i.test(url.hostname)
+}
+
+function reliefWebTarget(url: URL): { id: string; collections: string[] } | null {
+  if (!isReliefWeb(url)) return null
+  const [kind, id] = url.pathname.split('/').filter(Boolean)
+  if (!/^\d+$/.test(id ?? '')) return null
+  const collection = RELIEFWEB_COLLECTIONS[(kind ?? '').toLowerCase()]
+  // A /node/ link names no type, so ask each collection until one answers.
+  return { id, collections: collection ? [collection] : Object.values(RELIEFWEB_COLLECTIONS) }
+}
+
+/** The parts of a ReliefWeb posting worth reading, as text. */
+function reliefWebText(fields: Record<string, unknown>): string {
+  const names = (value: unknown) =>
+    Array.isArray(value)
+      ? value.map((item) => String((item as Record<string, unknown>)?.name ?? '')).filter(Boolean).join(', ')
+      : ''
+  const date = (fields.date ?? {}) as Record<string, unknown>
+
+  return [
+    String(fields.title ?? ''),
+    names(fields.source) ? `Source organisation: ${names(fields.source)}` : '',
+    names(fields.country) ? `Country: ${names(fields.country)}` : '',
+    fields.city ? `City: ${String(fields.city)}` : '',
+    names(fields.type) ? `Type: ${names(fields.type)}` : '',
+    names(fields.career_categories) ? `Category: ${names(fields.career_categories)}` : '',
+    names(fields.experience) ? `Experience required: ${names(fields.experience)}` : '',
+    date.closing ? `Closing date: ${String(date.closing)}` : '',
+    date.created ? `Published: ${String(date.created)}` : '',
+    '',
+    String(fields.body ?? ''),
+    fields.how_to_apply ? `\n## How to apply\n\n${String(fields.how_to_apply)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+async function fetchReliefWebNotice(
+  target: { id: string; collections: string[] },
+  signal: AbortSignal,
+): Promise<NoticeResult> {
+  const appname = Deno.env.get('RELIEFWEB_APPNAME') ?? ''
+  if (!appname) {
+    // Named rather than described as a generic failure. The fix is one secret,
+    // and saying which turns a support question into a setting.
+    return {
+      text: '',
+      problem:
+        'ReliefWeb refuses automated page requests and its API needs RELIEFWEB_APPNAME, which is not set on this project.',
+    }
+  }
+
+  for (const collection of target.collections) {
+    const endpoint = new URL(`https://api.reliefweb.int/v2/${collection}/${target.id}`)
+    endpoint.searchParams.set('appname', appname)
+    endpoint.searchParams.set('profile', 'full')
+
+    const response = await fetch(endpoint, { signal, headers: { Accept: 'application/json' } })
+    if (response.status === 404) continue
+    if (response.status === 403) {
+      return {
+        text: '',
+        problem: 'ReliefWeb rejected the appname (403). It must be pre-approved — see apidoc.reliefweb.int/parameters#appname',
+      }
+    }
+    if (!response.ok) {
+      return { text: '', problem: `ReliefWeb answered ${response.status} for this posting.` }
+    }
+
+    const body = (await response.json()) as { data?: Array<{ fields?: Record<string, unknown> }> }
+    const fields = body.data?.[0]?.fields
+    if (!fields) continue
+
+    const text = reliefWebText(fields).slice(0, MAX_NOTICE_CHARS)
+    if (text) return { text, problem: null }
+  }
+
+  return { text: '', problem: 'ReliefWeb has no posting at this link.' }
+}
+
 export async function fetchNotice(link: string): Promise<NoticeResult> {
   const url = link.trim()
   if (!url || BLOCKED.test(url)) {
@@ -126,6 +233,27 @@ export async function fetchNotice(link: string): Promise<NoticeResult> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 20_000)
     let current = await safeUrl(url)
+
+    // Before the scrape, not as a fallback after it: reliefweb.int answers the
+    // page request with 403 every time, so trying it first only spends the
+    // timeout budget to learn what is already known. That is also why a
+    // ReliefWeb link the API cannot address says so immediately rather than
+    // falling through — a job link carries its id, a report link does not.
+    if (isReliefWeb(current)) {
+      const target = reliefWebTarget(current)
+      try {
+        return target
+          ? await fetchReliefWebNotice(target, controller.signal)
+          : {
+              text: '',
+              problem:
+                'ReliefWeb refuses automated page requests, and this link carries no posting id to read through its API instead. Open it and attach the Terms of Reference.',
+            }
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+
     let response: Response | null = null
     for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
       response = await fetch(current, {
