@@ -32,6 +32,7 @@ import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/domain/types'
 import { OPPORTUNITY_SYNC } from '@/app/features'
 import { useAuth } from '@/shared/hooks/use-auth'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
+import { useRestoredScroll, useStickyState } from '@/shared/hooks/use-sticky-state'
 import { RfpDialog } from './rfp-dialog'
 import { parseRfpImport } from './import-rfps'
 import { safeExternalUrl } from './source-site'
@@ -167,29 +168,34 @@ export function RfpsView({
     autoSync,
     syncedAt,
   } = usePipeline()
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<RfpStatus | 'all'>('all')
+  const [search, setSearch] = useStickyState('rfps:search', '')
+  const [status, setStatus] = useStickyState<RfpStatus | 'all'>('rfps:status', 'all')
   // The tracker is a firehose; hiding what is already taken on makes triage
   // of the remainder much easier.
-  const [hideInPipeline, setHideInPipeline] = useState(false)
+  const [hideInPipeline, setHideInPipeline] = useStickyState('rfps:hideInPipeline', false)
   // On by default: a closed tender cannot be bid on, so it is clutter rather
   // than information. The sync already refuses to import anything past its
   // deadline, but rows age in place — what arrived open in August is closed by
   // September — so the list has to filter as well.
-  const [hideExpired, setHideExpired] = useState(true)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'rfp' | 'job'>('all')
+  const [hideExpired, setHideExpired] = useStickyState('rfps:hideExpired', true)
+  const [typeFilter, setTypeFilter] = useStickyState<'all' | 'rfp' | 'job'>('rfps:type', 'all')
   // Which of the six services from the capability statement it touches.
-  const [areaFilter, setAreaFilter] = useState<string>('all')
-  const [obtainedToday, setObtainedToday] = useState(false)
+  const [areaFilter, setAreaFilter] = useStickyState<string>('rfps:area', 'all')
+  const [obtainedToday, setObtainedToday] = useStickyState('rfps:obtainedToday', false)
   // Newest first. Best fit sorts the whole tracker the same way every day, so
   // the notices that arrived overnight land wherever their score puts them —
   // often pages down, among rows already read and passed over. What someone
   // opening this page wants first is what is new; fit is one click away.
-  const [sort, setSort] = useState<SortKey>('newest')
+  const [sort, setSort] = useStickyState<SortKey>('rfps:sort', 'newest')
   const [json, setJson] = useState('')
   const [importing, setImporting] = useState(false)
   const { can, profile } = useAuth()
   const members = useMemberNames()
+
+  // Puts the page back where it was when a tender was opened from it. Gated on
+  // there being rows: the scroll target only exists once the table is tall
+  // enough to reach it, and on a cold load `rfps` is empty for a moment.
+  useRestoredScroll('rfps:scroll', rfps.length > 0)
 
   /**
    * Who holds this tender, if it is someone other than the reader.
