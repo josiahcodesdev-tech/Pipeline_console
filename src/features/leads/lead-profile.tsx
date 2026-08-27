@@ -83,19 +83,24 @@ export function LeadProfile({ lead, onBack }: { lead: Lead; onBack: () => void }
 
   return (
     <>
-      <div className="sticky top-0 z-20 -mx-6 mb-6 border-b border-border bg-background/85 px-6 pb-4 pt-8 backdrop-blur-md lg:-mx-8 lg:px-8">
-        <button
-          type="button"
-          onClick={onBack}
-          className="eyebrow mb-2 flex cursor-pointer items-center gap-1.5 text-clay transition-colors hover:text-primary"
-        >
-          <ArrowLeftIcon className="size-3" />
-          Back to leads
-        </button>
-
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0 max-w-[60ch]">
-            <h2 className="font-display text-[22px] leading-tight text-foreground">
+      <div className="sticky top-0 z-20 -mx-6 mb-5 border-b border-border bg-background/85 px-6 pb-3 pt-4 backdrop-blur-md lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={onBack}
+              className="eyebrow mb-1 flex cursor-pointer items-center gap-1.5 text-clay transition-colors hover:text-primary"
+            >
+              <ArrowLeftIcon className="size-3" />
+              Back to leads
+            </button>
+            {/* Clamped for the same reason the tender header is, though an
+                organisation name rarely needs it — the two pages sit one click
+                apart and a tight header beside a loose one reads as a bug. */}
+            <h2
+              title={lead.org}
+              className="line-clamp-2 font-display text-[18px] font-semibold leading-snug text-foreground"
+            >
               {lead.org}
             </h2>
             <p className="mt-1 text-[12px] text-muted-foreground">

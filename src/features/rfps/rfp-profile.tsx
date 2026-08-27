@@ -782,26 +782,39 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
 
       {/* Not the shared ViewHeader: this page is about one record, so the
           heading is the tender's title rather than a section name. */}
-      <div className="sticky top-0 z-20 -mx-6 mb-6 border-b border-border bg-background/85 px-6 pb-4 pt-8 backdrop-blur-md lg:-mx-8 lg:px-8">
-        <button
-          type="button"
-          onClick={onBack}
-          className="eyebrow mb-2 flex cursor-pointer items-center gap-1.5 text-clay transition-colors hover:text-primary"
-        >
-          <ArrowLeftIcon className="size-3" />
-          Back to opportunities
-        </button>
+      <div className="sticky top-0 z-20 -mx-6 mb-5 border-b border-border bg-background/85 px-6 pb-3 pt-4 backdrop-blur-md lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={onBack}
+              className="eyebrow mb-1 flex cursor-pointer items-center gap-1.5 text-clay transition-colors hover:text-primary"
+            >
+              <ArrowLeftIcon className="size-3" />
+              Back to opportunities
+            </button>
+            {/*
+              Clamped to two lines, with the whole thing on hover.
 
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0 max-w-[60ch]">
-            <h2 className="font-display text-[22px] leading-tight text-foreground">
+              Procurement titles run to forty words — this one is "Provision of
+              services required for in-country seminar organization on
+              industrial statistics in Dushanbe, Tajikistan. UNIDO Project: ..."
+              — and at 22px in a 60ch column that was six lines of heading
+              before a single fact about the tender. The first ten words
+              identify it; the rest is the notice repeating its own reference,
+              and it is still one hover away.
+            */}
+            <h2
+              title={rfp.title}
+              className="line-clamp-2 font-display text-[18px] font-semibold leading-snug text-foreground"
+            >
               {rfp.title}
             </h2>
             {/* Provenance, in the order you would ask for it: whose tender,
                 what kind of buyer, which site it came off, and the day it
                 landed here. The site is the host rather than the full notice
                 URL — the title above is already the link to the notice. */}
-            <p className="mt-1.5 text-xs text-muted-foreground">
+            <p className="mt-1 truncate text-[11.5px] text-muted-foreground">
               {[
                 rfp.org || 'Unknown organisation',
                 rfp.segment,
@@ -813,9 +826,11 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Beside the title rather than under it. These are four short
+              controls and the column beside a clamped heading is empty. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {viewOnly ? (
-              <span className="rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-muted-foreground">
+              <span className="rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-muted-foreground">
                 {rfp.status}
               </span>
             ) : (
