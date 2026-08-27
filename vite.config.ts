@@ -27,6 +27,43 @@ interface TemplateEntry {
   name: string
   html: string
   config: string | null
+  /** Compact selection evidence, avoiding a multi-megabyte fetch per design. */
+  matchText: string
+}
+
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+}
+
+function selectionText(html: string, configPath: string): string {
+  const evidence: string[] = []
+  for (const match of html.matchAll(/<(title|h[1-4])\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+    evidence.push(decodeEntities(match[2].replace(/<[^>]+>/g, ' ')))
+  }
+  for (const match of html.matchAll(/<meta\b[^>]*\b(?:name|property)=["'](?:description|keywords|og:title)["'][^>]*\bcontent=["']([^"']+)["'][^>]*>/gi)) {
+    evidence.push(decodeEntities(match[1]))
+  }
+  if (fs.existsSync(configPath)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8')) as {
+        match?: { sectors?: string[]; services?: string[]; keywords?: string[] }
+      }
+      evidence.push(
+        ...(config.match?.sectors ?? []),
+        ...(config.match?.services ?? []),
+        ...(config.match?.keywords ?? []),
+      )
+    } catch {
+      // The template checker reports malformed config with a useful filename.
+    }
+  }
+  return evidence.join(' ').replace(/\s+/g, ' ').trim().slice(0, 12_000)
 }
 
 function manifest(root: string): TemplateEntry[] {
@@ -38,10 +75,12 @@ function manifest(root: string): TemplateEntry[] {
     .sort()
     .map((file) => {
       const config = `${file.replace(/\.html?$/i, '')}.config.json`
+      const configPath = path.join(dir, config)
       return {
         name: file.replace(/\.html?$/i, ''),
         html: file,
-        config: fs.existsSync(path.join(dir, config)) ? config : null,
+        config: fs.existsSync(configPath) ? config : null,
+        matchText: selectionText(fs.readFileSync(path.join(dir, file), 'utf8'), configPath),
       }
     })
 }

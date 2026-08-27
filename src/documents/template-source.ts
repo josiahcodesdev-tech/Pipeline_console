@@ -1,4 +1,4 @@
-import type { TemplateConfig } from './template-slots'
+import { sectionBriefs, type TemplateConfig } from './template-slots'
 
 /**
  * Fetching the firm's designed template into the browser.
@@ -25,6 +25,8 @@ export interface TemplateEntry {
   html: string
   /** Its sidecar config, when it has one. */
   config: string | null
+  /** Title, headings and configured matching terms extracted at build time. */
+  matchText?: string
 }
 
 /** A template with its markup and its reading rules, ready to fill. */
@@ -32,6 +34,15 @@ export interface LoadedTemplate {
   name: string
   html: string
   config: TemplateConfig
+}
+
+export interface TemplateRecommendation {
+  template: LoadedTemplate
+  /** Weighted relevance score; zero means the named fallback was used. */
+  score: number
+  /** Tender words that also occur in the template's selection evidence. */
+  matchedTerms: string[]
+  candidateCount: number
 }
 
 async function fetchText(file: string, what: string): Promise<string> {
@@ -57,13 +68,11 @@ export async function listProposalTemplates(): Promise<TemplateEntry[]> {
 }
 
 /**
- * Words worth matching a template's name against.
+ * Words worth matching a template's name and structural clues against.
  *
- * Deliberately crude, and deliberately not the server's `selectUploadedTemplate`
- * — that scores a template's full text, which here would mean downloading every
- * one of them to choose between them. With a single template in the folder the
- * choice is not being made at all; this exists so that adding a second one picks
- * the closer of the two rather than always the alphabetically first.
+ * The manifest carries only titles, headings, metadata and configured matching
+ * terms, so selecting among several image-heavy designs does not download all
+ * of them. The chosen template alone is fetched.
  */
 const NOISE = new Set([
   'and', 'for', 'the', 'proposal', 'template', 'technical', 'draft', 'final',
@@ -132,6 +141,13 @@ export async function loadProposalTemplateByName(name: string): Promise<LoadedTe
  * is how somebody sends a client an unbranded page and finds out afterwards.
  */
 export async function loadProposalTemplate(assignment = ''): Promise<LoadedTemplate> {
+  return (await recommendProposalTemplate(assignment)).template
+}
+
+/** Rank every available design and return the best one with user-facing evidence. */
+export async function recommendProposalTemplate(
+  assignment = '',
+): Promise<TemplateRecommendation> {
   const entries = await listProposalTemplates()
   if (entries.length === 0) {
     throw new Error(
@@ -140,15 +156,46 @@ export async function loadProposalTemplate(assignment = ''): Promise<LoadedTempl
   }
 
   const wanted = new Set(tokens(assignment))
-  const chosen =
+  const ranked =
     entries.length === 1
-      ? entries[0]
+      ? [{ entry: entries[0], score: 0, fallback: false, matchedTerms: [] as string[] }]
       : entries
           .map((entry) => ({
             entry,
-            score: tokens(entry.name).filter((word) => wanted.has(word)).length,
+            score:
+              tokens(entry.name).filter((word) => wanted.has(word)).length * 12 +
+              new Set(tokens(entry.matchText ?? '').filter((word) => wanted.has(word))).size * 4,
+            fallback: /(^|[_\s-])(default|general|master)([_\s-]|$)/i.test(entry.name),
+            matchedTerms: Array.from(
+              new Set(tokens(`${entry.name} ${entry.matchText ?? ''}`).filter((word) => wanted.has(word))),
+            ).slice(0, 8),
           }))
-          .sort((a, b) => b.score - a.score)[0].entry
+          .sort(
+            (a, b) =>
+              b.score - a.score ||
+              Number(b.fallback) - Number(a.fallback) ||
+              a.entry.name.localeCompare(b.entry.name),
+          )
 
-  return load(chosen)
+  let chosen: (typeof ranked)[number] | undefined
+  let template: LoadedTemplate | undefined
+  for (const candidate of ranked) {
+    const loaded = await load(candidate.entry)
+    if (sectionBriefs(loaded.html, loaded.config).some((section) => section.slots.length > 0)) {
+      chosen = candidate
+      template = loaded
+      break
+    }
+  }
+  if (!chosen || !template) {
+    throw new Error(
+      'None of the available proposal templates contains fillable text. Run `npm run templates:check` and configure the uploaded files.',
+    )
+  }
+  return {
+    template,
+    score: chosen.score,
+    matchedTerms: chosen.matchedTerms,
+    candidateCount: entries.length,
+  }
 }

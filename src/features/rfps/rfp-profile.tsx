@@ -39,7 +39,10 @@ import {
   renderDesignedProposal,
   type DraftProgress,
 } from '@/documents/template-draft'
-import { loadProposalTemplate } from '@/documents/template-source'
+import {
+  recommendProposalTemplate,
+  type TemplateRecommendation,
+} from '@/documents/template-source'
 import { sectionBriefs } from '@/documents/template-slots'
 import { MAX_TENDER_CHARS } from '@/services/pdf-text'
 import {
@@ -181,6 +184,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [pasteText, setPasteText] = useState('')
   const [pasting, setPasting] = useState(false)
   const [playbooks, setPlaybooks] = useState<string[]>([])
+  const [templateRecommendation, setTemplateRecommendation] =
+    useState<TemplateRecommendation | null>(null)
+  const [templateRecommendationError, setTemplateRecommendationError] = useState('')
   /**
    * Which tab is showing. Overview by default, and it stays the default —
    * the record is what most visits are for, and the intelligence is what you
@@ -242,6 +248,34 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   )
 
   const left = daysUntil(rfp.deadline)
+
+  const templateAssignment = useMemo(
+    () =>
+      [rfp.title, rfp.org, rfp.segment, rfp.serviceAreas, rfp.notes, rfp.analysis, rfp.tenderText]
+        .filter(Boolean)
+        .join(' '),
+    [rfp.title, rfp.org, rfp.segment, rfp.serviceAreas, rfp.notes, rfp.analysis, rfp.tenderText],
+  )
+
+  // Present the choice before drafting, and keep this exact loaded template for
+  // preview and drafting so the recommendation cannot drift between clicks.
+  useEffect(() => {
+    let current = true
+    setTemplateRecommendation(null)
+    setTemplateRecommendationError('')
+    void recommendProposalTemplate(templateAssignment)
+      .then((recommendation) => {
+        if (current) setTemplateRecommendation(recommendation)
+      })
+      .catch((cause: unknown) => {
+        if (current) {
+          setTemplateRecommendationError(cause instanceof Error ? cause.message : String(cause))
+        }
+      })
+    return () => {
+      current = false
+    }
+  }, [templateAssignment])
 
   async function retrieveCapabilityContext(): Promise<string> {
     const jobs: Promise<unknown>[] = []
@@ -327,9 +361,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       // would answer "why did it write that?" with a prompt nothing is written
       // from. One section is enough: the doctrine, playbook, house rules and
       // roster above it are identical for all nineteen.
-      const template = await loadProposalTemplate(
-        [rfp.title, rfp.serviceAreas, rfp.notes].filter(Boolean).join(' '),
-      )
+      const template =
+        templateRecommendation?.template ??
+        (await recommendProposalTemplate(templateAssignment)).template
       const first = sectionBriefs(template.html, template.config).find(
         (section) => section.slots.length > 0,
       )
@@ -438,6 +472,9 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         // Without these the browser tab, the sidebar and the running footer keep
         // the name of whichever client the template was first written for.
         document: { title: rfp.title, client: rfp.org },
+        template:
+          templateRecommendation?.template ??
+          (await recommendProposalTemplate(templateAssignment)).template,
         onProgress: (progress) => {
           setDraftTotal(progress.total)
           setDraftSteps((current) => [...current, progress])
@@ -1043,8 +1080,30 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 tender document before continuing.
               </p>
             )}
+            {templateRecommendation ? (
+              <div className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-faint">
+                  Best template for this RFP
+                </div>
+                <div className="mt-0.5 text-[12.5px] font-medium text-foreground">
+                  {templateRecommendation.template.name.replaceAll('_', ' ')}
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Checked against {templateRecommendation.candidateCount} available template{templateRecommendation.candidateCount === 1 ? '' : 's'}
+                  {templateRecommendation.matchedTerms.length > 0
+                    ? ` · matched ${templateRecommendation.matchedTerms.join(', ')}`
+                    : ' · no strong subject match; using the best fallback'}
+                </div>
+              </div>
+            ) : templateRecommendationError ? (
+              <p className="mb-3 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-[11.5px] text-danger">
+                {templateRecommendationError}
+              </p>
+            ) : (
+              <p className="mb-3 text-[11px] text-faint">Checking the best proposal template…</p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={() => void handleDraft()} disabled={drafting}>
+              <Button onClick={() => void handleDraft()} disabled={drafting || !templateRecommendation}>
                 <SparklesIcon />
                 {drafting ? 'Drafting…' : 'Draft proposal'}
               </Button>

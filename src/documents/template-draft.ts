@@ -201,7 +201,15 @@ export async function draftIntoTemplate({
   const loaded =
     template ??
     (await loadProposalTemplate(
-      [context.rfpTitle, context.serviceAreas, context.notes].filter(Boolean).join(' '),
+      [
+        context.rfpTitle,
+        context.serviceAreas,
+        context.notes,
+        context.analysis,
+        context.tenderText,
+      ]
+        .filter(Boolean)
+        .join(' '),
     ))
 
   // The consultant pages, whose fields exist in the rebuilt markup rather than

@@ -145,6 +145,15 @@ has a default; supply only what differs.
   "sectionSelector": "section.page",
   "contentSelector": ".page-inner",
 
+  // Helps the system select this design for a matching tender. Use the sector,
+  // assignment types and distinctive terms; these words are not copied into
+  // the proposal.
+  "match": {
+    "sectors": ["transport", "infrastructure"],
+    "services": ["monitoring and evaluation", "training"],
+    "keywords": ["MEAL", "dashboard", "capacity building"]
+  },
+
   // Images whose wording is part of the picture. Matched against alt text.
   "assignmentSpecificImages": ["architecture", "dashboard"],
 

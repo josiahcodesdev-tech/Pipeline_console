@@ -1,0 +1,57 @@
+{
+  "_comment": "How to read this template. See proposal-templates/README.md. Written per template because the parser cannot tell a reusable photograph from a diagram captioned with the previous client's name — both are a JPEG with an alt attribute.",
+
+  "sectionSelector": "section.page",
+  "contentSelector": ".page-inner",
+
+  "_match": "Which tenders this design is for. These words are used to choose between templates and are never copied into a proposal. Kept deliberately broad on the service side and specific on the subject side: the design suits any online or facilitated training assignment, and the child-protection terms are what distinguish it from the transport MEAL template next to it.",
+  "match": {
+    "sectors": [
+      "child protection",
+      "humanitarian",
+      "health",
+      "education",
+      "social protection",
+      "gender"
+    ],
+    "services": [
+      "training",
+      "webinar",
+      "capacity building",
+      "facilitation",
+      "curriculum development",
+      "instructional design"
+    ],
+    "keywords": [
+      "online training",
+      "virtual training",
+      "psychosocial",
+      "trauma",
+      "trauma-informed",
+      "child protection in emergencies",
+      "CPiE",
+      "emergencies",
+      "participatory",
+      "breakout",
+      "facilitator guide",
+      "participant materials",
+      "pre- and post-training assessment",
+      "e-learning",
+      "workshop"
+    ]
+  },
+
+  "_images": "None yet. This template was authored from a PDF and carries no photographs, logos or accreditation marks — every image in the source was a raster the conversion could not keep. Both lists stay empty and templates:check reports nothing to review. Add images and you must classify them here: nothing in the HTML separates a reusable team photograph from a diagram captioned with the last client's name.",
+  "assignmentSpecificImages": [],
+  "rebuildAsTextImages": [],
+
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": ".brand b",
+    "brandClient": ".brand small",
+    "footerClient": ".footer span:nth-of-type(2)",
+    "navLinks": "nav a",
+    "remove": [".edit-note"]
+  }
+}

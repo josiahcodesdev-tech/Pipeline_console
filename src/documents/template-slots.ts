@@ -71,6 +71,15 @@ export interface Slot {
  * proposal-templates/README.md for the sidecar file.
  */
 export interface TemplateConfig {
+  /**
+   * Words that describe assignments this design is suitable for. These are
+   * used only to choose between templates; they are never written into a bid.
+   */
+  match?: {
+    sectors?: string[]
+    services?: string[]
+    keywords?: string[]
+  }
   /** Blocks that become sections. Default covers the common containers. */
   sectionSelector?: string
   /** Where a section's editable prose lives, if it is not the section itself. */
