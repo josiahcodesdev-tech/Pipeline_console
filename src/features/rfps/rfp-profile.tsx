@@ -33,6 +33,7 @@ import {
   type PromptPreview,
 } from '@/services/concept-note'
 import { downloadProposalDocx } from '@/documents/proposal'
+import { downloadProposalWord } from '@/documents/proposal-word'
 import {
   draftIntoTemplate,
   renderDesignedProposal,
@@ -633,7 +634,14 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * until somebody asks for it — which is also what lets a correction to the
    * house design reach proposals written before the correction.
    */
-  async function openDesigned(proposal: Proposal) {
+  /**
+   * Rebuilds a saved proposal and either opens it or downloads it as Word.
+   *
+   * One function for both because the expensive half is the same: a saved draft
+   * stores its answers, not its markup, so the document does not exist until
+   * the template is fetched and filled. Only what happens to the result differs.
+   */
+  async function openDesigned(proposal: Proposal, as: 'open' | 'word' = 'open') {
     if (!proposal.design) return
     setOpeningProposal(proposal.id)
     try {
@@ -641,7 +649,8 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         title: rfp.title,
         client: rfp.org,
       })
-      openHtml(built.html)
+      if (as === 'word') downloadProposalWord(rfp, built.html)
+      else openHtml(built.html)
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -748,12 +757,24 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
               {!drafting && draftHtml && ' · saved to this RFP'}
             </span>
             {/* Opening is a decision, not a side effect of drafting. The
-                template carries its own Print / Save PDF button. */}
+                template carries its own Print / Save PDF button, which is the
+                route to a PDF; Word is the route to editing it. */}
             {!drafting && draftHtml && (
-              <Button variant="ghost" size="xs" onClick={() => openHtml(draftHtml)}>
-                <ExternalLinkIcon />
-                Open proposal
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => downloadProposalWord(rfp, draftHtml)}
+                  title="Download as a Word file you can edit. The layout linearises — open the proposal for the designed version."
+                >
+                  <DownloadIcon />
+                  Word
+                </Button>
+                <Button variant="ghost" size="xs" onClick={() => openHtml(draftHtml)}>
+                  <ExternalLinkIcon />
+                  Open proposal
+                </Button>
+              </div>
             )}
           </footer>
         </aside>
@@ -1135,19 +1156,33 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                           Open
                         </Button>
                       ) : proposal.design ? (
-                        /* Written into the designed template, so it opens as
-                           the document rather than downloading as Word — the
-                           layout is the point, and Word cannot carry it. The
-                           page has its own Print / Save PDF button. */
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          disabled={openingProposal === proposal.id}
-                          onClick={() => void openDesigned(proposal)}
-                        >
-                          <ExternalLinkIcon />
-                          {openingProposal === proposal.id ? 'Opening…' : 'Open'}
-                        </Button>
+                        /* Written into the designed template, so Open comes
+                           first: the layout is the point, and the page carries
+                           its own Print / Save PDF button. Word is offered
+                           beside it for the same reason it is offered on a
+                           finished draft — somebody has to edit this before it
+                           is sent, and not everybody edits HTML. */
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={openingProposal === proposal.id}
+                            onClick={() => void openDesigned(proposal, 'word')}
+                            title="Download as a Word file you can edit. The layout linearises — Open for the designed version."
+                          >
+                            <DownloadIcon />
+                            Word
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={openingProposal === proposal.id}
+                            onClick={() => void openDesigned(proposal)}
+                          >
+                            <ExternalLinkIcon />
+                            {openingProposal === proposal.id ? 'Opening…' : 'Open'}
+                          </Button>
+                        </>
                       ) : (
                         /* A draft from before the designed template, or a
                            pasted past proposal. Still Markdown, still Word. */
