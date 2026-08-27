@@ -25,16 +25,16 @@ import { QUALIFIED_STATUSES, type Lead } from '@/domain/types'
 /**
  * Each stage deepens toward Won, so progression reads left to right.
  *
- * The run starts at gold rather than gold-soft. Rendering it showed the first
- * stage's bar all but invisible: gold-soft is #fbf0dd and the track it sits on
- * is #f3f0eb, so a bar at 100% looked like an empty one. Every step here is
- * distinct against that track.
+ * The run deepens through the action blue rather than the old gold-to-brown
+ * ramp. The rule that shaped it still holds: the lightest step has to be
+ * distinct from the track it sits on (#eef1f7), or a bar at 100% looks like an
+ * empty one.
  */
 const STAGE_FILL = [
-  'bg-gold/60',
-  'bg-gold',
-  'bg-clay/70',
-  'bg-clay',
+  'bg-primary/25',
+  'bg-primary/45',
+  'bg-primary/65',
+  'bg-primary/85',
   'bg-primary',
 ] as const
 

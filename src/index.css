@@ -2,112 +2,130 @@
 @import 'tw-animate-css';
 
 /*
-  Palette taken from vantageafricaleaders.com (`css/style.css` `:root`) so the
-  console matches the public site: warm off-white ground, chocolate-brown
-  primary, gold accent.
+  Palette matched to the Vantage Africa admin modules (Staff Onboarding, HR,
+  Accounting), so a person moving between them is not moving between two houses:
+  slate-navy chrome, a light grey ground, white cards, one blue for action.
 
-  Two deliberate departures from the site's tokens, both for legibility at the
-  small type sizes a data console uses:
+  THIS REPLACED THE WARM BRAND PALETTE the console launched with -- cream ground,
+  chocolate primary, gold accent -- which was taken from the public website. The
+  website and the internal tools are two different audiences, and the console
+  belongs with the tools.
 
-  1. `--app-faint` is #7a6a58, not the site's #8a7966. The site value scores
-     3.86:1 on the page background — under the 4.5:1 WCAG floor for small text,
-     and this UI sets 10px uppercase labels in it.
-  2. Chart marks use the primary brown, not the accent gold. Gold scores
-     2.24:1 on a white card, which is unreadable as a data mark. See
-     src/lib/charts.ts.
+  Every token name is unchanged. `clay` and `gold` in particular still exist and
+  are still used across a hundred call sites; they now carry cool equivalents
+  rather than being deleted, so the whole surface moved without a rename.
+
+  Contrast was checked rather than eyeballed. Every foreground here clears 4.5:1
+  on the surface it sits on -- `faint` is #7c869a and not the lighter grey the
+  reference uses, because this UI sets 10px uppercase labels in it and the
+  reference does not.
 */
 :root {
   color-scheme: light;
 
   /*
-    Site radius convention: 16px cards, pill-shaped chips.
-    Raised from 12px so the console matches the softer card language it was
-    redesigned to. Everything derives from this one value — panels, buttons,
-    inputs, selects, dialogs — so the whole surface moves together rather than
-    drifting a component at a time.
+    Sharper than the 16px the warm palette used. The reference draws cards at
+    roughly 6px and buttons at 4px, and a soft radius on a grey ground reads as
+    a different product. Everything derives from this one value.
   */
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 
-  --background: #f8f5f0;
-  --foreground: #2c1810;
+  /* The page ground: cool light grey, not white, so white cards lift off it. */
+  --background: #f4f6fa;
+  --foreground: #3c4453;
 
   --card: #ffffff;
-  --card-foreground: #2c1810;
+  --card-foreground: #3c4453;
 
   --popover: #ffffff;
-  --popover-foreground: #2c1810;
+  --popover-foreground: #3c4453;
 
-  /* Vantage primary brown. */
-  --primary: #8b4513;
+  /* The one action colour. Buttons, links, focus rings, active nav. */
+  --primary: #4a7af0;
   --primary-foreground: #ffffff;
 
-  --secondary: #f3f0eb;
-  --secondary-foreground: #2c1810;
+  --secondary: #eef1f7;
+  --secondary-foreground: #3c4453;
 
-  --muted: #f3f0eb;
-  --muted-foreground: #6b5b47;
+  --muted: #eef1f7;
+  --muted-foreground: #6b7488;
 
   /* shadcn's `accent` is the hover/active surface, not the brand colour. */
-  --accent: #f3f0eb;
-  --accent-foreground: #2c1810;
+  --accent: #eef1f7;
+  --accent-foreground: #3c4453;
 
-  --destructive: #a32b1e;
+  --destructive: #e0483a;
   --destructive-foreground: #ffffff;
 
-  --border: #e8e1d9;
-  --input: #e8e1d9;
-  --ring: #8b4513;
-
-  --sidebar: #ffffff;
-  --sidebar-foreground: #2c1810;
-  --sidebar-primary: #8b4513;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f0eb;
-  --sidebar-accent-foreground: #2c1810;
-  --sidebar-border: #e8e1d9;
-  --sidebar-ring: #8b4513;
-
-  /* --- Brand extensions ------------------------------------------------ */
-  --app-surface-2: #f3f0eb;
-  --app-border-soft: #f0ebe3;
-  --app-faint: #7a6a58;
-  --app-brand-soft: #f7ece2;
-  --app-brand-dim: #a0522d;
-  --app-gold: #daa520;
-  --app-gold-soft: #fbf0dd;
-  --app-clay: #a0522d;
-  --app-dark-brown: #654321;
-
-  /* Status palette. The site defines none, so these are derived to sit in the
-     warm brown/gold world; every pair clears 4.5:1 for small text. */
-  --app-success: #2f6b45;
-  --app-success-soft: #e6f2ea;
-  --app-warning: #8a5a12;
-  --app-warning-soft: #fbf0dd;
-  --app-danger: #a32b1e;
-  --app-danger-soft: #fbeae7;
-  --app-info: #2f5d70;
-  --app-info-soft: #e8f0f3;
-  --app-neutral: #5f5243;
+  --border: #e2e7ef;
+  --input: #d8dfea;
+  --ring: #4a7af0;
 
   /*
-    Shadows are tinted with the brand brown, never black — a grey shadow on a
-    cream ground reads as dirt. Layered (a tight contact shadow plus a wider
-    ambient one) so cards feel like paper on a desk rather than stickers.
+    The chrome. Sidebar and top bar share this slate-navy, which is what makes
+    the shell read as one piece rather than a sidebar next to a header.
+  */
+  --sidebar: #2e3648;
+  --sidebar-foreground: #c3cad8;
+  --sidebar-primary: #4a7af0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3a4356;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a4356;
+  --sidebar-ring: #4a7af0;
+
+  /* --- Extensions ------------------------------------------------------ */
+  --app-surface-2: #eef1f7;
+  --app-border-soft: #edf0f5;
+  --app-faint: #7c869a;
+  --app-brand-soft: #e8effd;
+  --app-brand-dim: #3a63c8;
+  /*
+    `gold` was the warm accent and is now amber -- the colour the reference uses
+    for "Pending", which is the only place a warning hue appears on a card.
+  */
+  --app-gold: #e0a020;
+  --app-gold-soft: #fdf0d8;
+  /*
+    `clay` was the secondary brand brown. It marks eyebrow labels and section
+    kickers throughout the console, so it has to stay a real accent rather than
+    fold into the muted grey: a slate-blue, quieter than primary.
+  */
+  --app-clay: #5d6b85;
+  --app-dark-brown: #2e3648;
+
+  /* Status palette, taken from the stat row in the reference modules. */
+  --app-success: #1f9d63;
+  --app-success-soft: #e4f6ec;
+  --app-warning: #b57709;
+  --app-warning-soft: #fdf0d8;
+  --app-danger: #d8382a;
+  --app-danger-soft: #fdeae8;
+  --app-info: #17a2b8;
+  --app-info-soft: #e2f6f9;
+  --app-neutral: #6b7488;
+
+  /*
+    Shadows are tinted with the slate of the chrome, never pure black. Kept
+    tighter and flatter than the warm palette's: cards on a grey ground want a
+    hairline lift, not paper on a desk.
   */
   --app-shadow-sm:
-    0 1px 2px rgba(101, 67, 33, 0.05), 0 2px 6px rgba(139, 69, 19, 0.06);
+    0 1px 2px rgba(46, 54, 72, 0.06), 0 1px 3px rgba(46, 54, 72, 0.04);
   --app-shadow-md:
-    0 1px 2px rgba(101, 67, 33, 0.06), 0 6px 16px -4px rgba(139, 69, 19, 0.12);
+    0 1px 2px rgba(46, 54, 72, 0.06), 0 4px 12px -3px rgba(46, 54, 72, 0.10);
   --app-shadow-lg:
-    0 2px 4px rgba(101, 67, 33, 0.06), 0 14px 32px -8px rgba(139, 69, 19, 0.18);
+    0 2px 4px rgba(46, 54, 72, 0.06), 0 12px 28px -8px rgba(46, 54, 72, 0.16);
 
-  /* Single-hue chart ramp — see src/lib/charts.ts */
-  --chart-1: #8b4513;
-  --chart-2: #a0522d;
-  --chart-3: #cd853f;
-  --chart-4: #daa520;
-  --chart-5: #6b5b47;
+  /*
+    Chart ramp. Single-hue no longer: the reference draws each statistic in its
+    own colour, and the ramp follows so a chart and a stat row agree.
+  */
+  --chart-1: #4a7af0;
+  --chart-2: #17a2b8;
+  --chart-3: #1f9d63;
+  --chart-4: #e0a020;
+  --chart-5: #6b7488;
 }
 
 @theme inline {

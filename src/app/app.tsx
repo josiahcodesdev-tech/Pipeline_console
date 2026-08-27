@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { MenuIcon } from 'lucide-react'
+import { EllipsisVerticalIcon, MenuIcon } from 'lucide-react'
 import { Toaster } from '@/shared/ui/sonner'
 import { AppSidebar } from '@/app/app-sidebar'
 import { AuthProvider, useAuth } from '@/shared/hooks/use-auth'
@@ -115,7 +115,7 @@ function Console() {
           title="Show navigation"
           // Fixed rather than in the flow: with the sidebar gone there is no
           // column left to sit in, and `main` reserves the space via pl-12.
-          className="fixed left-2 top-4 z-30 cursor-pointer rounded-lg border border-border bg-card p-2 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+          className="fixed left-2 top-3 z-40 cursor-pointer rounded-md bg-sidebar-accent p-2 text-sidebar-foreground transition-colors hover:text-white"
         >
           <MenuIcon className="size-4" />
         </button>
@@ -126,12 +126,30 @@ function Console() {
           onCollapse={() => toggleSidebar(true)}
         />
       )}
-      {/* Full width by design — this is a data console, and the tables want
-          every pixel. `min-w-0` lets the flex child shrink below its content
-          width, which is what stops a wide table pushing the *page* sideways;
-          the table then scrolls inside its own container instead.
-          No top padding: the sticky ViewHeader supplies its own, so it can sit
-          flush against the viewport top once the page scrolls. */}
+      {/* The column beside the rail: a chrome bar, then the page under it.
+          `min-w-0` lets the flex child shrink below its content width, which is
+          what stops a wide table pushing the *page* sideways — the table then
+          scrolls inside its own container instead. */}
+      <div className="flex w-full min-w-0 flex-1 flex-col">
+        {/*
+          The top bar.
+
+          Same slate as the rail, so the two read as one piece of chrome
+          wrapping the page rather than a dark sidebar next to a light header.
+          It carries almost nothing on purpose: this console is one module, and
+          the space exists to say which one you are in and to get out of it.
+        */}
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-end gap-4 bg-sidebar px-5">
+          <span className="text-[13px] text-sidebar-foreground">Modules</span>
+          <button
+            type="button"
+            aria-label="More"
+            className="grid size-8 cursor-pointer place-items-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-white"
+          >
+            <EllipsisVerticalIcon className="size-4" />
+          </button>
+        </header>
+
       <main
         className={`w-full min-w-0 flex-1 pb-10 ${
           // Room for the floating hamburger, which would otherwise sit on top
@@ -201,6 +219,7 @@ function Console() {
           )}
         </div>
       </main>
+      </div>
     </div>
   )
 }

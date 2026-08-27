@@ -1,8 +1,23 @@
-import { useMemo } from 'react'
-import { ChevronRightIcon, ExternalLinkIcon } from 'lucide-react'
-import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
+import { useMemo, useState } from 'react'
+import {
+  ChevronRightIcon,
+  ExternalLinkIcon,
+  GaugeIcon,
+  ListIcon,
+  PlusIcon,
+  XIcon,
+} from 'lucide-react'
+import {
+  EmptyState,
+  Panel,
+  PanelHeader,
+  StatCard,
+  ViewHeader,
+} from '@/shared/components/panel'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import { type MeterTone } from '@/features/dashboard/metric-marks'
-import { Bars, HeroStat, RailHeading, Ring } from './panels'
+import { Bars, RailHeading, Ring } from './panels'
 import { SubjectIcon } from '@/features/dashboard/subject-icon'
 import { PipelineBar } from '@/features/dashboard/pipeline-bar'
 import { RfpStatusSelect } from '@/shared/components/status-select'
@@ -37,7 +52,7 @@ import {
   upcomingRfpDeadlines,
 } from '@/domain/metrics'
 import { cn } from '@/shared/utils'
-import type { Lead, LeadStatus } from '@/domain/types'
+import { RFP_STATUSES, type Lead, type LeadStatus, type RfpStatus } from '@/domain/types'
 import type { ViewId } from '@/app/nav'
 import { NotificationMenu } from './notification-menu'
 
@@ -54,13 +69,32 @@ function disciplineTone(pct: number): MeterTone {
   return 'bad'
 }
 
-/** "View all" affordance shared by the panels, so both behave the same way. */
-function PanelLink({ label, onClick }: { label: string; onClick: () => void }) {
+/**
+ * "View all" affordance shared by the panels, so both behave the same way.
+ *
+ * `onDark` is for the band at the head of a list card, where the primary blue
+ * on slate is close enough to fail contrast — white at 80% reads cleanly and
+ * still recedes behind the heading beside it.
+ */
+function PanelLink({
+  label,
+  onClick,
+  onDark = false,
+}: {
+  label: string
+  onClick: () => void
+  onDark?: boolean
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex cursor-pointer items-center gap-0.5 rounded text-[11px] font-medium text-primary transition-colors hover:text-clay focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className={cn(
+        'inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        onDark
+          ? 'text-white/80 hover:text-white'
+          : 'text-primary hover:text-clay',
+      )}
     >
       {label}
       <ChevronRightIcon className="size-3" aria-hidden />
@@ -175,21 +209,264 @@ export function DashboardView({
     [activities],
   )
 
+  /**
+   * The deadline list's filters.
+   *
+   * Applied as they are typed rather than behind an Apply button. The reference
+   * module has one because its list comes from the server; this list is already
+   * in memory, and a button that makes an instant thing wait for a click is a
+   * button that only ever costs a click.
+   */
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'all' | RfpStatus>('all')
+  const [window, setWindow] = useState(7)
+
+  const windowRfps = useMemo(
+    () => upcomingRfpDeadlines(rfps, window),
+    [rfps, window],
+  )
+
+  const filteredRfps = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return windowRfps.filter((rfp) => {
+      if (status !== 'all' && rfp.status !== status) return false
+      if (!needle) return true
+      return (
+        rfp.title.toLowerCase().includes(needle) ||
+        rfp.org.toLowerCase().includes(needle)
+      )
+    })
+  }, [windowRfps, search, status])
+
+  const filtered = search.trim() !== '' || status !== 'all' || window !== 7
+
   return (
     <>
       <ViewHeader
-        eyebrow="Today"
-        title="Dashboard"
-        description="See what is moving, what needs attention, and where the team can help today."
+        icon={<GaugeIcon />}
+        title="Performance Dashboard"
+        description="What is moving, what needs attention, and where the team can help today."
         meta={
           <>
-            <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground shadow-brand-sm">
+            <div className="rounded-md border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground">
               {formatToday()}
             </div>
             <NotificationMenu rfps={rfps} onOpen={onOpenProfile} />
           </>
         }
+        action={
+          <Button onClick={() => onNavigate('rfps')} title="Go to the tracker, where a tender is added">
+            <PlusIcon />
+            New RFP
+          </Button>
+        }
       />
+
+      {/*
+        The stat row.
+
+        Six figures, each its own colour, each opening the records behind it.
+        A statistic nobody can click is a poster, and every one of these stands
+        for a list somebody will want the moment the number surprises them.
+      */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatCard
+          value={activeRfps}
+          label="Active RFPs"
+          tone="primary"
+          onClick={() => onNavigate('rfps')}
+          title={
+            can.seeEveryone
+              ? 'Distinct across the team · Watching, Preparing or Submitted'
+              : 'In your tracker · Watching, Preparing or Submitted'
+          }
+        />
+        <StatCard
+          value={beingBid}
+          label="Being bid"
+          tone="info"
+          onClick={() => onNavigate('pipeline')}
+          title="Taken on as live proposals"
+        />
+        <StatCard
+          value={qualified}
+          label="Qualified this week"
+          tone="success"
+          onClick={() => onNavigate('leads')}
+          title="Leads reaching Qualified or beyond"
+        />
+        <StatCard
+          value={dueTasks.length}
+          label="Tasks due"
+          tone={dueTasks.length > 0 ? 'warning' : 'default'}
+          onClick={() => onNavigate('tasks')}
+          title="Due today or already overdue"
+        />
+        <StatCard
+          value={overdueCount}
+          label="Overdue tenders"
+          tone={overdueCount > 0 ? 'danger' : 'default'}
+          onClick={() => onNavigate('rfps')}
+          title="Deadline already passed"
+        />
+        <StatCard
+          value={loggedToday}
+          label="Logged today"
+          tone="primary"
+          onClick={() => onNavigate('activity')}
+          title="Calls, emails and meetings recorded today"
+        />
+      </div>
+
+      {/*
+        The filter bar, over the deadline list below it.
+
+        It filters that one list and says so, rather than sitting at the top of
+        the page implying it governs everything under it.
+      */}
+      <div className="mb-5 rounded-lg border border-border bg-card px-4 py-3.5 shadow-brand-sm">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11.5px] text-muted-foreground">Search deadlines</span>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Title or organization…"
+              className="w-full"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11.5px] text-muted-foreground">Status</span>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as 'all' | RfpStatus)}
+              className="h-9 w-full cursor-pointer rounded-md border border-input bg-card px-3 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="all">All statuses</option>
+              {RFP_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11.5px] text-muted-foreground">Closing within</span>
+            <select
+              value={window}
+              onChange={(event) => setWindow(Number(event.target.value))}
+              className="h-9 w-full cursor-pointer rounded-md border border-input bg-card px-3 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value={7}>7 days</option>
+              <option value={14}>14 days</option>
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
+            </select>
+          </label>
+          <div className="flex items-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearch('')
+                setStatus('all')
+                setWindow(7)
+              }}
+              disabled={!filtered}
+              className="w-full md:w-auto"
+            >
+              <XIcon />
+              Clear
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Panel bare>
+        <PanelHeader
+          icon={<ListIcon />}
+          title="RFP deadlines"
+          count={filteredRfps.length}
+          action={
+            <div className="flex shrink-0 items-center gap-3">
+              {overdueCount > 0 && (
+                <span className="rounded-full bg-danger px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                  {overdueCount} overdue
+                </span>
+              )}
+              <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} onDark />
+            </div>
+          }
+        />
+        {filteredRfps.length === 0 ? (
+          <EmptyState
+            icon={<SubjectIcon name="deadlines" className="size-6" />}
+            hint={
+              filtered
+                ? 'No tender matches these filters. Clear them to see everything closing soon.'
+                : 'Tenders closing within the window appear here, soonest first — along with any whose deadline has already passed.'
+            }
+          >
+            {filtered ? 'Nothing matches' : 'No deadlines in the next 7 days'}
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Deadline</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-10 text-right">Open</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRfps.map((rfp) => (
+                <TableRow key={rfp.id}>
+                  <TableCell className="max-w-[380px] font-medium">
+                    {rfp.link ? (
+                      <a
+                        href={safeExternalUrl(rfp.link)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group inline-flex items-start gap-1 text-primary hover:underline"
+                        title="Open the original notice in a new tab"
+                      >
+                        <span>{rfp.title}</span>
+                        <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                      </a>
+                    ) : (
+                      rfp.title
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rfp.org || '—'}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <DeadlineCell deadline={rfp.deadline} />
+                  </TableCell>
+                  <TableCell>
+                    <RfpStatusSelect
+                      value={rfp.status}
+                      onChange={(next) => setRfpStatus(rfp.id, next)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => onOpenProfile(rfp.id)}
+                      aria-label={`Open ${rfp.title}`}
+                      title="Open this RFP's record"
+                      className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <ChevronRightIcon className="size-4" aria-hidden />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Panel>
 
       {/* Two columns from xl: the working page, and a summary rail that answers
           "how are we doing" without being read in sequence. Below xl the rail
@@ -197,32 +474,6 @@ export function DashboardView({
           act first and review second. */}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px]">
         <div className="min-w-0">
-          <div className="mb-5 grid gap-3 sm:grid-cols-3">
-            <HeroStat
-              label="Active RFPs"
-              value={activeRfps}
-              hint={can.seeEveryone
-                ? 'Distinct across the team · Watching, Preparing or Submitted'
-                : 'In your tracker · Watching, Preparing or Submitted'}
-              subject="rfps"
-              onClick={() => onNavigate('rfps')}
-              featured
-            />
-            <HeroStat
-              label="Being bid"
-              value={beingBid}
-              hint="Taken on as live proposals"
-              subject="pipeline"
-              onClick={() => onNavigate('pipeline')}
-            />
-            <HeroStat
-              label="Qualified this week"
-              value={qualified}
-              hint="Leads reaching Qualified or beyond"
-              subject="qualified"
-              onClick={() => onNavigate('leads')}
-            />
-          </div>
 
           <PipelineBar leads={leads} onSelectStage={onOpenLeadStage} />
 
@@ -342,10 +593,13 @@ export function DashboardView({
           tender titles and five columns; in a 1fr column beside the rail
           the titles wrapped to three lines while half the page sat empty.
           A table this wide is not a sidebar companion. */}
-      <Panel
-        title="Due today & overdue"
-        action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} />}
-      >
+      <Panel bare>
+        <PanelHeader
+          icon={<ListIcon />}
+          title="Due today & overdue"
+          count={dueTasks.length}
+          action={<PanelLink label="All tasks" onClick={() => onNavigate('tasks')} onDark />}
+        />
         {dueTasks.length === 0 ? (
           <EmptyState
             icon={<SubjectIcon name="tasks" className="size-6" />}
@@ -354,99 +608,20 @@ export function DashboardView({
             You&rsquo;re all caught up
           </EmptyState>
         ) : (
-          dueTasks.map((task) => (
-            <TaskRow
+          <div className="px-5 py-1">
+            {dueTasks.map((task) => (
+              <TaskRow
               key={task.id}
               task={task}
               lead={task.linkedLead ? leadsById.get(task.linkedLead) : undefined}
               overdue
-              onToggle={(id, done) => void toggleTask(id, done)}
-            />
-          ))
+                onToggle={(id, done) => void toggleTask(id, done)}
+              />
+            ))}
+          </div>
         )}
       </Panel>
 
-      <Panel
-        title="RFP deadlines"
-        action={
-          <div className="flex items-center gap-3">
-            {overdueCount > 0 ? (
-              <span className="text-[11px] font-semibold text-danger">
-                {overdueCount} overdue
-              </span>
-            ) : (
-              <span className="text-[11px] text-faint">Next 7 days</span>
-            )}
-            <PanelLink label="All RFPs" onClick={() => onNavigate('rfps')} />
-          </div>
-        }
-      >
-        {soonRfps.length === 0 ? (
-          <EmptyState
-            icon={<SubjectIcon name="deadlines" className="size-6" />}
-            hint="Tenders closing within a week appear here, soonest first — along with any whose deadline has already passed."
-          >
-            No deadlines in the next 7 days
-          </EmptyState>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-10 text-right">Open</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {soonRfps.map((rfp) => (
-                <TableRow key={rfp.id}>
-                  <TableCell className="max-w-[380px] font-medium">
-                    {rfp.link ? (
-                      <a
-                        href={safeExternalUrl(rfp.link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group inline-flex items-start gap-1 text-primary hover:underline"
-                        title="Open the original notice in a new tab"
-                      >
-                        <span>{rfp.title}</span>
-                        <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
-                      </a>
-                    ) : (
-                      rfp.title
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {rfp.org || '—'}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <DeadlineCell deadline={rfp.deadline} />
-                  </TableCell>
-                  <TableCell>
-                    <RfpStatusSelect
-                      value={rfp.status}
-                      onChange={(next) => setRfpStatus(rfp.id, next)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => onOpenProfile(rfp.id)}
-                      aria-label={`Open ${rfp.title}`}
-                      title="Open this RFP's record"
-                      className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <ChevronRightIcon className="size-4" aria-hidden />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Panel>
     </>
   )
 }
