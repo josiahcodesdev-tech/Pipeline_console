@@ -329,7 +329,11 @@ export function RfpsView({
       } else {
         toast.success(
           `${outcome.added} new opportunit${outcome.added === 1 ? 'y' : 'ies'} added` +
-            (outcome.alreadyHave ? ` · ${outcome.alreadyHave} already tracked` : ''),
+            (outcome.alreadyHave ? ` · ${outcome.alreadyHave} already tracked` : '') +
+            // Said in the same breath as what was added, because it is the
+            // same run doing both and a tracker that shrank without saying so
+            // reads as a bug.
+            (outcome.pruned ? ` · ${outcome.pruned} expired removed` : ''),
         )
       }
       // Whole sources, not rows — one entry here means one site could not be

@@ -25,6 +25,15 @@ export interface SyncReport {
   added: number
   /** Rows already held, left untouched so local edits survive. */
   alreadyHave: number
+  /**
+   * Expired tenders nobody had touched, removed by the same run.
+   *
+   * The counterpart to `added`. The sync used to only ever grow a tracker, and
+   * reporting what it took away is what keeps that visible — a prune that
+   * starts removing more than it should should be noticed here, not by
+   * somebody finding their tracker empty.
+   */
+  pruned: number
   /** Sources that failed or are unconfigured, as readable one-liners. */
   skipped: string[]
   /** Per-source detail, for the status panel. */
@@ -64,6 +73,7 @@ export async function runOpportunitySync(): Promise<SyncReport> {
     fetched: data.fetched ?? 0,
     added: data.added ?? 0,
     alreadyHave: data.alreadyHave ?? 0,
+    pruned: data.pruned ?? 0,
     skipped: data.skipped ?? [],
     sources: data.sources ?? [],
   }

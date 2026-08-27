@@ -48,3 +48,6 @@ supabase/.env
 venv/
 __pycache__/
 *.pyc
+
+# Snapshots taken before an irreversible delete. Real tender data — never commit.
+.backups/

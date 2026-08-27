@@ -188,6 +188,8 @@ export interface SyncOutcome {
   added: number
   /** Rows already held, left untouched so local edits survive. */
   alreadyHave: number
+  /** Expired tenders nobody had touched, removed by the same run. */
+  pruned: number
   /** Rows the feed returned that could not be mapped. */
   skipped: string[]
 }
@@ -668,7 +670,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     // Belt and braces alongside the hidden button: nothing should reach the
     // sources while the flag is off, including a stale tab or a keyboard path.
     if (!OPPORTUNITY_SYNC) {
-      return { fetched: 0, added: 0, alreadyHave: 0, skipped: [] }
+      return { fetched: 0, added: 0, alreadyHave: 0, pruned: 0, skipped: [] }
     }
 
     // The Edge Function fetches every source and writes the rows itself, so
@@ -690,6 +692,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       fetched: report.fetched,
       added: report.added,
       alreadyHave: report.alreadyHave,
+      pruned: report.pruned,
       skipped: report.skipped,
     }
   }, [refresh])

@@ -251,6 +251,50 @@ async function retag(
  * Returning null means "not allowed" — deliberately indistinguishable from a
  * bad token, so this cannot be used to probe for valid keys.
  */
+/**
+ * How long an expired tender stays after its deadline.
+ *
+ * Not zero. A bid team reads the week's closures to check nothing was missed,
+ * and deleting a tender the morning after it shut takes that away. Seven days
+ * is the window in which somebody might still look; past it, an untouched
+ * expired notice is landfill nobody will ever open.
+ */
+const EXPIRY_GRACE_DAYS = 7
+
+/**
+ * Removes expired tenders nobody touched.
+ *
+ * WHY THIS BELONGS TO THE SYNC. The sync is what put them there. It adds every
+ * notice matching the capability map to every member's tracker, most of which
+ * are never opened, and without a counterpart the tracker only grows -- 2,256
+ * rows by the time this was written, of which 691 had already closed. A source
+ * of rows with no sink is a source of noise.
+ *
+ * WHERE THE RULE ACTUALLY LIVES. In `prune_expired_rfps`, migration 0042, and
+ * nowhere else. It is six `not exists` subqueries that PostgREST cannot express
+ * as a filter, and a paraphrase of them here would drift from the real one
+ * inside a release — the same reason 0027 deleted by explicit id rather than by
+ * restating its rule in SQL. Doing it in one statement server-side also closes
+ * the gap a fetch-then-delete would leave, where a member could claim a tender
+ * in the moment between the two.
+ *
+ * WHY IT IS SAFE TO DELETE RATHER THAN HIDE. The connectors filter to open
+ * notices, so a pruned tender is not re-added tomorrow by the very run that
+ * deleted it.
+ *
+ * Failures are reported, never thrown. A tidy-up that takes the whole morning
+ * sync down with it has its priorities backwards.
+ */
+async function pruneExpired(
+  admin: ReturnType<typeof createClient>,
+): Promise<{ pruned: number; problem: string | null }> {
+  const { data, error } = await admin.rpc("prune_expired_rfps", {
+    grace_days: EXPIRY_GRACE_DAYS,
+  })
+  if (error) return { pruned: 0, problem: error.message }
+  return { pruned: typeof data === "number" ? data : 0, problem: null }
+}
+
 async function requireCaller(
   request: Request,
   admin: ReturnType<typeof createClient>,
@@ -406,6 +450,11 @@ Deno.serve(async (request: Request) => {
       }
     }
 
+    // After the insert, not before: a notice that closed this morning and is
+    // still on a feed should be added and then left alone, rather than being
+    // pruned by the same run that fetched it.
+    const { pruned, problem: pruneProblem } = await pruneExpired(admin)
+
     const fetched = notices.length
     // A button click reports newly visible tenders, not physical copies written
     // across the team. The scheduled service call has no user and reports the
@@ -423,6 +472,11 @@ Deno.serve(async (request: Request) => {
         // capability map. Reported so a run that added nothing but re-tagged
         // dozens of rows does not read as a no-op.
         retagged,
+        // Expired tenders nobody had touched, removed. Reported so a run that
+        // added nothing still shows it did something, and so a prune that
+        // starts deleting more than it should is visible before somebody
+        // notices their tracker is empty.
+        pruned,
         // Failures only. A source that is deliberately unconfigured — ReliefWeb
         // without an appname — is a setting, not a fault, and warning about it
         // on every single run would train people to ignore the warning. It is
@@ -430,7 +484,8 @@ Deno.serve(async (request: Request) => {
         skipped: reports
           .filter((report) => report.status === "failed")
           .map((report) => `${report.name}: ${report.detail ?? "failed"}`)
-          .concat(failedUsers.length ? [`Could not update ${failedUsers.length} member account(s).`] : []),
+          .concat(failedUsers.length ? [`Could not update ${failedUsers.length} member account(s).`] : [])
+          .concat(pruneProblem ? [`Could not prune expired tenders: ${pruneProblem}`] : []),
         users: userIds.length,
         sources: reports,
         perUser,
