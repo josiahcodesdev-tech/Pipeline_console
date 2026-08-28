@@ -149,6 +149,61 @@ export async function updateProposalDesign(
 }
 
 /**
+ * Stores a freely-edited proposal and points the row at it.
+ *
+ * WHY STORAGE AND NOT THE ROW. A finished proposal is a few megabytes with its
+ * images inlined, and `fetchAll` reads every proposal on every load of the
+ * console. Put here, one edited draft would be carried into every dashboard by
+ * everyone who can see it, forever. In the bucket it is fetched by the one
+ * person who opens it, at the moment they open it.
+ *
+ * The path is the tender owner's, matching `uploadSubmittedProposal` and for
+ * the same reason: the bucket's policies compare the first segment to
+ * `auth.uid()`, so a file filed under an admin drafting on a member's bid is a
+ * file that member cannot open. Migration 0029 is what lets the admin write
+ * there.
+ *
+ * Upserted, because the object is the proposal's current text rather than a
+ * new artefact each time — a save is a correction, not a version. The row's
+ * `version_no` is where history belongs if it is ever wanted.
+ */
+export async function saveEditedProposal(
+  proposal: Proposal,
+  design: ProposalDesign,
+  html: string,
+  content: string,
+): Promise<Proposal> {
+  const userId = await proposalOwner(proposal.rfpId)
+  const path = `${userId}/${proposal.rfpId}/${proposal.id}.html`
+
+  const upload = await supabase.storage
+    .from(PROPOSAL_BUCKET)
+    .upload(path, new Blob([html], { type: 'text/html' }), {
+      contentType: 'text/html',
+      upsert: true,
+    })
+  if (upload.error) throw new Error(`Could not save the proposal: ${upload.error.message}`)
+
+  // Written after the upload, never before. The row is what decides whether the
+  // stored document is used, so pointing at an object that failed to arrive
+  // would serve a proposal that does not exist.
+  return updateProposalDesign(proposal.id, { ...design, editedPath: path }, content)
+}
+
+/**
+ * Reads back a proposal that was edited freely.
+ *
+ * Downloaded rather than fetched through a signed URL: the document is handed
+ * straight to an iframe and to the Word export, and a URL would put a second
+ * round trip and an expiry between the two.
+ */
+export async function fetchEditedProposal(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(PROPOSAL_BUCKET).download(path)
+  if (error) throw new Error(`Could not open the saved proposal: ${error.message}`)
+  return data.text()
+}
+
+/**
  * Uploads the file that actually went to the buyer.
  *
  * The object path starts with the *tender owner's* uid, not the uploader's.

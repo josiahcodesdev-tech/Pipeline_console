@@ -76,6 +76,12 @@ function toProposalDesign(value: unknown): ProposalDesign | null {
     values: design.values as Record<string, string>,
     unfilled: Array.isArray(design.unfilled) ? design.unfilled : [],
     failures: Array.isArray(design.failures) ? design.failures : [],
+    // Absent on every proposal that has never been opened in the free editor,
+    // which is most of them. Guarded like the rest: a non-string here would
+    // otherwise reach the storage client as an object path.
+    ...(typeof design.editedPath === 'string' && design.editedPath
+      ? { editedPath: design.editedPath }
+      : {}),
   }
 }
 

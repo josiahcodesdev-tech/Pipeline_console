@@ -427,6 +427,24 @@ export interface ProposalDesign {
   unfilled: string[]
   /** Sections the drafter could not write, named so they can be retried. */
   failures: string[]
+  /**
+   * Storage path of a document that was edited freely, if one exists.
+   *
+   * Everything above describes a proposal that can be *rebuilt*: answers keyed
+   * by slot, poured into whichever template stands today. Free editing breaks
+   * that, and deliberately — a person who deletes a section, adds a paragraph
+   * or rewrites a heading has made a document the slots cannot describe, and
+   * there is nowhere in `values` for those changes to live.
+   *
+   * So once this is set it wins, and the stored document is served verbatim.
+   * The cost is real and worth stating: an edited proposal stops inheriting
+   * corrections to the house template. It is now its own document.
+   *
+   * The markup lives in the `proposals` bucket rather than this column because
+   * a finished proposal is megabytes of inlined images, and every proposal row
+   * is read on every load of the console.
+   */
+  editedPath?: string
 }
 
 /**

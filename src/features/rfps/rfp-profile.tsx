@@ -24,7 +24,7 @@ import { useAuth } from '@/shared/hooks/use-auth'
 import { useMemberNames } from '@/shared/hooks/use-member-names'
 import { TenderAccess } from './tender-access'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { proposalFileUrl } from '@/data/proposals'
+import { proposalFileUrl, fetchEditedProposal } from '@/data/proposals'
 import { PROPOSAL_DRAFTING } from '@/app/features'
 import {
   MAX_EXEMPLARS,
@@ -711,10 +711,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     if (!proposal.design) return
     setOpeningProposal(proposal.id)
     try {
-      const built = await renderDesignedProposal(proposal.design, {
-        title: rfp.title,
-        client: rfp.org,
-      })
+      // A proposal that has been edited freely is served as it was left.
+      // Rebuilding it would silently undo every structural change — the added
+      // paragraphs, the deleted sections — because the slots cannot describe
+      // them. The cost is that it no longer inherits template corrections; see
+      // `editedPath` on ProposalDesign.
+      const built = proposal.design.editedPath
+        ? { html: await fetchEditedProposal(proposal.design.editedPath) }
+        : await renderDesignedProposal(proposal.design, {
+            title: rfp.title,
+            client: rfp.org,
+          })
       if (as === 'word') downloadProposalWord(rfp, built.html)
       else if (as === 'edit') setEditingProposal({ proposal, html: built.html })
       else openHtml(built.html)
@@ -867,8 +874,8 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           proposal={editingProposal.proposal}
           html={editingProposal.html}
           onClose={() => setEditingProposal(null)}
-          onSave={(design, content) =>
-            saveProposalEdit(editingProposal.proposal.id, design, content)
+          onSave={(design, html, content) =>
+            saveProposalEdit(editingProposal.proposal, design, html, content)
           }
         />
       )}

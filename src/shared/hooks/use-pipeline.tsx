@@ -15,7 +15,7 @@ import { fetchSettings, saveSettings as dbSaveSettings } from '@/data/settings'
 import {
   deleteProposal,
   saveDraftProposal as dbSaveDraftProposal,
-  updateProposalDesign as dbUpdateProposalDesign,
+  saveEditedProposal as dbSaveEditedProposal,
   savePastedProposal,
   setProposalExemplar as dbSetProposalExemplar,
   uploadSubmittedProposal,
@@ -265,8 +265,19 @@ interface PipelineValue {
     content: string,
     design?: ProposalDesign | null,
   ) => Promise<void>
-  /** Saves an edited designed proposal — its answers and its readable text. */
-  saveProposalEdit: (id: string, design: ProposalDesign, content: string) => Promise<void>
+  /**
+   * Saves a designed proposal that was edited by hand.
+   *
+   * Takes the document as well as the answers. Free editing can add a
+   * paragraph or delete a section, and neither has anywhere to live in
+   * `values` — so the markup is what is stored, and what is served back.
+   */
+  saveProposalEdit: (
+    proposal: Proposal,
+    design: ProposalDesign,
+    html: string,
+    content: string,
+  ) => Promise<void>
   uploadProposal: (rfpId: string, file: File, notes: string, content?: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
@@ -857,8 +868,16 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   )
 
   const saveProposalEdit = useCallback(
-    async (id: string, design: ProposalDesign, content: string) => {
-      const saved = await dbUpdateProposalDesign(id, design, content)
+    async (
+      proposal: Proposal,
+      design: ProposalDesign,
+      html: string,
+      content: string,
+    ) => {
+      // The whole document travels now, not just the answers. Free editing can
+      // add a paragraph or remove a section, and there is nowhere in `values`
+      // for either to live — so the markup is stored and served back verbatim.
+      const saved = await dbSaveEditedProposal(proposal, design, html, content)
       setProposals((current) =>
         current.map((proposal) => (proposal.id === saved.id ? saved : proposal)),
       )
