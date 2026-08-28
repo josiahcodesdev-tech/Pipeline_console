@@ -42,11 +42,83 @@ export interface PipelineSnapshot {
 }
 
 /**
+ * Thrown when the server refuses the session token.
+ *
+ * A class rather than a flag on the result, because this has to travel out past
+ * `loadTable`'s own catch and past every caller that treats a failure as "lose
+ * that table, keep the rest". This one is not survivable that way: there is no
+ * partial dataset to keep.
+ */
+export class SessionRejected extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SessionRejected'
+  }
+}
+
+/**
  * PostgREST's code for "table not in the schema cache" — in practice, a
  * migration that has not been run yet.
  */
 function isMissingTable(error: { code?: string } | null): boolean {
   return error?.code === 'PGRST205' || error?.code === '42P01'
+}
+
+/**
+ * The server has refused the session token itself.
+ *
+ * Distinct from an expired one, which `autoRefreshToken` handles without anyone
+ * noticing. This is a token the server will not accept at all — the commonest
+ * cause being clock skew, where the machine that minted it and the machine
+ * validating it disagree about the time and the token reads as issued in the
+ * future.
+ *
+ * It matters because it is unrecoverable from inside the app and looks like a
+ * data problem from outside it. Every table fails at once, each reporting
+ * "Could not load X: JWT issued at future", and no amount of reloading helps:
+ * the same rejected token is in local storage and goes back out with the next
+ * request. Only a fresh sign-in clears it.
+ *
+ * Matched on the message as well as the code, because PostgREST is not
+ * consistent about which it uses for JWT faults across versions, and getting
+ * this wrong leaves somebody stuck at a dead end.
+ */
+function isSessionRejected(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  // PGRST301 is PostgREST's own "JWT invalid". 42501 is NOT here on purpose:
+  // that is `insufficient privilege`, an ordinary row-level-security refusal,
+  // and signing somebody out because a policy declined them one table would be
+  // a worse failure than the one this function exists to fix.
+  if (error.code === 'PGRST301') return true
+
+  const message = (error.message ?? '').toLowerCase()
+  // `jws` as well as `jwt`: a rotated signing key comes back as
+  // "JWSError JWSInvalidSignature", which mentions neither the word JWT nor a
+  // code, and is exactly the case where a fresh sign-in is the only fix.
+  if (!message.includes('jwt') && !message.includes('jws')) return false
+  return (
+    message.includes('future') ||
+    message.includes('invalid') ||
+    message.includes('expired') ||
+    message.includes('malformed') ||
+    message.includes('signature')
+  )
+}
+
+/**
+ * What to tell somebody whose session has been refused.
+ *
+ * One sentence on what happened and one on what to do. The server's own wording
+ * is kept at the end because it is the only part that distinguishes a clock
+ * problem from a rotated signing key, and whoever ends up debugging this will
+ * want it.
+ */
+function sessionRejectedMessage(detail: string): string {
+  return (
+    'Your sign-in is no longer valid, so nothing could be loaded. ' +
+    'Sign out and sign in again to fix it. ' +
+    `(The server said: ${detail}.)`
+  )
 }
 
 /**
@@ -66,6 +138,12 @@ async function loadTable<Row, T>(
   try {
     const result = await query
     if (result.error) {
+      if (isSessionRejected(result.error)) {
+        // Not per-table: every table is about to fail the same way, and the
+        // reader needs the one instruction that fixes all of them rather than
+        // nine copies of the same sentence.
+        throw new SessionRejected(sessionRejectedMessage(result.error.message))
+      }
       return {
         rows: [],
         error: isMissingTable(result.error)
@@ -75,6 +153,7 @@ async function loadTable<Row, T>(
     }
     return { rows: (result.data ?? []).map(map), error: null }
   } catch (cause) {
+    if (cause instanceof SessionRejected) throw cause
     return {
       rows: [],
       error: `Could not load ${name}: ${cause instanceof Error ? cause.message : String(cause)}`,

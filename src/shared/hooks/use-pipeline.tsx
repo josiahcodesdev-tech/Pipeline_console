@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { toast } from 'sonner'
-import { fetchAll } from '@/data/snapshot'
+import { fetchAll, SessionRejected } from '@/data/snapshot'
 import { supabase } from '@/data/client'
 import { fetchSettings, saveSettings as dbSaveSettings } from '@/data/settings'
 import {
@@ -462,7 +462,20 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         error: nextError,
       })
     } catch (cause) {
-      setError(message(cause))
+      // A session the server refuses is not a load failure to sit and look at.
+      // The same rejected token goes back out with every retry, so reloading
+      // changes nothing — the only exit is a fresh sign-in. Clearing it here
+      // drops the reader on the sign-in screen, which is both the fix and the
+      // clearest possible statement of what went wrong.
+      if (cause instanceof SessionRejected) {
+        setError(cause.message)
+        // Deliberately not awaited into the same failure path: if signing out
+        // cannot reach the server either, the message above still stands and
+        // is still the right instruction.
+        void supabase.auth.signOut().catch(() => {})
+      } else {
+        setError(message(cause))
+      }
     } finally {
       setLoading(false)
     }
