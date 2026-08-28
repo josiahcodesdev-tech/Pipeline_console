@@ -27,6 +27,14 @@ export interface TemplateEntry {
   config: string | null
   /** Title, headings and configured matching terms extracted at build time. */
   matchText?: string
+  /**
+   * Whether the design has any words to replace. Computed at build time; see
+   * `hasFillableText` in vite.config.ts.
+   *
+   * Optional so a manifest built before this existed reads as fillable rather
+   * than leaving nothing selectable at all.
+   */
+  fillable?: boolean
 }
 
 /** A template with its markup and its reading rules, ready to fill. */
@@ -155,11 +163,23 @@ export async function recommendProposalTemplate(
     )
   }
 
+  // Designs with nothing to replace, dropped before they are ranked.
+  //
+  // The loop below already refuses a template with no slots, so this is not
+  // what makes the choice correct — it is what makes it cheap. One of these is
+  // a proposal rasterised into eighteen page images: ten megabytes fetched and
+  // parsed to discover it holds no words, on the way to picking something else.
+  //
+  // `!== false` rather than `=== true`, so a manifest built before the flag
+  // existed leaves every template in the running rather than none.
+  const usable = entries.filter((entry) => entry.fillable !== false)
+  const candidates = usable.length > 0 ? usable : entries
+
   const wanted = new Set(tokens(assignment))
   const ranked =
-    entries.length === 1
-      ? [{ entry: entries[0], score: 0, fallback: false, matchedTerms: [] as string[] }]
-      : entries
+    candidates.length === 1
+      ? [{ entry: candidates[0], score: 0, fallback: false, matchedTerms: [] as string[] }]
+      : candidates
           .map((entry) => ({
             entry,
             score:
@@ -196,6 +216,6 @@ export async function recommendProposalTemplate(
     template,
     score: chosen.score,
     matchedTerms: chosen.matchedTerms,
-    candidateCount: entries.length,
+    candidateCount: candidates.length,
   }
 }

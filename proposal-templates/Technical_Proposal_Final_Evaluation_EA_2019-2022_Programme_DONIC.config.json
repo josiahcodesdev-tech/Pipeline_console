@@ -1,0 +1,25 @@
+{
+  "_comment": "THIS FILE CANNOT BE USED AS A TEMPLATE, and no configuration fixes that. It is a PDF rasterised into eighteen page images: eighteen <section> elements, each holding one <img> and nothing else. The body contains zero characters of text. The drafter replaces words, and there are no words — so there is nothing here to fill.",
+
+  "_what_to_do": "Either re-export it from the source Word or InDesign file so the text is text, or move it out of proposal-templates/ and keep it wherever finished proposals are kept. It is a perfectly good reference document; it is not a template.",
+
+  "_what_happens_meanwhile": "Selecting it fails loudly rather than quietly: draftIntoTemplate refuses a template with no slots and names it in the error, so the worst case is a failed draft and not a proposal carrying the previous client's words. That guard is why this file can sit here without being dangerous.",
+
+  "_structure": "sectionSelector matches — there really are eighteen section.page elements — but every one is empty of text, so the extractor correctly reports zero slots. That single finding in `npm run templates:check` is the true one and is meant to stay until the file is replaced or removed.",
+  "sectionSelector": "section.page",
+
+  "_images": "Every image is a rendered page of a proposal written for a previous client, so all eighteen are assignment-specific by definition. Listing them is what stops them being treated as reusable photographs if this file is ever made fillable; it does not make the file usable now. They are NOT listed under rebuildAsTextImages, because that path rebuilds a consultant profile as four cards and would produce eighteen identical placeholder blocks.",
+  "assignmentSpecificImages": ["Original PDF page"],
+  "rebuildAsTextImages": [],
+
+  "_furniture": "Switched off. There is no masthead, no footer element and no contents list in a stack of page images, so the defaults would report three failures that are not the problem — and the one real problem, no slots, would be lost among them.",
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": "",
+    "brandClient": "",
+    "footerClient": "",
+    "navLinks": "",
+    "remove": []
+  }
+}

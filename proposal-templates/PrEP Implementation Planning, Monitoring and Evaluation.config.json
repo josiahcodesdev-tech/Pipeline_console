@@ -1,0 +1,50 @@
+{
+  "_comment": "A proposal exported from Word rather than designed for the web: no sections, no headings, no images — 411 paragraphs and 36 tables. It fills correctly, it just fills as one long document instead of a set of pages. See proposal-templates/README.md.",
+
+  "_structure": "No sectionSelector or contentSelector. There is nothing to section by, so the extractor falls back to the body and finds 308 slots in one block. That is the right answer here, and the drafter chunks it into calls of eighty rather than asking for all of them at once.",
+
+  "match": {
+    "sectors": [
+      "health",
+      "HIV",
+      "public health",
+      "global health",
+      "governance"
+    ],
+    "services": [
+      "monitoring and evaluation",
+      "technical assistance",
+      "training",
+      "implementation planning",
+      "sustainability planning",
+      "capacity building"
+    ],
+    "keywords": [
+      "PrEP",
+      "pre-exposure prophylaxis",
+      "HIV prevention",
+      "implementation science",
+      "regional technical assistance",
+      "data use",
+      "health information system",
+      "programme monitoring",
+      "costing",
+      "scale-up"
+    ]
+  },
+
+  "_images": "None. The export carries no pictures at all, so there is nothing to classify and nothing for a reviewer to decide.",
+  "assignmentSpecificImages": [],
+  "rebuildAsTextImages": [],
+
+  "_furniture": "Switched off rather than left to default — see the AFSC config for the full reasoning. A Word export has no masthead and no running-footer element; its header and footer are ordinary paragraphs the drafter rewrites as slots. The title and meta description are still rewritten, because those are real and do carry the last client's name.",
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": "",
+    "brandClient": "",
+    "footerClient": "",
+    "navLinks": "",
+    "remove": []
+  }
+}

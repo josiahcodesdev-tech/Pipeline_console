@@ -29,6 +29,17 @@ interface TemplateEntry {
   config: string | null
   /** Compact selection evidence, avoiding a multi-megabyte fetch per design. */
   matchText: string
+  /**
+   * Whether the design has any words to replace.
+   *
+   * False for a proposal rasterised into page images — eighteen sections, each
+   * holding one JPEG and no text. Such a file cannot be filled by anything, and
+   * without this it still competes for selection on its filename: "Final
+   * evaluation of a country programme" chose one, and every draft against it
+   * failed. Selection skips these; opening a proposal already written into one
+   * does not, so nothing already saved stops rendering.
+   */
+  fillable: boolean
 }
 
 function decodeEntities(value: string): string {
@@ -39,6 +50,27 @@ function decodeEntities(value: string): string {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
+}
+
+/**
+ * Whether there is any prose here at all, ignoring markup and chrome.
+ *
+ * Deliberately crude and deliberately generous: the question is not "is this a
+ * good template" but "is there a single word to replace". A file that answers
+ * no cannot be drafted into by any configuration.
+ */
+function hasFillableText(html: string): boolean {
+  const start = html.search(/<body\b/i)
+  const body = start === -1 ? html : html.slice(start)
+  const text = body
+    // The backreference matters. Without it the pattern closes on nothing,
+    // swallows the rest of the file, and every template reads as empty.
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;|&#\d+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length >= 40
 }
 
 function selectionText(html: string, configPath: string): string {
@@ -76,11 +108,13 @@ function manifest(root: string): TemplateEntry[] {
     .map((file) => {
       const config = `${file.replace(/\.html?$/i, '')}.config.json`
       const configPath = path.join(dir, config)
+      const source = fs.readFileSync(path.join(dir, file), 'utf8')
       return {
         name: file.replace(/\.html?$/i, ''),
         html: file,
         config: fs.existsSync(configPath) ? config : null,
-        matchText: selectionText(fs.readFileSync(path.join(dir, file), 'utf8'), configPath),
+        matchText: selectionText(source, configPath),
+        fillable: hasFillableText(source),
       }
     })
 }

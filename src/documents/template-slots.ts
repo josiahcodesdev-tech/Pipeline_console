@@ -99,7 +99,15 @@ export interface TemplateConfig {
   assignmentSpecificImages?: string[]
   /** Alt patterns for images that are a rendered page rather than a picture. */
   rebuildAsTextImages?: string[]
-  /** Selectors naming the client outside the content area — see fillTemplate. */
+  /**
+   * Selectors naming the client outside the content area — see fillTemplate.
+   *
+   * An empty string switches one off, for a template that genuinely has no such
+   * element: a proposal exported from Word has no masthead, and its header and
+   * footer are ordinary paragraphs the drafter rewrites as slots. Omitting a
+   * field is different — that keeps the default, which is what catches a
+   * template whose chrome nobody has looked at yet.
+   */
   furniture?: {
     title?: boolean
     description?: boolean

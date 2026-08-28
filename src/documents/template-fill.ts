@@ -85,6 +85,20 @@ function matcher(patterns: string[] | undefined): (alt: string) => boolean {
  * these it could not find, so "this template needs config" is something you
  * are told rather than something a client discovers.
  */
+/**
+ * An empty selector means "this template has no such element, deliberately".
+ *
+ * A proposal exported from Word has no sidebar masthead and no running footer
+ * element — its header and footer are ordinary paragraphs, which the extractor
+ * already picks up as slots and the drafter already rewrites. Without a way to
+ * say so, every such template reports three furniture failures on every check,
+ * forever, and a report that always shows failures is a report nobody reads.
+ *
+ * So an empty string switches a selector off: nothing is written, and nothing
+ * is reported. It has to be explicit — the defaults below still apply when a
+ * config says nothing, because a selector that silently matches nothing is the
+ * failure this reporting exists to catch.
+ */
 const DEFAULT_FURNITURE: Required<NonNullable<TemplateConfig['furniture']>> = {
   title: true,
   description: true,
@@ -255,24 +269,34 @@ export function fillTemplate(
 
   // The running footer's client line. The firm's own name sits beside it and
   // stays exactly as it is.
-  const footerNodes = Array.from(document.querySelectorAll(furniture.footerClient))
-  if (footerNodes.length === 0) missingFurniture.push(`footerClient (${furniture.footerClient})`)
+  const footerNodes = furniture.footerClient
+    ? Array.from(document.querySelectorAll(furniture.footerClient))
+    : []
+  if (furniture.footerClient && footerNodes.length === 0) {
+    missingFurniture.push(`footerClient (${furniture.footerClient})`)
+  }
   for (const node of footerNodes) {
     if (title) node.textContent = document_.client ? `${title} • ${document_.client}` : title
   }
 
   // The sidebar masthead: proposal name over client name.
-  const brandName = document.querySelector(furniture.brandName)
-  if (!brandName) missingFurniture.push(`brandName (${furniture.brandName})`)
-  else if (title) brandName.textContent = title
+  const brandName = furniture.brandName ? document.querySelector(furniture.brandName) : null
+  if (furniture.brandName && !brandName) missingFurniture.push(`brandName (${furniture.brandName})`)
+  else if (brandName && title) brandName.textContent = title
 
-  const brandClient = document.querySelector(furniture.brandClient)
-  if (!brandClient) missingFurniture.push(`brandClient (${furniture.brandClient})`)
-  else if (document_.client) brandClient.textContent = document_.client
+  const brandClient = furniture.brandClient ? document.querySelector(furniture.brandClient) : null
+  if (furniture.brandClient && !brandClient) {
+    missingFurniture.push(`brandClient (${furniture.brandClient})`)
+  } else if (brandClient && document_.client) {
+    brandClient.textContent = document_.client
+  }
 
   // Contents entries follow the headings they point at, or the list describes
   // a document that no longer exists.
-  for (const link of Array.from(document.querySelectorAll(furniture.navLinks))) {
+  const navLinks = furniture.navLinks
+    ? Array.from(document.querySelectorAll(furniture.navLinks))
+    : []
+  for (const link of navLinks) {
     const label = heading(link.getAttribute('href')?.replace('#', '') ?? '')
     if (!label) continue
     for (const node of Array.from(link.childNodes)) {

@@ -1,0 +1,49 @@
+{
+  "_comment": "A proposal exported from Word rather than designed for the web: no sections, no headings, no images — 474 paragraphs and 37 tables. It fills correctly, it just fills as one long document instead of nineteen pages. See proposal-templates/README.md.",
+
+  "_structure": "No sectionSelector or contentSelector. There is nothing to section by — the document has no <section>, no .page and no headings — so the extractor falls back to the body and finds 370 slots in one block. That is the right answer here, and the drafter chunks it into calls of eighty rather than asking for all of them at once.",
+
+  "match": {
+    "sectors": [
+      "civil society",
+      "NGO",
+      "development",
+      "humanitarian",
+      "governance"
+    ],
+    "services": [
+      "fundraising",
+      "proposal writing",
+      "resource mobilization",
+      "resource mobilisation",
+      "training",
+      "capacity building"
+    ],
+    "keywords": [
+      "grant writing",
+      "donor mapping",
+      "donor engagement",
+      "concept note",
+      "bid writing",
+      "funding strategy",
+      "partnership development",
+      "sustainability planning",
+      "grants management"
+    ]
+  },
+
+  "_images": "None. The export carries no pictures at all, so there is nothing to classify and nothing for a reviewer to decide.",
+  "assignmentSpecificImages": [],
+  "rebuildAsTextImages": [],
+
+  "_furniture": "Switched off rather than left to default. A Word export has no sidebar masthead and no running-footer element; its header and footer are ordinary paragraphs, which the extractor already picks up as slots and the drafter already rewrites. Left at the defaults these three report as missing on every check forever, and a report that always shows failures is a report nobody reads. The document title and meta description are still rewritten — those are real and do carry the last client's name.",
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": "",
+    "brandClient": "",
+    "footerClient": "",
+    "navLinks": "",
+    "remove": []
+  }
+}
