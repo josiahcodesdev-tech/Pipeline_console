@@ -14,7 +14,7 @@
   .page:last-child { break-after: auto; page-break-after: auto; }
   .page img { display: block; width: 100%; height: 100%; object-fit: contain; }
   @page { size: Letter portrait; margin: 0; }
-  @media print {
+  @media print {*,*::before,*::after{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
     html, body { background: white; padding: 0; }
     .page { margin: 0; box-shadow: none; }
   }

@@ -24,10 +24,18 @@ import type { Rfp } from '@/domain/types'
  * becomes a table of the same width, so the cards, stat rows and step trains sit
  * side by side rather than unrolling into a column of paragraphs. See TABLEIZE.
  *
+ * BACKGROUNDS ARE SHADING, NOT BACKGROUNDS. Word treats a CSS background as a
+ * *page* background, and printing those is an application option that is off by
+ * default — so the burgundy section bands and the cream callouts arrived on
+ * screen and vanished from the printout. Table cell shading is document content
+ * and always prints, so every element the stylesheet paints is wrapped in a
+ * single-cell table carrying that colour. See SHADE.
+ *
  * WHAT STILL WILL NOT SURVIVE, and no amount of work here changes it: rounded
- * corners, box shadows, and multi-stop gradients. Word has no equivalent, drops
- * them, and squares off every card. The proposal reads correctly and is laid out
- * correctly; it is not pixel-identical, and it cannot be.
+ * corners, box shadows, and multi-stop gradients — a gradient collapses to its
+ * first colour, which is the closest Word can come. The proposal reads
+ * correctly, is laid out correctly and is coloured correctly; it is not
+ * pixel-identical, and it cannot be.
  *
  * So "Open proposal" stays the primary action beside this one — it renders the
  * real thing, and its Print / Save PDF is the route to a document that IS
@@ -143,6 +151,143 @@ function tableize(document_: Document, container: Element, columns: number | nul
   container.replaceWith(table)
 }
 
+/**
+ * Containers too large to shade.
+ *
+ * Wrapping the page, the shell or the body in a table would nest the entire
+ * document inside one cell for a colour that is nearly white anyway, and every
+ * table inside it would then be a table inside a table. The colour that matters
+ * is on the bands, cards and callouts.
+ */
+const UNSHADEABLE = new Set(['HTML', 'BODY', 'MAIN', 'SECTION', 'TABLE', 'TBODY', 'THEAD', 'TR'])
+const UNSHADEABLE_CLASSES = ['page', 'shell', 'proposal', 'sidebar']
+
+/** `:root` custom properties, so `var(--burgundy)` resolves to a real colour. */
+function cssVariables(css: string): Map<string, string> {
+  const variables = new Map<string, string>()
+  for (const match of css.matchAll(/--([\w-]+)\s*:\s*([^;}]+)/g)) {
+    variables.set(`--${match[1]}`, match[2].trim())
+  }
+  return variables
+}
+
+/**
+ * A background declaration reduced to one solid colour Word can shade with.
+ *
+ * A gradient becomes its first stop. That is a real loss and the best available:
+ * Word has no gradient, and the alternative is no colour at all, which reads as
+ * a broken export rather than a simplified one.
+ *
+ * Anything translucent is skipped. `rgba(255,255,255,.09)` over a burgundy panel
+ * is a pale wash in a browser and an opaque near-white block in Word, which
+ * turns a subtle chip into a hole in the page.
+ */
+function solidColour(value: string, variables: Map<string, string>): string | null {
+  let text = value.trim()
+  for (let pass = 0; pass < 3 && text.includes('var('); pass += 1) {
+    text = text.replace(/var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, name: string) =>
+      variables.get(name) ?? '',
+    )
+  }
+  if (!text || /\bnone\b|\btransparent\b/.test(text)) return null
+  if (/rgba\s*\(/.test(text)) return null
+
+  const gradient = text.match(/gradient\([^)]*?(#[0-9a-f]{3,8}|rgb\([^)]*\))/i)
+  if (gradient) return gradient[1]
+  const hex = text.match(/#[0-9a-f]{3,8}\b/i)
+  if (hex) return hex[0]
+  const rgb = text.match(/rgb\([^)]*\)/i)
+  if (rgb) return rgb[0]
+  const named = text.match(/^(white|black|silver|gray|grey)\b/i)
+  return named ? named[1] : null
+}
+
+/**
+ * Selector to background colour, read out of the document's own stylesheet.
+ *
+ * Only simple selectors — a single class, tag or id, optionally with one more
+ * class. A descendant or pseudo selector is skipped rather than guessed at:
+ * shading the wrong element is more visible than shading none.
+ */
+function backgroundRules(parsed: Document): Array<{ selector: string; colour: string }> {
+  const css = Array.from(parsed.querySelectorAll('style'))
+    .map((style) => style.textContent ?? '')
+    .join('\n')
+  const variables = cssVariables(css)
+  const rules: Array<{ selector: string; colour: string }> = []
+
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const declaration = /background(?:-color)?\s*:\s*([^;]+)/.exec(match[2])
+    if (!declaration) continue
+    const colour = solidColour(declaration[1], variables)
+    if (!colour) continue
+
+    for (const raw of match[1].split(',')) {
+      const selector = raw.trim()
+      // One simple selector, no descendants, no pseudo-classes, no attributes.
+      if (!/^[.#]?[\w-]+(\.[\w-]+)?$/.test(selector)) continue
+      rules.push({ selector, colour })
+    }
+  }
+  return rules
+}
+
+/**
+ * Wraps every painted element in a single-cell table carrying its colour.
+ *
+ * Later rules win, as they would in a browser, so the map is built in source
+ * order and the last colour for an element is the one applied.
+ */
+function shadeBackgrounds(document_: Document, parsed: Document): number {
+  const colours = new Map<Element, string>()
+
+  for (const { selector, colour } of backgroundRules(parsed)) {
+    let matched: Element[]
+    try {
+      matched = Array.from(parsed.querySelectorAll(selector))
+    } catch {
+      continue
+    }
+    for (const element of matched) {
+      if (UNSHADEABLE.has(element.tagName)) continue
+      if (UNSHADEABLE_CLASSES.some((name) => element.classList.contains(name))) continue
+      colours.set(element, colour)
+    }
+  }
+
+  let shaded = 0
+  for (const [element, colour] of colours) {
+    // A cell can carry shading itself; anything else needs a table to hold it.
+    if (element.tagName === 'TD' || element.tagName === 'TH') {
+      element.setAttribute('bgcolor', colour)
+      element.setAttribute(
+        'style',
+        `${element.getAttribute('style') ?? ''};background-color:${colour};`,
+      )
+      shaded += 1
+      continue
+    }
+    // Detached by an outer element being wrapped first — its colour travels
+    // with the wrapper, so there is nothing left to do here.
+    if (!element.parentNode) continue
+
+    const table = document_.createElement('table')
+    table.setAttribute('role', 'presentation')
+    table.setAttribute('style', 'width:100%; border-collapse:collapse; margin:0 0 10px 0;')
+    const row = document_.createElement('tr')
+    const cell = document_.createElement('td')
+    cell.setAttribute('bgcolor', colour)
+    cell.setAttribute('style', `background-color:${colour}; border:none; padding:10px 12px;`)
+
+    element.replaceWith(table)
+    cell.append(element)
+    row.append(cell)
+    table.append(row)
+    shaded += 1
+  }
+  return shaded
+}
+
 function fileName(rfp: Rfp): string {
   const base = (rfp.title || 'Proposal')
     .replace(/[\\/:*?"<>|]+/g, ' ')
@@ -188,6 +333,12 @@ export function proposalWordHtml(html: string, rfp: Rfp): string {
     const containers = Array.from(parsed.querySelectorAll(selector)).reverse()
     for (const container of containers) tableize(parsed, container, columns)
   }
+
+  // Shading after the layout tables and before the page breaks. After,
+  // because tableize moves children into cells and a wrapper built first would
+  // be moved with them; before, because a break written onto an element that
+  // shading is about to replace goes with it.
+  shadeBackgrounds(parsed, parsed)
 
   // Each `section.page` is a page in the design, so it becomes a page break
   // here. Without this the whole proposal runs together and a nineteen-section
