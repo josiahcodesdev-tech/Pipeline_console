@@ -151,7 +151,7 @@ export function DashboardView({
   onOpenLeadStage: (stage: LeadStatus) => void
 }) {
   const { leads, rfps, tasks, activities, toggleTask, setRfpStatus } = usePipeline()
-  const { can } = useAuth()
+  const { can, profile } = useAuth()
 
   const leadsById = useMemo(() => {
     const map = new Map<string, Lead>()
@@ -182,16 +182,51 @@ export function DashboardView({
     })
   }, [activities])
 
-  /** Money committed to bids currently being worked. */
-  const pipelineValue = useMemo(
-    () =>
-      rfps
-        .filter((rfp) => rfp.inPipeline)
-        .reduce((sum, rfp) => sum + (rfp.value ?? 0), 0),
+/**
+   * The tenders this reader is personally bidding.
+   *
+   * THE ONE FIGURE ON THIS PAGE THAT IS NOT SHARED. Everything else here is
+   * firm context — how many tenders are live, what closes this week, what was
+   * logged today — and it reads the same for everyone, which is the point: the
+   * team is looking at one pipeline.
+   *
+   * The pipeline is different. "What am I carrying" is a question about the
+   * person reading, and on an oversight account the shared reading answered a
+   * question nobody asked: the whole firm's committed value, which is neither
+   * the reader's workload nor a figure they can act on.
+   *
+   * Filtered by owner rather than by what the snapshot happened to load,
+   * because those differ by role. A member's snapshot is already only their
+   * own rows and this changes nothing for them; an admin's holds everyone's,
+   * and without this their card silently means something else.
+   */
+  const mine = useMemo(
+    () => (profile ? rfps.filter((rfp) => rfp.ownerId === profile.id) : []),
+    [rfps, profile],
+  )
+
+  /**
+   * The same count across whatever the reader can see, for the stat row.
+   *
+   * Deliberately not `beingBid`. The card below answers "what am I carrying";
+   * this answers "what is the team carrying", and giving both the same variable
+   * was how the value card came to mean the firm on an admin account.
+   */
+  const firmBeingBid = useMemo(
+    () => rfps.filter((rfp) => rfp.inPipeline).length,
     [rfps],
   )
 
-  const beingBid = useMemo(() => rfps.filter((rfp) => rfp.inPipeline).length, [rfps])
+  /** Money committed to bids this reader is working. */
+  const pipelineValue = useMemo(
+    () =>
+      mine
+        .filter((rfp) => rfp.inPipeline)
+        .reduce((sum, rfp) => sum + (rfp.value ?? 0), 0),
+    [mine],
+  )
+
+  const beingBid = useMemo(() => mine.filter((rfp) => rfp.inPipeline).length, [mine])
 
   /**
    * The rail's activity feed.
@@ -282,11 +317,11 @@ export function DashboardView({
           }
         />
         <StatCard
-          value={beingBid}
+          value={firmBeingBid}
           label="Being bid"
           tone="info"
           onClick={() => onNavigate('pipeline')}
-          title="Taken on as live proposals"
+          title="Taken on as live proposals, across the team"
         />
         <StatCard
           value={qualified}
@@ -536,14 +571,14 @@ export function DashboardView({
             left a block of empty page below them. */}
         <aside className="flex min-w-0 flex-col">
           <div className="gold-edge mb-4 shrink-0 rounded-2xl border border-border bg-card px-4 py-4 shadow-brand-sm">
-            <div className="eyebrow text-muted-foreground">Value being bid</div>
+            <div className="eyebrow text-muted-foreground">Your value being bid</div>
             <div className="mt-1.5 font-display text-[25px] leading-none text-foreground">
               {pipelineValue > 0 ? formatKes(pipelineValue) : '—'}
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-faint">
               {pipelineValue > 0
-                ? `Across ${beingBid} ${beingBid === 1 ? 'tender' : 'tenders'} currently in a pipeline. Only tenders with a stated value are counted.`
-                : 'No value recorded yet on the tenders being bid — add one on an RFP and it totals here.'}
+                ? `Across ${beingBid} ${beingBid === 1 ? 'tender' : 'tenders'} you have in a pipeline. Only tenders with a stated value are counted.`
+                : 'Nothing of yours is in a pipeline with a value on it yet — add one on an RFP and it totals here.'}
             </p>
           </div>
 
