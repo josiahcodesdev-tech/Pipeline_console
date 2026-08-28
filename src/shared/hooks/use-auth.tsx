@@ -52,6 +52,19 @@ interface AuthValue {
   session: Session | null
   /** The member's own row. Null while loading, or if the account has none. */
   profile: Profile | null
+  /**
+   * Whether the profile read has finished — succeeded, found nothing, or failed.
+   *
+   * Not the same question as `profile !== null`, and that is the whole reason it
+   * exists: an account with no profile row and an account whose profile is still
+   * in flight both read as null, and they mean opposite things. The first is
+   * settled at least privilege; the second is "do not act on this yet".
+   *
+   * `loading` cannot answer it either. `onAuthStateChange` clears that flag
+   * without awaiting the profile read it kicks off, so a session can be loaded
+   * while the role behind it is not.
+   */
+  profileLoaded: boolean
   role: MemberRole
   can: Permissions
   /**
@@ -119,10 +132,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(isSupabaseConfigured)
+  // Starts settled where there is no Supabase to ask: the console renders in
+  // its unconfigured state and nothing should be waiting on a read that will
+  // never run.
+  const [profileLoaded, setProfileLoaded] = useState(!isSupabaseConfigured)
 
   const loadProfile = useCallback(async (userId: string | undefined) => {
     if (!userId) {
       setProfile(null)
+      setProfileLoaded(true)
       return
     }
     const { data, error } = await supabase
@@ -137,9 +155,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       console.error('Could not load member profile', error)
       setProfile(null)
+      // Settled even on failure. The alternative is a console that waits
+      // forever on a read that already returned, and least privilege is a
+      // usable answer where a blank page is not.
+      setProfileLoaded(true)
       return
     }
     setProfile(data ? toProfile(data as ProfileRow) : null)
+    setProfileLoaded(true)
   }, [])
 
   useEffect(() => {
@@ -191,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       session,
       profile,
+      profileLoaded,
       role,
       can: profile ? permissionsFor(role, profile.active) : NO_PERMISSIONS,
       suspended,
@@ -199,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
     }
-  }, [session, profile, loading, signIn, signOut, refreshProfile])
+  }, [session, profile, profileLoaded, loading, signIn, signOut, refreshProfile])
 
   return <AuthContext value={value}>{children}</AuthContext>
 }

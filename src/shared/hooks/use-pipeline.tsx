@@ -352,7 +352,7 @@ function upsertInto<T extends { id: string }>(list: T[], row: T): T[] {
 }
 
 export function PipelineProvider({ children }: { children: ReactNode }) {
-  const { session, can } = useAuth()
+  const { session, can, profileLoaded } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [rfps, setRfps] = useState<Rfp[]>([])
   const [claims, setClaims] = useState<RfpClaim[]>([])
@@ -390,6 +390,24 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const autoSyncStarted = useRef(false)
 
   const refresh = useCallback(async () => {
+    /*
+      Nothing is read until the role behind the session is known.
+
+      The reader's role decides *which query runs*, not merely what is shown:
+      an oversight account pages every row and collapses each tender to one,
+      a member reads their own. Running before the profile arrives ran the
+      member query for an admin — and `rfps_select` grants an admin every row,
+      so PostgREST returned its first thousand and stopped. The dashboard then
+      counted them and said "Active RFPs: 1000", which was not a total of
+      anything: not the firm's 395 tenders, not any member's, just where the
+      page break fell. Being bid read 9 against 23, overdue 53 against 118.
+
+      A truncated read is the worst kind of wrong, because it looks exactly
+      like a complete one. Waiting costs a moment on a cold start and saves a
+      whole discarded fetch on every load, since the snapshot is now read under
+      the right cache key the first time instead of the second.
+    */
+    if (!profileLoaded) return
     if (!session) {
       setLeads([])
       setRfps([])
@@ -510,12 +528,12 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-    // `can.seeEveryone` belongs here as much as `session` does. The profile
-    // that carries the role arrives a moment after the session, so the first
-    // load always runs as a plain user; without this the snapshot would stay
-    // that way and an admin would sit looking at an empty tracker until they
-    // reloaded the page.
-  }, [session, can.seeEveryone])
+    // `can.seeEveryone` belongs here as much as `session` does: it selects the
+    // query, and a change of role is a change of dataset. It no longer causes a
+    // second load on sign-in — `profileLoaded` above holds the first one back
+    // until the role is settled — but it still has to be listed, because an
+    // account whose role is changed while signed in must be re-read.
+  }, [session, can.seeEveryone, profileLoaded])
 
   useEffect(() => {
     void refresh()

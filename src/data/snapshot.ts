@@ -129,9 +129,15 @@ function sessionRejectedMessage(detail: string): string {
  * data loss, and alarming for exactly the wrong reason. A table that cannot be
  * read should cost you that table, not the whole dataset.
  */
+/** What every PostgREST call resolves to: rows or a reason, never both. */
+type QueryResult<Row> = {
+  data: Row[] | null
+  error: { message: string; code?: string } | null
+}
+
 async function loadTable<Row, T>(
   name: string,
-  query: PromiseLike<{ data: Row[] | null; error: { message: string; code?: string } | null }>,
+  query: PromiseLike<QueryResult<Row>>,
   map: (row: Row) => T,
   hint: string,
 ): Promise<{ rows: T[]; error: string | null }> {
@@ -188,6 +194,27 @@ async function loadEveryPage<Row>(
     const page = (data ?? []) as Row[]
     rows.push(...page)
     if (page.length < PAGE) return rows
+  }
+}
+
+/**
+ * The same paging, shaped like a single query so `loadTable` can degrade it.
+ *
+ * A builder factory rather than a builder: a Supabase query is a thenable that
+ * runs once, so each page needs its own. Errors are handed back rather than
+ * thrown, which is what keeps a failure here costing one table instead of the
+ * console.
+ */
+async function pagedQuery<Row>(
+  build: (from: number, to: number) => PromiseLike<QueryResult<Row>>,
+): Promise<QueryResult<Row>> {
+  const rows: Row[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build(from, from + PAGE - 1)
+    if (error) return { data: null, error }
+    const page = data ?? []
+    rows.push(...page)
+    if (page.length < PAGE) return { data: rows, error: null }
   }
 }
 
@@ -259,16 +286,17 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       loadTable(
         'consultants',
         // Every consultant, not the reader's own.
-      //
-      // The roster is one list for the firm: Dr. Benson Kiarie and the rest are
-      // the people this business puts forward, named in proposals already sent.
-      // Filtered to the reader, three of six members had none at all — and the
-      // drafter is handed this list to staff a bid with, so those three were
-      // drafting proposals that could name no team, with nothing to say why.
-      //
-      // Migration 0044 opened the policy; this is the half that makes it
-      // visible. Both were needed, and the policy alone changed nothing.
-      supabase.from('consultants').select('*').order('name', { ascending: true }),
+        //
+        // The roster is one list for the firm: Dr. Benson Kiarie and the rest
+        // are the people this business puts forward, named in proposals already
+        // sent. Filtered to the reader, three of six members had none at all —
+        // and the drafter is handed this list to staff a bid with, so those
+        // three were drafting proposals that could name no team, with nothing
+        // to say why.
+        //
+        // Migration 0044 opened the policy; this is the half that makes it
+        // visible. Both were needed, and the policy alone changed nothing.
+        supabase.from('consultants').select('*').order('name', { ascending: true }),
         toConsultant,
         'migration 0010',
       ),
@@ -295,24 +323,32 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
     ),
     loadTable(
       'rfps',
-      supabase
-        .from('rfps')
-        // The one table here read without `.eq('user_id', mine)`, and the
-        // omission is deliberate. Since migration 0039 a member can be shared
-        // a colleague's tender, and the policy is what decides which rows come
-        // back — own plus shared. Filtering to `mine` as well would take the
-        // shared ones away again on the way out, which is a filter the reader
-        // never asked for and cannot see.
-        //
-        // The reader may therefore hold two rows for one notice: their own
-        // untouched copy from the sync, and the colleague's worked copy. Both
-        // are labelled by owner in the register rather than collapsed, because
-        // the shared one is the point — it carries the notes, the reading and
-        // the draft that made it worth sharing.
-        .select('*')
-        // Newest first — the views sort too, but this keeps the raw
-        // snapshot in the same order they present.
-        .order('created_at', { ascending: false }),
+      // Paged, because this is the one table on the member path that can
+      // outgrow a single request. The sync writes a copy of every scraped
+      // tender to every member, so a member's own row count tracks the whole
+      // pool and rises with it; unpaged, the day it passes a thousand the
+      // console would quietly start showing a page of it as the total.
+      pagedQuery<RfpRow>((from, to) =>
+        supabase
+          .from('rfps')
+          // The one table here read without `.eq('user_id', mine)`, and the
+          // omission is deliberate. Since migration 0039 a member can be
+          // shared a colleague's tender, and the policy is what decides which
+          // rows come back — own plus shared. Filtering to `mine` as well would
+          // take the shared ones away again on the way out, which is a filter
+          // the reader never asked for and cannot see.
+          //
+          // The reader may therefore hold two rows for one notice: their own
+          // untouched copy from the sync, and the colleague's worked copy. Both
+          // are labelled by owner in the register rather than collapsed,
+          // because the shared one is the point — it carries the notes, the
+          // reading and the draft that made it worth sharing.
+          .select('*')
+          // Newest first — the views sort too, but this keeps the raw
+          // snapshot in the same order they present.
+          .order('created_at', { ascending: false })
+          .range(from, to),
+      ),
       toRfp,
       'migration 0001',
     ),
