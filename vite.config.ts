@@ -152,7 +152,27 @@ function proposalTemplates(): Plugin {
           'Content-Type',
           wanted.endsWith('.json') ? 'application/json' : 'text/html; charset=utf-8',
         )
-        fs.createReadStream(path.resolve(root, TEMPLATE_DIR, wanted)).pipe(response)
+
+        // Templates are megabytes of inlined images and they do not change
+        // between saves of the app. Without a validator the dev server resends
+        // the whole thing every time a proposal is opened, drafted or edited,
+        // and the editor's iframe waits on it each time. mtime and size are
+        // enough to tell one revision of a file on disk from another; the
+        // browser then asks with If-None-Match and gets 304 and no body.
+        const file = path.resolve(root, TEMPLATE_DIR, wanted)
+        const stat = fs.statSync(file)
+        const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`
+        response.setHeader('ETag', etag)
+        // `no-cache` is not "do not cache" — it is "cache it, then revalidate".
+        // `must-revalidate` would be wrong here: an edited template must never
+        // be served from a stale copy while it is being worked on.
+        response.setHeader('Cache-Control', 'no-cache')
+        if (request.headers['if-none-match'] === etag) {
+          response.statusCode = 304
+          response.end()
+          return
+        }
+        fs.createReadStream(file).pipe(response)
       })
     },
 

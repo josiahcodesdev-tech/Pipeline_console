@@ -365,6 +365,23 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [settings, setSettings] = useState<UserSettings>(EMPTY_SETTINGS)
   const [loading, setLoading] = useState(true)
+  /**
+   * Whether anything has ever been on screen.
+   *
+   * `loading` used to mean "a fetch is in flight", and the page dimmed itself
+   * whenever it was true. That is right for the first paint and wrong for every
+   * one after it, because a reload is not an empty screen — it is the same
+   * screen, about to be confirmed.
+   *
+   * It showed up worst for oversight accounts. The effect below re-runs when
+   * `can.seeEveryone` resolves, and the profile carrying the role arrives a
+   * moment after the session, so an admin loads twice under two different cache
+   * keys. The second load found a full page of data and dimmed it anyway.
+   *
+   * A ref rather than state: it must not itself cause a render, and it is read
+   * inside the same pass that would set it.
+   */
+  const painted = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [autoSync, setAutoSync] = useState<AutoSyncStatus>('idle')
   const [syncedAt, setSyncedAt] = useState<number | null>(() => lastSyncedAt())
@@ -406,8 +423,14 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setSettings(cached.settings)
       setError(cached.error)
       setLoading(false)
+      painted.current = true
     } else {
-      setLoading(true)
+      // Only dim when there is genuinely nothing to look at. A cache miss with
+      // a populated screen — a second tab, an expired snapshot, the oversight
+      // re-read — refreshes silently underneath and swaps the rows in when they
+      // land. Stale for a second beats blank, and beats a page that flickers
+      // every time the role resolves.
+      setLoading(!painted.current)
     }
     try {
       const snapshot = await fetchAll(can.seeEveryone)
@@ -418,6 +441,11 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       setActivities(snapshot.activities)
       setProposals(snapshot.proposals)
       setConsultants(snapshot.consultants)
+      // Set here and not in the `finally`: the flag means "there are rows on
+      // screen", and a load that threw before this line left the screen empty.
+      // Marking it there would tell the next attempt not to dim a page that has
+      // nothing on it but an error.
+      painted.current = true
       // Claims are read separately and allowed to fail on their own. Losing
       // them should cost the tracker its "taken by" labels, not the tracker.
       let nextClaims: RfpClaim[] = []
