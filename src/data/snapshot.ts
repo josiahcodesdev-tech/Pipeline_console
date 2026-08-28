@@ -247,8 +247,8 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       loadEveryPage<ActivityRow>('activities', 'occurred_on'),
       loadEveryPage<ProposalRow>('proposals', 'created_at'),
     ])
-    // Reports and consultants stay the reader's own: a weekly report is a
-    // personal submission, and the consultant roster is per-account by design.
+    // A weekly report stays the reader's own — it is a personal submission.
+    // The consultant roster does not: see the note on the query below.
     const [reports, consultants] = await Promise.all([
       loadTable(
         'weekly_reports',
@@ -258,7 +258,17 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       ),
       loadTable(
         'consultants',
-        supabase.from('consultants').select('*').eq('user_id', mine).order('name', { ascending: true }),
+        // Every consultant, not the reader's own.
+      //
+      // The roster is one list for the firm: Dr. Benson Kiarie and the rest are
+      // the people this business puts forward, named in proposals already sent.
+      // Filtered to the reader, three of six members had none at all — and the
+      // drafter is handed this list to staff a bid with, so those three were
+      // drafting proposals that could name no team, with nothing to say why.
+      //
+      // Migration 0044 opened the policy; this is the half that makes it
+      // visible. Both were needed, and the policy alone changed nothing.
+      supabase.from('consultants').select('*').order('name', { ascending: true }),
         toConsultant,
         'migration 0010',
       ),
@@ -342,7 +352,8 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
     ),
     loadTable(
       'consultants',
-      supabase.from('consultants').select('*').eq('user_id', mine).order('name', { ascending: true }),
+      // Every consultant — the roster is firm-wide. See the oversight path above.
+      supabase.from('consultants').select('*').order('name', { ascending: true }),
       toConsultant,
       'migration 0010',
     ),

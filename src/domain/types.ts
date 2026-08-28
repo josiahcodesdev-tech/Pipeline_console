@@ -496,6 +496,15 @@ export const EMPTY_SETTINGS: UserSettings = {
  */
 export interface Consultant {
   id: string
+  /**
+   * The member who added this person.
+   *
+   * The roster is read firm-wide — everyone drafts proposals and everyone needs
+   * a team to name — but it is written by whoever owns the row. Without this on
+   * the record the console cannot tell the two apart, and shows an Edit button
+   * on every card that the server then refuses.
+   */
+  ownerId: string
   name: string
   /** e.g. "Senior MEL Specialist". */
   title: string
@@ -531,6 +540,10 @@ export interface Consultant {
 }
 
 export const EMPTY_CONSULTANT: Omit<Consultant, 'id'> = {
+  // Filled by the server on insert, from auth.uid(). Blank here because a new
+  // consultant has no owner until it is saved, and guessing one client-side
+  // would be a value the database is about to overwrite anyway.
+  ownerId: '',
   name: '',
   title: '',
   coreExpertise: '',

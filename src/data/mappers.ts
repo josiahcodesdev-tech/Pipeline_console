@@ -224,6 +224,7 @@ export function rfpFields(draft: RfpDraft) {
 export function toConsultant(row: ConsultantRow): Consultant {
   return {
     id: row.id,
+    ownerId: row.user_id,
     name: row.name ?? '',
     title: row.title ?? '',
     coreExpertise: row.core_expertise ?? '',

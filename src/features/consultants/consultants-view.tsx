@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { PlusIcon, PencilIcon } from 'lucide-react'
+import { LockIcon, PlusIcon, PencilIcon } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
 import { Panel, EmptyState, ViewHeader } from '@/shared/components/panel'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
+import { useAuth } from '@/shared/hooks/use-auth'
 import type { Consultant } from '@/domain/types'
 import { ConsultantFiles } from './consultant-files'
 import { ConsultantDialog } from './consultant-dialog'
@@ -35,6 +36,7 @@ function Tags({ value }: { value: string }) {
  * bios, project experience — and a table of those is unreadable at any width.
  */
 export function ConsultantsView() {
+  const { profile } = useAuth()
   const { consultants, saveConsultant, setConsultantFile, removeConsultant } =
     usePipeline()
   const [editing, setEditing] = useState<Consultant | null>(null)
@@ -96,18 +98,45 @@ export function ConsultantsView() {
                       .join(' · ') || 'No title set'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => open(person)}
-                  aria-label={`Edit ${person.name}`}
-                  title="Edit"
-                  className="shrink-0 cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-surface-2 hover:text-foreground"
-                >
-                  <PencilIcon className="size-3.5" />
-                </button>
+                {/* The roster is read by everyone and written by whoever
+                    owns the row — see migration 0044. Showing Edit on a
+                    colleague's consultant would be a button the server
+                    refuses, so it is a quiet label instead: the reader still
+                    learns why they cannot change it. */}
+                {person.ownerId === profile?.id ? (
+                  <button
+                    type="button"
+                    onClick={() => open(person)}
+                    aria-label={`Edit ${person.name}`}
+                    title="Edit"
+                    className="shrink-0 cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-surface-2 hover:text-foreground"
+                  >
+                    <PencilIcon className="size-3.5" />
+                  </button>
+                ) : (
+                  <span
+                    title="Added by a colleague. You can put them on a proposal, but only they can edit the record."
+                    className="shrink-0 rounded-md p-1.5 text-faint"
+                  >
+                    <LockIcon className="size-3.5" />
+                  </span>
+                )}
               </div>
 
-              <Tags value={person.coreExpertise} />
+              {/* The photograph and the CV lead the card.
+                  On the card rather than in the edit dialog: a file needs a
+                  saved row to attach to, and uploading is not something that
+                  should be undone by cancelling out of a form. They sit at the
+                  top because a consultant record is a person — the face and the
+                  CV are what a bid manager checks first, and both are what a
+                  tender asks for as an annex. */}
+              <div className="mt-3">
+                <ConsultantFiles consultant={person} onSet={setConsultantFile} />
+              </div>
+
+              <div className="mt-4">
+                <Tags value={person.coreExpertise} />
+              </div>
 
               {person.taskFit.trim() ? (
                 <div className="mt-3">
@@ -124,6 +153,16 @@ export function ConsultantsView() {
                 </p>
               )}
 
+              {(person.sectors.trim() || person.countries.trim()) && (
+                <p className="mt-3 border-t border-border pt-2 text-[10.5px] text-faint">
+                  {[person.sectors, person.countries].filter(Boolean).join(' · ')}
+                </p>
+              )}
+
+              {/* Last, deliberately. The bio is the longest thing on the card
+                  and the least scanned — everything above it answers "is this
+                  the right person", and the prose is what you read once you
+                  have decided to look. */}
               {person.shortBio.trim() && (
                 <div className="mt-3">
                   <div className="eyebrow mb-1 text-faint">Short bio</div>
@@ -133,18 +172,6 @@ export function ConsultantsView() {
                 </div>
               )}
 
-              {(person.sectors.trim() || person.countries.trim()) && (
-                <p className="mt-3 border-t border-border pt-2 text-[10.5px] text-faint">
-                  {[person.sectors, person.countries].filter(Boolean).join(' · ')}
-                </p>
-              )}
-
-              {/* On the card rather than in the edit dialog: a file needs a
-                  saved row to attach to, and uploading is not something that
-                  should be undone by cancelling out of a form. */}
-              <div className="mt-4">
-                <ConsultantFiles consultant={person} onSet={setConsultantFile} />
-              </div>
             </Panel>
           ))}
         </div>
