@@ -2,130 +2,134 @@
 @import 'tw-animate-css';
 
 /*
-  Palette matched to the Vantage Africa admin modules (Staff Onboarding, HR,
-  Accounting), so a person moving between them is not moving between two houses:
-  slate-navy chrome, a light grey ground, white cards, one blue for action.
+  Palette taken from the Vantage Africa mark: a gold chevron over a deep brown
+  one, on warm off-white. The same values the public site uses, so the console,
+  the site and the proposal templates agree on what the brand looks like.
 
-  THIS REPLACED THE WARM BRAND PALETTE the console launched with -- cream ground,
-  chocolate primary, gold accent -- which was taken from the public website. The
-  website and the internal tools are two different audiences, and the console
-  belongs with the tools.
+  THIS IS THE THIRD PALETTE THIS FILE HAS CARRIED and the reasoning is worth
+  keeping. It began warm, matched to the website. It was then restyled cool —
+  slate chrome, grey ground, blue action — to sit alongside the firm's other
+  admin modules. That made the console match its neighbours and stop matching
+  its own brand, which is the wrong trade for the one tool that produces client
+  documents: a proposal drafted here carries the brand, so the tool that drafts
+  it should too.
 
-  Every token name is unchanged. `clay` and `gold` in particular still exist and
-  are still used across a hundred call sites; they now carry cool equivalents
-  rather than being deleted, so the whole surface moved without a rename.
+  The LAYOUT from that restyle is deliberately kept — the chrome rail, the stat
+  cards, the dark band over a list, the flat shadows. Only the colour changed.
 
-  Contrast was checked rather than eyeballed. Every foreground here clears 4.5:1
-  on the surface it sits on -- `faint` is #7c869a and not the lighter grey the
-  reference uses, because this UI sets 10px uppercase labels in it and the
-  reference does not.
+  Every foreground clears 4.5:1 on the surface it sits on. `faint` is #7a6a58
+  rather than the site's lighter #8a7966, which scores 3.86:1 — under the floor,
+  and this UI sets 10px uppercase labels in it.
 */
 :root {
   color-scheme: light;
 
   /*
-    Sharper than the 16px the warm palette used. The reference draws cards at
-    roughly 6px and buttons at 4px, and a soft radius on a grey ground reads as
-    a different product. Everything derives from this one value.
+    Kept at 8px from the module restyle rather than returning to 16px. A softer
+    radius belonged to the cream-on-cream surface the warm palette originally
+    had; the current layout draws real borders and a grey-brown ground, and a
+    large radius on top of that reads as two design languages at once.
   */
   --radius: 0.5rem;
 
-  /* The page ground: cool light grey, not white, so white cards lift off it. */
-  --background: #f4f6fa;
-  --foreground: #3c4453;
+  /* Warm off-white, straight from the site. White cards lift off it. */
+  --background: #f8f5f0;
+  --foreground: #2c1810;
 
   --card: #ffffff;
-  --card-foreground: #3c4453;
+  --card-foreground: #2c1810;
 
   --popover: #ffffff;
-  --popover-foreground: #3c4453;
+  --popover-foreground: #2c1810;
 
-  /* The one action colour. Buttons, links, focus rings, active nav. */
-  --primary: #4a7af0;
+  /* The one action colour: the mark's brown. Buttons, links, focus, active nav. */
+  --primary: #8b4513;
   --primary-foreground: #ffffff;
 
-  --secondary: #eef1f7;
-  --secondary-foreground: #3c4453;
+  --secondary: #f3f0eb;
+  --secondary-foreground: #2c1810;
 
-  --muted: #eef1f7;
-  --muted-foreground: #6b7488;
+  --muted: #f3f0eb;
+  --muted-foreground: #6b5b47;
 
   /* shadcn's `accent` is the hover/active surface, not the brand colour. */
-  --accent: #eef1f7;
-  --accent-foreground: #3c4453;
+  --accent: #f3f0eb;
+  --accent-foreground: #2c1810;
 
-  --destructive: #e0483a;
+  --destructive: #a32b1e;
   --destructive-foreground: #ffffff;
 
-  --border: #e2e7ef;
-  --input: #d8dfea;
-  --ring: #4a7af0;
+  --border: #e8e1d9;
+  --input: #ddd3c6;
+  --ring: #8b4513;
 
   /*
-    The chrome. Sidebar and top bar share this slate-navy, which is what makes
-    the shell read as one piece rather than a sidebar next to a header.
+    The chrome. Sidebar and top bar share one deep brown, which is what makes
+    the shell read as a single piece.
+
+    #3a2416 rather than the site's #2c1810: that value is the body text colour
+    and is very nearly black at the size of a full-height rail, which loses the
+    brown entirely. This is the mark's dark chevron — warm enough to read as
+    brown, dark enough to carry white text at 14.5:1.
   */
-  --sidebar: #2e3648;
-  --sidebar-foreground: #c3cad8;
-  --sidebar-primary: #4a7af0;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #3a4356;
+  --sidebar: #3a2416;
+  --sidebar-foreground: #d8cbbc;
+  --sidebar-primary: #daa520;
+  --sidebar-primary-foreground: #2c1810;
+  --sidebar-accent: #4d3120;
+  --sidebar-border: #4d3120;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #3a4356;
-  --sidebar-ring: #4a7af0;
+  --sidebar-ring: #daa520;
 
   /* --- Extensions ------------------------------------------------------ */
-  --app-surface-2: #eef1f7;
-  --app-border-soft: #edf0f5;
-  --app-faint: #7c869a;
-  --app-brand-soft: #e8effd;
-  --app-brand-dim: #3a63c8;
-  /*
-    `gold` was the warm accent and is now amber -- the colour the reference uses
-    for "Pending", which is the only place a warning hue appears on a card.
-  */
-  --app-gold: #e0a020;
-  --app-gold-soft: #fdf0d8;
-  /*
-    `clay` was the secondary brand brown. It marks eyebrow labels and section
-    kickers throughout the console, so it has to stay a real accent rather than
-    fold into the muted grey: a slate-blue, quieter than primary.
-  */
-  --app-clay: #5d6b85;
-  --app-dark-brown: #2e3648;
-
-  /* Status palette, taken from the stat row in the reference modules. */
-  --app-success: #1f9d63;
-  --app-success-soft: #e4f6ec;
-  --app-warning: #b57709;
-  --app-warning-soft: #fdf0d8;
-  --app-danger: #d8382a;
-  --app-danger-soft: #fdeae8;
-  --app-info: #17a2b8;
-  --app-info-soft: #e2f6f9;
-  --app-neutral: #6b7488;
+  --app-surface-2: #f3f0eb;
+  --app-border-soft: #f0ebe3;
+  --app-faint: #7a6a58;
+  --app-brand-soft: #f7ece2;
+  --app-brand-dim: #a0522d;
+  /* The mark's gold chevron. Accent only — see the chart note below. */
+  --app-gold: #daa520;
+  --app-gold-soft: #fbf0dd;
+  /* Sienna: the brand's secondary, for eyebrows and section kickers. */
+  --app-clay: #a0522d;
+  --app-dark-brown: #654321;
 
   /*
-    Shadows are tinted with the slate of the chrome, never pure black. Kept
-    tighter and flatter than the warm palette's: cards on a grey ground want a
-    hairline lift, not paper on a desk.
+    Status palette. The site defines none, so these are derived to sit in the
+    warm brown and gold world; every pair clears 4.5:1 for small text.
+  */
+  --app-success: #2f6b45;
+  --app-success-soft: #e6f2ea;
+  --app-warning: #8a5a12;
+  --app-warning-soft: #fbf0dd;
+  --app-danger: #a32b1e;
+  --app-danger-soft: #fbeae7;
+  --app-info: #2f5d70;
+  --app-info-soft: #e8f0f3;
+  --app-neutral: #5f5243;
+
+  /*
+    Shadows tinted with the brand brown, never black — a grey shadow on a warm
+    ground reads as dirt. Kept flat, as the current layout expects: a hairline
+    lift, not paper on a desk.
   */
   --app-shadow-sm:
-    0 1px 2px rgba(46, 54, 72, 0.06), 0 1px 3px rgba(46, 54, 72, 0.04);
+    0 1px 2px rgba(101, 67, 33, 0.06), 0 1px 3px rgba(101, 67, 33, 0.04);
   --app-shadow-md:
-    0 1px 2px rgba(46, 54, 72, 0.06), 0 4px 12px -3px rgba(46, 54, 72, 0.10);
+    0 1px 2px rgba(101, 67, 33, 0.06), 0 4px 12px -3px rgba(139, 69, 19, 0.10);
   --app-shadow-lg:
-    0 2px 4px rgba(46, 54, 72, 0.06), 0 12px 28px -8px rgba(46, 54, 72, 0.16);
+    0 2px 4px rgba(101, 67, 33, 0.06), 0 12px 28px -8px rgba(139, 69, 19, 0.16);
 
   /*
-    Chart ramp. Single-hue no longer: the reference draws each statistic in its
-    own colour, and the ramp follows so a chart and a stat row agree.
+    Chart ramp. The gold is deliberately NOT first: measured against a white
+    card it scores 2.24:1, which is unreadable as a data mark. Brown leads and
+    gold appears only where a fourth series is needed.
   */
-  --chart-1: #4a7af0;
-  --chart-2: #17a2b8;
-  --chart-3: #1f9d63;
-  --chart-4: #e0a020;
-  --chart-5: #6b7488;
+  --chart-1: #8b4513;
+  --chart-2: #a0522d;
+  --chart-3: #2f6b45;
+  --chart-4: #daa520;
+  --chart-5: #6b5b47;
 }
 
 @theme inline {

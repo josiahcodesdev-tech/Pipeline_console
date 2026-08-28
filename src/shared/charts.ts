@@ -6,27 +6,27 @@
  * by the category axis and each bar gets the same hue — colouring them
  * individually would double-encode bar length as colour.
  *
- * The mark is the action blue, which is what the palette now leads with. It was
- * the brand brown, and before that nearly the brand gold — gold measured 2.24:1
- * against a white card, below the 3:1 floor for a data mark. Blue (#4a7af0)
- * clears it, and agrees with the stat row and the primary button rather than
- * being a third colour on the page.
+ * The mark is the brand brown, which is what the palette leads with. It was
+ * briefly the action blue, and before that nearly the brand gold — gold
+ * measures 2.24:1 against a white card, below the 3:1 floor for a data mark.
+ * Brown (#8b4513) clears it comfortably and agrees with the primary button
+ * rather than being a third colour on the page.
  */
 
 /** The action blue. Passes WCAG 3:1 against the white card. */
-export const MARK = '#4a7af0'
+export const MARK = '#8b4513'
 
 /** Area wash under the trend line — the hue at ~10%, never a saturated block. */
-export const MARK_WASH = 'rgba(74, 122, 240, 0.10)'
+export const MARK_WASH = 'rgba(139, 69, 19, 0.10)'
 
 /** The card surface, used for the 2px ring that keeps end-dots legible. */
 export const SURFACE = '#ffffff'
 
 /** Hairline grid, one step off the surface. Solid — never dashed. */
-export const GRID = '#e2e7ef'
+export const GRID = '#e8e1d9'
 
 /** Muted slate; clears 4.5:1 on both the card and the page. */
-export const AXIS_TEXT = '#6b7488'
+export const AXIS_TEXT = '#6b5b47'
 
 export const AXIS_TICK = {
   fill: AXIS_TEXT,

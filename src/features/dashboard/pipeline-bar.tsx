@@ -25,9 +25,9 @@ import { QUALIFIED_STATUSES, type Lead } from '@/domain/types'
 /**
  * Each stage deepens toward Won, so progression reads left to right.
  *
- * The run deepens through the action blue rather than the old gold-to-brown
+ * A single-hue run through the brand brown rather than the old gold-to-brown
  * ramp. The rule that shaped it still holds: the lightest step has to be
- * distinct from the track it sits on (#eef1f7), or a bar at 100% looks like an
+ * distinct from the track it sits on (#f3f0eb), or a bar at 100% looks like an
  * empty one.
  */
 const STAGE_FILL = [
