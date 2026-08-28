@@ -46,10 +46,29 @@ export type ViewId = (typeof NAV_ITEMS)[number]['id']
  * only: an admin who cannot add, remove, reassign or reset anyone was reading a
  * page of controls that all refused them. The one thing they actually needed
  * from it — who has taken which tender — is a column on Proposals instead.
+ *
+ * Records joined it for a different and stronger reason. That page is the audit
+ * trail: who changed what, when, across every member's leads, tenders,
+ * proposals and activity. It is the record of what an administrator did, so an
+ * administrator who can read it is one of the handful of people it is about,
+ * auditing themselves. Oversight is the wrong boundary for that one page.
+ *
+ * The server agrees, which is the half that matters. Migration 0043 narrows
+ * `audit_log_select` to `is_super_user()`, so an admin issuing the query by
+ * hand gets nothing back. This list only spares them a page that would be
+ * empty.
  */
-const SUPER_USER_ONLY: readonly ViewId[] = ['members']
-/** Firm-wide operational records are available to both oversight roles. */
-const OVERSIGHT_ONLY: readonly ViewId[] = ['records']
+const SUPER_USER_ONLY: readonly ViewId[] = ['members', 'records']
+
+/**
+ * Views for both oversight roles. Empty today.
+ *
+ * Kept rather than deleted along with its parameter: "admin and super user, but
+ * not an ordinary member" is a real category that Records occupied until the
+ * audit trail made it the wrong one, and the next view in it should not have to
+ * reintroduce the machinery.
+ */
+const OVERSIGHT_ONLY: readonly ViewId[] = []
 
 /**
  * What the sidebar actually shows. `NAV_ITEMS` stays complete so `ViewId` keeps
