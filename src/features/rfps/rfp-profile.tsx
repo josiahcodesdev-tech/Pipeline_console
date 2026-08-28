@@ -61,6 +61,7 @@ import type { Proposal, Rfp } from '@/domain/types'
 import { ReassignDialog } from '@/features/rfps/reassign-dialog'
 import { RfpDialog } from './rfp-dialog'
 import { PromptPreviewDialog } from './prompt-preview'
+import { ProposalEditor } from './proposal-editor'
 import { TenderIntelligence, type IntelligenceTab } from './tender-intelligence'
 
 /**
@@ -120,6 +121,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     setTenderDocument,
     saveTenderIntelligence,
     saveDraftProposal,
+    saveProposalEdit,
     uploadProposal,
     removeProposal,
     setProposalExemplar,
@@ -208,6 +210,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
   const [draftWarnings, setDraftWarnings] = useState<string[]>([])
   const [readingTender, setReadingTender] = useState(false)
   const [openingProposal, setOpeningProposal] = useState('')
+  /**
+   * The proposal open in the editor, with the document already built for it.
+   *
+   * Held together because rebuilding is the slow half — a saved draft stores
+   * answers, not markup, so the template has to be fetched and filled before
+   * anything can be edited. Doing that once on open beats doing it again inside
+   * the editor.
+   */
+  const [editingProposal, setEditingProposal] = useState<
+    { proposal: Proposal; html: string } | null
+  >(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const tenderInput = useRef<HTMLInputElement>(null)
   const previewScroll = useRef<HTMLDivElement>(null)
@@ -225,6 +238,22 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
     () => activities.filter((activity) => activity.rfpId === rfp.id),
     [activities, rfp.id],
   )
+  /**
+   * The designed draft this panel just produced.
+   *
+   * Found rather than remembered: `saveDraftProposal` inserts through the
+   * pipeline hook and the row comes back in the shared list, so reaching for
+   * the newest designed draft is both simpler than threading an id out of the
+   * save and correct after a reload, when there is no id to have kept.
+   */
+  const savedDraft = useMemo(
+    () =>
+      proposals
+        .filter((proposal) => proposal.rfpId === rfp.id && proposal.design)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null,
+    [proposals, rfp.id],
+  )
+
   const ownProposals = useMemo(
     () => proposals.filter((proposal) => proposal.rfpId === rfp.id),
     [proposals, rfp.id],
@@ -678,7 +707,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
    * stores its answers, not its markup, so the document does not exist until
    * the template is fetched and filled. Only what happens to the result differs.
    */
-  async function openDesigned(proposal: Proposal, as: 'open' | 'word' = 'open') {
+  async function openDesigned(proposal: Proposal, as: 'open' | 'word' | 'edit' = 'open') {
     if (!proposal.design) return
     setOpeningProposal(proposal.id)
     try {
@@ -687,6 +716,7 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
         client: rfp.org,
       })
       if (as === 'word') downloadProposalWord(rfp, built.html)
+      else if (as === 'edit') setEditingProposal({ proposal, html: built.html })
       else openHtml(built.html)
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause))
@@ -798,6 +828,20 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                 route to a PDF; Word is the route to editing it. */}
             {!drafting && draftHtml && (
               <div className="flex shrink-0 items-center gap-1">
+                {/* The freshest draft is the likeliest one to want a correction,
+                    so Edit sits with it rather than only in the list below.
+                    It reaches for the saved row, which is why it waits for one. */}
+                {savedDraft && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => void openDesigned(savedDraft, 'edit')}
+                    title="Open the proposal and edit its wording in place"
+                  >
+                    <PencilIcon />
+                    Edit
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="xs"
@@ -815,6 +859,18 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
             )}
           </footer>
         </aside>
+      )}
+
+      {editingProposal && (
+        <ProposalEditor
+          rfp={rfp}
+          proposal={editingProposal.proposal}
+          html={editingProposal.html}
+          onClose={() => setEditingProposal(null)}
+          onSave={(design, content) =>
+            saveProposalEdit(editingProposal.proposal.id, design, content)
+          }
+        />
       )}
 
       {/* Not the shared ViewHeader: this page is about one record, so the
@@ -1246,6 +1302,16 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
                           >
                             <DownloadIcon />
                             Word
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={openingProposal === proposal.id || viewOnly}
+                            onClick={() => void openDesigned(proposal, 'edit')}
+                            title="Open the proposal and edit its wording in place"
+                          >
+                            <PencilIcon />
+                            Edit
                           </Button>
                           <Button
                             variant="ghost"

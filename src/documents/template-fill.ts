@@ -157,6 +157,9 @@ function consultantSection(document: Document, values: Map<string, string>, sect
     body.textContent =
       values.get(`${sectionId}.${field.key}`) ??
       '[INSERT VERIFIED CONSULTANT RECORD — no usable profile was supplied with this bid.]'
+    // Addressable like any other slot, so the editor can reach the one part of
+    // the document that was built rather than filled.
+    body.setAttribute('data-slot', `${sectionId}.${field.key}`)
     card.append(heading, body)
     wrap.append(card)
   }
@@ -224,6 +227,16 @@ export function fillTemplate(
           if (node.nodeType === 3) node.remove()
         }
         element.append(document.createTextNode(value))
+        // Stamped so the finished document can be edited and read back.
+        //
+        // Slot ids are positional — the nth text-bearing element in a section —
+        // and that only holds against the template. The filled document is a
+        // different shape: assignment-specific figures are removed with their
+        // frames and the consultant pages are rebuilt from cards, so walking it
+        // the same way lands on different elements. Writing the id onto the
+        // element at the moment it is filled is what survives all of that, and
+        // it is the whole basis of the editor.
+        element.setAttribute('data-slot', slot.id)
         break
       }
       seen += 1

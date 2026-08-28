@@ -15,6 +15,7 @@ import { fetchSettings, saveSettings as dbSaveSettings } from '@/data/settings'
 import {
   deleteProposal,
   saveDraftProposal as dbSaveDraftProposal,
+  updateProposalDesign as dbUpdateProposalDesign,
   savePastedProposal,
   setProposalExemplar as dbSetProposalExemplar,
   uploadSubmittedProposal,
@@ -264,6 +265,8 @@ interface PipelineValue {
     content: string,
     design?: ProposalDesign | null,
   ) => Promise<void>
+  /** Saves an edited designed proposal — its answers and its readable text. */
+  saveProposalEdit: (id: string, design: ProposalDesign, content: string) => Promise<void>
   uploadProposal: (rfpId: string, file: File, notes: string, content?: string) => Promise<void>
   removeProposal: (proposal: Proposal) => Promise<void>
   setProposalExemplar: (id: string, isExemplar: boolean) => Promise<void>
@@ -807,6 +810,16 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const saveProposalEdit = useCallback(
+    async (id: string, design: ProposalDesign, content: string) => {
+      const saved = await dbUpdateProposalDesign(id, design, content)
+      setProposals((current) =>
+        current.map((proposal) => (proposal.id === saved.id ? saved : proposal)),
+      )
+    },
+    [],
+  )
+
   const uploadProposal = useCallback(
     async (rfpId: string, file: File, notes: string, content = '') => {
       const saved = await uploadSubmittedProposal(rfpId, file, notes, content)
@@ -1028,6 +1041,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeTask,
       saveReport,
       saveDraftProposal,
+      saveProposalEdit,
       uploadProposal,
       removeProposal,
       setProposalExemplar,
@@ -1090,6 +1104,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       removeTask,
       saveReport,
       saveDraftProposal,
+      saveProposalEdit,
       uploadProposal,
       removeProposal,
       setProposalExemplar,

@@ -116,6 +116,39 @@ export async function saveDraftProposal(
 }
 
 /**
+ * Saves an edited designed proposal.
+ *
+ * Only the answers move. The template is untouched and is not stored here at
+ * all — the document is rebuilt from it every time anyone opens one — so an
+ * edit is a change to a few hundred short strings and nothing else. That is
+ * also why editing cannot break the layout: there is no layout in the row to
+ * break.
+ *
+ * `content` travels with it because the two must not drift. It is the readable
+ * text of the same proposal, and it is what the preview shows, what search
+ * would read and what a starred model answer teaches the drafter. Saving values
+ * without it leaves a document whose words and whose summary disagree.
+ */
+export async function updateProposalDesign(
+  id: string,
+  design: ProposalDesign,
+  content: string,
+): Promise<Proposal> {
+  const row = unwrap(
+    await supabase
+      .from('proposals')
+      .update({
+        design: design as unknown as Record<string, unknown>,
+        content,
+      })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+  return toProposal(row)
+}
+
+/**
  * Uploads the file that actually went to the buyer.
  *
  * The object path starts with the *tender owner's* uid, not the uploader's.
