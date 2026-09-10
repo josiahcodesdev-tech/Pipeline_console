@@ -188,11 +188,18 @@ function anthropicDrafter(apiKey: string): Drafter {
     },
 
     async fillSlots(job: DraftJob, slots: readonly SlotBrief[]) {
-      // Not streamed. The reply is a few hundred short strings rather than a
-      // document, so it returns well inside the Edge Function's idle limit, and
-      // a schema-constrained response has no partial state worth showing —
-      // half a JSON object is not half an answer.
-      const message = await client.messages.create({
+      // Streamed, though nothing reads the stream.
+      //
+      // A schema-constrained reply has no partial state worth showing — half a
+      // JSON object is not half an answer — so this waits for the whole message
+      // either way. It streams because the SDK refuses a *non*-streaming request
+      // whose max_tokens implies it could run past ten minutes, and throws
+      // before sending anything: "Streaming is required for operations that may
+      // take longer than 10 minutes". A long section computes exactly such a
+      // ceiling below, so the buffered call failed on the biggest sections while
+      // the small ones went through — the section keeping the previous client's
+      // wording being the only visible symptom.
+      const stream = client.messages.stream({
         model: CLAUDE_MODEL,
         // Sized from the slots themselves rather than a flat ceiling: a section
         // of eight labels needs a fraction of what one of forty paragraphs
@@ -209,6 +216,7 @@ function anthropicDrafter(apiKey: string): Drafter {
           format: { type: 'json_schema', schema: SLOT_SCHEMA },
         },
       })
+      const message = await stream.finalMessage()
 
       if (message.stop_reason === 'refusal') {
         throw new Error('The model declined to write this section.')
@@ -323,6 +331,24 @@ function openaiDrafter(apiKey: string): Drafter {
  */
 export function describeDraftFailure(cause: unknown): string {
   const status = (cause as { status?: number })?.status
+  const message = cause instanceof Error ? cause.message : String(cause)
+
+  // Read before the status switch, because both of these arrive as a 400 and
+  // the generic 400 advice below — "usually an over-long tender document" —
+  // sends the reader to remove the one attachment that makes the draft good.
+  //
+  // A spent balance is the failure that looks most like a bug: every section
+  // fails, all at once, on a bid that drafted fine yesterday, and nothing in a
+  // proposal about credit says so. It stopped a whole 232-slot proposal once
+  // and was diagnosed from the Edge Function logs rather than from here.
+  if (/credit balance is too low|billing|purchase credits|quota/i.test(message)) {
+    return 'The Anthropic account is out of credit, so nothing could be written. Top it up in Plans & Billing, then draft again — no other setting is wrong.'
+  }
+  // Thrown by the SDK before any request is sent, so it costs nothing and is
+  // entirely ours to fix; naming it stops it being read as a model failure.
+  if (/streaming is required/i.test(message)) {
+    return 'This section asked for more room than one buffered request allows. Deploy the concept-note function — the fix is in the code, not the bid.'
+  }
 
   switch (status) {
     case 429:
@@ -341,15 +367,14 @@ export function describeDraftFailure(cause: unknown): string {
 
   // Anthropic reports an overloaded upstream inside the body on some paths,
   // where there is no status to switch on.
-  const raw = cause instanceof Error ? cause.message : String(cause)
-  if (/overloaded/i.test(raw)) {
+  if (/overloaded/i.test(message)) {
     return 'The drafting service is busy right now. Wait a moment and draft again. Anything already written is kept.'
   }
-  if (/timeout|aborted|timed out/i.test(raw)) {
+  if (/timeout|aborted|timed out/i.test(message)) {
     return 'The draft took too long and was cut off. Try again, or attach a shorter tender document.'
   }
 
-  return `Drafting failed: ${raw}`
+  return `Drafting failed: ${message}`
 }
 
 // ------------------------------------------------------------------ Choosing

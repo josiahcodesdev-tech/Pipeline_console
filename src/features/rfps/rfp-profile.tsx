@@ -518,9 +518,17 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
       // and the only way that gets fixed is somebody being told where.
       const warnings: string[] = []
       if (result.failures.length > 0) {
+        // The reason, not just the roll-call. Fifteen section names told a bid
+        // team the draft had failed and nothing about why; the cause that time
+        // was a spent Anthropic balance, which no amount of redrafting fixes.
+        // Distinct reasons rather than one per section, because a systemic
+        // failure gives all of them the same one and repeating it fifteen times
+        // buries it.
+        const reasons = [...new Set(result.failures.map((failure) => failure.reason))]
         warnings.push(
           `${result.failures.length} section${result.failures.length === 1 ? '' : 's'} could not be written: ${result.failures.map((failure) => failure.section).join(', ')}. Those keep the template's own wording — redraft before sending.`,
         )
+        warnings.push(reasons.length === 1 ? reasons[0] : `Reasons: ${reasons.join(' · ')}`)
       }
       if (result.unfilled.length > 0) {
         warnings.push(

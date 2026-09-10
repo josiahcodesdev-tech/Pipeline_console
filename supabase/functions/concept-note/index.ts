@@ -726,7 +726,7 @@ ${slotBriefs
         200,
       )
     } catch (cause) {
-      const detail = describeDraftFailure(cause, drafter.label)
+      const detail = describeDraftFailure(cause)
       console.error(`concept-note section fill failed (${drafter.label})`, cause)
       return json({ error: detail }, 502)
     }
