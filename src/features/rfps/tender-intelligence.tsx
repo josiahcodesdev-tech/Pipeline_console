@@ -96,14 +96,22 @@ function Bullets({ items, tone }: { items: string[]; tone?: 'warning' | 'muted' 
 /**
  * The state every panel starts in, said plainly.
  *
- * Separated from an empty result on purpose — see the note at the top. This is
- * also where the operator is told what to run, because "no analysis" almost
- * always means the service has not been pointed at this database rather than
- * that anything went wrong.
+ * Separated from an empty result on purpose — see the note at the top.
+ *
+ * THE HINT USED TO NAME A PYTHON COMMAND, and that was the whole problem. The
+ * analyses were written by a service on somebody's laptop, so a tender stayed
+ * unanalysed until a person remembered to run it — which happened once, in
+ * August, after which every tender the 05:00 sync imported showed this panel
+ * indefinitely. The scoring now runs inside that sync (see analysis.ts beside
+ * it), so the honest hint is the one below: this resolves by itself on the next
+ * morning's run, and Check now on the tender list forces it immediately.
  */
 function NotAnalysed() {
   return (
-    <EmptyState icon={<HelpCircleIcon className="size-5" />} hint="Run: python -m ai_tender_intelligence.scheduler --once">
+    <EmptyState
+      icon={<HelpCircleIcon className="size-5" />}
+      hint="Tenders are read by the 5am sync. Press Check now on the tender list to do it straight away."
+    >
       This tender has not been analysed yet
     </EmptyState>
   )

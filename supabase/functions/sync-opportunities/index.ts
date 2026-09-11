@@ -33,6 +33,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 
 import { type Notice, classifySegment, mentionsKenya } from "./normalize.ts"
+import {
+  ANALYSIS_VERSION,
+  type AnalysableRow,
+  analyse,
+  matchedCapabilitiesFor,
+} from "./analysis.ts"
 import { fetchWorldBank } from "./sources/world-bank.ts"
 import { fetchUndp } from "./sources/undp.ts"
 import { fetchUngm } from "./sources/ungm.ts"
@@ -246,6 +252,123 @@ async function retag(
 }
 
 /**
+ * Scores every tender that has no reading at the current model version.
+ *
+ * WHY THE SYNC DOES THIS. `ai_analysis` is what the console's AI intelligence
+ * tab reads, and nothing in the deployed system wrote it: the analyser was a
+ * Python service on one machine, run by hand. It scored the register once in
+ * August and went quiet, while this job kept importing notices every morning —
+ * so every tender added since said "not analysed yet", correctly. The scoring
+ * is the capability map this file already carries, so the job that imports a
+ * tender is the job that can read it, and no second service has to be kept
+ * alive to agree with this one. See analysis.ts.
+ *
+ * NOT BOUNDED TO THIS RUN'S NOTICES, unlike `retag` above. Retagging repairs
+ * rows the current fetch mentions; this has to reach a register that has never
+ * been scored at all, including the two thousand imported before any of this
+ * existed. It is still cheap when there is nothing to do — one indexed read of
+ * the ids already scored, and no writes.
+ *
+ * IDEMPOTENT BY VERSION, not by timestamp. A tender is skipped when it already
+ * holds a row at ANALYSIS_VERSION, so running twice writes nothing the second
+ * time and bumping that constant re-scores the register — which is exactly what
+ * editing CAPABILITIES should do, and nothing else should.
+ *
+ * Failures are reported, never thrown: a tender that cannot be scored must not
+ * take down the import that is the sync's actual job.
+ */
+/**
+ * How many tenders one run will score.
+ *
+ * Sized for the first run rather than the steady one. Today the register holds
+ * about 2,300 tenders and none of them has a reading at the current version, so
+ * a smaller budget would leave the tab half-filled until tomorrow — the exact
+ * "some tenders work and some don't" that this is fixing. After that the daily
+ * figure is a handful, and the budget never binds again until ANALYSIS_VERSION
+ * changes.
+ */
+const ANALYSIS_BUDGET = 3000
+
+async function writeAnalyses(
+  admin: ReturnType<typeof createClient>,
+  budget = ANALYSIS_BUDGET,
+): Promise<{ analysed: number; problem: string | null }> {
+  const pageSize = 1000
+
+  try {
+    // Which tenders already hold a reading at this version. Ids only — the
+    // payloads are not needed to decide whether to write one.
+    const scored = new Set<string>()
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await admin
+        .from("ai_analysis")
+        .select("rfp_id")
+        .eq("model_version", ANALYSIS_VERSION)
+        .range(from, from + pageSize - 1)
+      if (error) throw new Error(error.message)
+      for (const row of data ?? []) scored.add(row.rfp_id as string)
+      if ((data ?? []).length < pageSize) break
+    }
+
+    // The history a win probability would be drawn from. Fetched whole because
+    // it is tens of rows at most, and shared by every tender in the batch.
+    const { data: decidedRows, error: decidedError } = await admin
+      .from("rfps")
+      .select("id, title, org, notes, deadline, value, service_areas, tender_text, notice_text, status")
+      .in("status", ["Won", "Lost"])
+    if (decidedError) throw new Error(decidedError.message)
+    const decided = (decidedRows ?? []).map((row) => ({
+      id: row.id as string,
+      title: (row.title as string) ?? "",
+      status: (row.status as string) ?? "",
+      themes: matchedCapabilitiesFor(row as unknown as AnalysableRow).map((match) => match.service),
+    }))
+
+    // Ids first and full rows second. `tender_text` holds whole documents, and
+    // pulling it for a register that is already scored would move megabytes to
+    // decide to do nothing.
+    const pending: string[] = []
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await admin.from("rfps").select("id").range(from, from + pageSize - 1)
+      if (error) throw new Error(error.message)
+      for (const row of data ?? []) {
+        if (!scored.has(row.id as string)) pending.push(row.id as string)
+      }
+      if ((data ?? []).length < pageSize) break
+    }
+
+    let analysed = 0
+    // Small chunks: each carries the tender text of everything in it, and the
+    // insert that follows is bounded by the same number.
+    const chunkSize = 200
+    for (let at = 0; at < Math.min(pending.length, budget); at += chunkSize) {
+      const ids = pending.slice(at, at + chunkSize)
+      const { data: rows, error: rowsError } = await admin
+        .from("rfps")
+        .select("id, title, org, notes, deadline, value, service_areas, tender_text, notice_text, status")
+        .in("id", ids)
+      if (rowsError) throw new Error(rowsError.message)
+
+      const payloads = (rows ?? []).map((row) => ({
+        rfp_id: row.id as string,
+        ...analyse(row as unknown as AnalysableRow, decided),
+      }))
+      if (payloads.length === 0) continue
+
+      const { error: insertError } = await admin.from("ai_analysis").insert(payloads)
+      if (insertError) throw new Error(insertError.message)
+      analysed += payloads.length
+    }
+
+    return { analysed, problem: null }
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause)
+    console.error("[sync] analysis failed:", detail)
+    return { analysed: 0, problem: detail }
+  }
+}
+
+/**
  * Resolves who is calling, and how much they may sync.
  *
  * Returning null means "not allowed" — deliberately indistinguishable from a
@@ -455,6 +578,11 @@ Deno.serve(async (request: Request) => {
     // pruned by the same run that fetched it.
     const { pruned, problem: pruneProblem } = await pruneExpired(admin)
 
+    // After the prune, so nothing is scored on its way to being deleted, and
+    // after the insert, so this morning's arrivals are read in the same run
+    // that fetched them rather than waiting for tomorrow's.
+    const { analysed, problem: analysisProblem } = await writeAnalyses(admin)
+
     const fetched = notices.length
     // A button click reports newly visible tenders, not physical copies written
     // across the team. The scheduled service call has no user and reports the
@@ -477,6 +605,10 @@ Deno.serve(async (request: Request) => {
         // starts deleting more than it should is visible before somebody
         // notices their tracker is empty.
         pruned,
+        // Tenders given a reading by this run. Reported alongside the rest so
+        // "the AI tab is empty" can be answered from the sync's own output
+        // rather than by opening the database.
+        analysed,
         // Failures only. A source that is deliberately unconfigured — ReliefWeb
         // without an appname — is a setting, not a fault, and warning about it
         // on every single run would train people to ignore the warning. It is
@@ -485,7 +617,8 @@ Deno.serve(async (request: Request) => {
           .filter((report) => report.status === "failed")
           .map((report) => `${report.name}: ${report.detail ?? "failed"}`)
           .concat(failedUsers.length ? [`Could not update ${failedUsers.length} member account(s).`] : [])
-          .concat(pruneProblem ? [`Could not prune expired tenders: ${pruneProblem}`] : []),
+          .concat(pruneProblem ? [`Could not prune expired tenders: ${pruneProblem}`] : [])
+          .concat(analysisProblem ? [`Could not analyse tenders: ${analysisProblem}`] : []),
         users: userIds.length,
         sources: reports,
         perUser,

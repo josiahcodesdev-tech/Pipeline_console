@@ -243,7 +243,7 @@ export function mentionsKenya(...parts: string[]): boolean {
  * invented services, "Monitoring" and "Evaluation & Learning". It is written
  * here with the comma removed for that reason and no other.
  */
-const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readonly string[] }> = [
+export const CAPABILITIES: ReadonlyArray<{ label: string; weight: number; terms: readonly string[] }> = [
   {
     // Statement 4.4. The flagship — Eval360, VAMEPA and most of the case
     // studies sit here, so it carries the top weight alongside training.
@@ -414,7 +414,7 @@ export function matchCapabilities(...parts: string[]): string[] {
  * project management alone sits around 33 and reads as partial. That matches
  * how these opportunities actually differ.
  */
-const PERFECT_FIT = 18
+export const PERFECT_FIT = 18
 
 /**
  * How well an opportunity fits, 0-100, for ranking the tracker.

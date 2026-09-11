@@ -8,6 +8,43 @@ It **adds to** the existing system. Nothing here replaces the sync, the tender
 reader, the drafter or the fit score; those keep working exactly as they did
 with this service switched off.
 
+## It is no longer what fills the console's AI intelligence tab
+
+Read this before running anything below.
+
+This service only ever ran when somebody typed the command. It scored the
+register once, in August 2026, and then went quiet while `sync-opportunities`
+kept importing notices every morning — so every tender imported afterwards had
+no `ai_analysis` row at all, and the console's AI intelligence tab correctly
+reported that it had not been analysed. Two thousand tenders looked analysed
+and the newest hundred looked broken, which is the worst of both.
+
+The routine scoring now happens inside the sync itself, in
+`supabase/functions/sync-opportunities/analysis.ts`, using the capability map
+that already decided which notices to import. That job is already scheduled
+(migration 0009), so a tender is now read by the same run that fetches it, and
+nothing has to be kept alive for the tab to be current.
+
+**`capability_profile.json` is therefore no longer the profile in use.** Edit
+`CAPABILITIES` in `sync-opportunities/normalize.ts` and bump `ANALYSIS_VERSION`
+in `analysis.ts` beside it; that re-scores the register on the next run. The two
+lists agreed on the day this profile was generated from that map and will drift
+the moment either is edited alone.
+
+**Running the scheduler now will change what the tab shows.** `ai_analysis` is
+append-only and the console reads the newest row per tender, so a pass from here
+writes rows at `MODEL_VERSION` (1.x) that supersede the sync's 2.x rows on the
+page. The sync will not correct them — it skips any tender that already holds a
+row at its own version — so the tab keeps showing this service's scores until
+`ANALYSIS_VERSION` is bumped. That is fine when it is what you meant and
+confusing when it is not.
+
+What this package is still good for: `--rfp <uuid>` to inspect one tender in
+detail, the richer document extraction in `pdf_processor.py` once tenders
+actually have files attached, and the learning model in `bid_learning_model.py`
+once bids are being marked Won and Lost. None of those are exercised today —
+`rfp_documents` and `bid_learning` are both empty.
+
 ## How it fits
 
 ```
