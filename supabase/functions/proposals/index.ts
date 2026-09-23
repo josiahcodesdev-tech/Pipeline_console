@@ -226,6 +226,27 @@ async function readAll(admin: SupabaseClient): Promise<Row[]> {
   throw new Error(`Stopped after ${MAX_PAGES} pages; the pipeline read did not end.`)
 }
 
+type Claim = { external_id: string; claimed_by: string; claimed_at: string }
+
+/**
+ * Who each member is, and who has claimed each tender — the two lookups
+ * api/_feed.js makes, repeated here because Deno bundles this directory alone.
+ * See readPeople and readClaims there for why each is its own question.
+ */
+async function readPeople(admin: SupabaseClient): Promise<Map<string, string | null>> {
+  const { data, error } = await admin.from('profiles').select('id, full_name')
+  if (error) throw new Error(error.message)
+  return new Map((data ?? []).map((p) => [p.id as string, (p.full_name as string) || null]))
+}
+
+async function readClaims(admin: SupabaseClient): Promise<Map<string, Claim>> {
+  const { data, error } = await admin
+    .from('rfp_claims')
+    .select('external_id, claimed_by, claimed_at')
+  if (error) throw new Error(error.message)
+  return new Map((data ?? []).map((c) => [c.external_id as string, c as Claim]))
+}
+
 /**
  * `value` is `numeric(14, 2)`, which PostgREST may hand over as a string to
  * avoid the precision loss a float would introduce. The contract promises a
@@ -256,7 +277,12 @@ function asDate(value: string | null): string | null {
  * Every other key is the column name unchanged, so the row and the JSON can
  * be read against each other without a mapping table.
  */
-function present(row: Row): Record<string, unknown> {
+function present(
+  row: Row,
+  people: Map<string, string | null>,
+  claims: Map<string, Claim>,
+): Record<string, unknown> {
+  const claim = row.external_id ? (claims.get(row.external_id) ?? null) : null
   return {
     // The nine the feed was first agreed on. Unchanged, and first, so a
     // caller reading only these sees exactly what it saw before.
@@ -271,8 +297,15 @@ function present(row: Row): Record<string, unknown> {
     created_on: asDate(row.created_on),
     link: `${CONSOLE_ORIGIN}/opportunity/${row.id}`,
 
-    // The rest of the record.
+    // Who holds it. `user_id` owns the row; the claim says who is bidding the
+    // notice firm-wide. Same keys, same order as api/_feed.js.
     user_id: row.user_id ?? null,
+    owner_name: (row.user_id ? people.get(row.user_id) : null) ?? null,
+    claimed_by: claim?.claimed_by ?? null,
+    claimed_by_name: (claim?.claimed_by ? people.get(claim.claimed_by) : null) ?? null,
+    claimed_at: claim?.claimed_at ?? null,
+
+    // The rest of the record.
     source_link: row.link ?? '',
     notes: row.notes ?? '',
     source: row.source ?? '',
@@ -335,8 +368,15 @@ let stored: Stored | null = null
 let filling: Promise<Stored> | null = null
 
 async function fill(admin: SupabaseClient): Promise<Stored> {
-  const rows = await readAll(admin)
-  stored = { at: Date.now(), body: JSON.stringify({ proposals: rows.map(present) }) }
+  const [rows, people, claims] = await Promise.all([
+    readAll(admin),
+    readPeople(admin),
+    readClaims(admin),
+  ])
+  stored = {
+    at: Date.now(),
+    body: JSON.stringify({ proposals: rows.map((row) => present(row, people, claims)) }),
+  }
   return stored
 }
 

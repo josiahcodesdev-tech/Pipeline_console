@@ -9,6 +9,7 @@ import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { formatDateWithYear } from '@/domain/dates'
 import { MAX_EXEMPLARS } from '@/services/concept-note'
 import type { UserSettings } from '@/domain/types'
+import { KnowledgeBase } from './knowledge-base'
 
 const PROPOSAL_PLACEHOLDER = `e.g.
 
@@ -100,9 +101,11 @@ export function SettingsView() {
         }
       />
 
+      <KnowledgeBase />
+
       <Panel
         title="House rules — proposals"
-        description="Your additions and corrections. These win over the built-in structure, tone and length wherever they disagree — but never over the rule against inventing experience, statistics or credentials. No need to restate the standard sections; add what the drafter keeps getting wrong."
+        description="Your own additions, for your drafts only — firm-wide lessons belong in the knowledge base above. These win over the built-in structure, tone and length wherever they disagree — but never over the rule against inventing experience, statistics or credentials. No need to restate the standard sections; add what the drafter keeps getting wrong."
       >
         <Field label="Proposal guidance" htmlFor="proposal-guidance">
           <Textarea

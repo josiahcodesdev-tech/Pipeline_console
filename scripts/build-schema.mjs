@@ -59,6 +59,7 @@ const STRIP = {
   '0013_roles.sql': [[115, 119]], // backfill profiles from auth.users
   '0017_rfp_claims.sql': [[60, 70]], // seed claims from in-pipeline rfps
   '0026_capability_statement_services.sql': [[1, 119]], // bulk service_areas rewrites
+  '0046_knowledge_base.sql': [[91, 251]], // starter knowledge-base articles
 }
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort()

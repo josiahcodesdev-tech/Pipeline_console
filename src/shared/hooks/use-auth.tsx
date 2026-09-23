@@ -46,6 +46,11 @@ export interface Permissions {
    * an access decision, and those have always been in one pair of hands.
    */
   manageTeams: boolean
+  /**
+   * Write the firm's proposal knowledge base in Guidance. Admins and the super
+   * user; everyone reads it. Migration 0046 enforces the same line.
+   */
+  editKnowledge: boolean
 }
 
 interface AuthValue {
@@ -93,6 +98,7 @@ const NO_PERMISSIONS: Permissions = {
   manageMembers: false,
   seeEveryone: false,
   manageTeams: false,
+  editKnowledge: false,
 }
 
 function permissionsFor(role: MemberRole, active: boolean): Permissions {
@@ -105,6 +111,7 @@ function permissionsFor(role: MemberRole, active: boolean): Permissions {
     manageMembers: superUser,
     seeEveryone: admin,
     manageTeams: superUser,
+    editKnowledge: admin,
   }
 }
 

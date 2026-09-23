@@ -77,6 +77,12 @@ interface DraftContext {
  * push a multi-megabyte prompt through this function on the project's key.
  */
 const MAX_GUIDANCE_CHARS = 8_000
+/**
+ * The firm's knowledge base, as the drafter is given it. Read from the table
+ * here rather than sent by the client, so every draft gets the current set.
+ * The Guidance page shows the same figure; change both together.
+ */
+const MAX_KNOWLEDGE_CHARS = 12_000
 const MAX_BOILERPLATE_CHARS = 6_000
 const MAX_EXEMPLARS = 2
 
@@ -155,6 +161,87 @@ ${boilerplate}`)
   }
 
   return parts.join('\n\n')
+}
+
+/**
+ * The firm's knowledge base: articles admins have written for every draft.
+ *
+ * Read in the order the Guidance page shows them, and cut at a whole article
+ * once the budget is spent, so the drafter never gets half an instruction.
+ * Ranked like the house rules — over the default structure and tone, never
+ * over the tender or the evidence discipline — and placed before them, so a
+ * member's own rules are the more specific word.
+ */
+async function readKnowledge(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ block: string; count: number; chars: number }> {
+  const { data, error } = await supabase
+    .from('knowledge_articles')
+    .select('title, category, body, position, seed_key')
+    .eq('for_drafter', true)
+  // The table may not exist before migration 0046. A draft without the
+  // knowledge base is still a draft; a draft that fails over it is not.
+  if (error || !data?.length) return { block: '', count: 0, chars: 0 }
+
+  const rank = [
+    'Getting started',
+    'Evidence and compliance',
+    'Structure',
+    'Writing style',
+    'Review before submission',
+  ]
+  const order = (category: string) => {
+    const at = rank.indexOf(category)
+    return at === -1 ? rank.length : at
+  }
+  // The firm's own free-text instructions go first, so the budget never cuts
+  // them; a blank one, or any empty article, is not sent at all.
+  const own = (article: { seed_key: string | null }) =>
+    article.seed_key === 'further-instructions' ? 0 : 1
+  const articles = (data as Array<{
+    title: string
+    category: string
+    body: string
+    position: number
+    seed_key: string | null
+  }>)
+    .filter((article) => (article.body ?? '').trim())
+    .sort(
+      (a, b) =>
+        own(a) - own(b) ||
+        order(a.category) - order(b.category) ||
+        a.category.localeCompare(b.category) ||
+        a.position - b.position ||
+        a.title.localeCompare(b.title),
+    )
+
+  const parts: string[] = []
+  let chars = 0
+  for (const article of articles) {
+    const part = `### ${article.title.trim()}
+
+${(article.body ?? '').trim()}`
+    if (chars + part.length > MAX_KNOWLEDGE_CHARS) break
+    parts.push(part)
+    chars += part.length
+  }
+  if (!parts.length) return { block: '', count: 0, chars: 0 }
+
+  return {
+    count: parts.length,
+    chars,
+    block: `## The firm's knowledge base
+
+Written by the firm's proposal leads for every proposal the firm drafts. Follow
+it over the default structure, tone and length above wherever the two disagree.
+It does not override the tender's own requirements or the evidence discipline —
+if an article asks you to state something you have not been given as fact,
+insert a placeholder instead.
+
+${parts.join('
+
+')}`,
+  }
 }
 
 interface RosterEntry {
@@ -420,6 +507,11 @@ Deno.serve(async (request: Request) => {
   const deadline = text(context.deadline)
   const serviceAreas = text(context.serviceAreas, 500)
 
+  // Proposals only: the knowledge base is how the firm writes proposals, and a
+  // concept note or a tender analysis has a different job.
+  const knowledge = isProposal || isSection
+    ? await readKnowledge(supabase)
+    : { block: '', count: 0, chars: 0 }
   const guidance = text(context.guidance, MAX_GUIDANCE_CHARS)
   const boilerplate = text(context.boilerplate, MAX_BOILERPLATE_CHARS)
   const examples = (Array.isArray(context.examples) ? context.examples : [])
@@ -496,6 +588,7 @@ Deno.serve(async (request: Request) => {
           ? PROPOSAL_PROMPT
           : CONCEPT_NOTE_PROMPT,
     ...playbooks.map((playbook) => playbook.body),
+    knowledge.block,
     houseRulesBlock(guidance, boilerplate),
     // After the house rules on purpose. A template is the firm's document
     // format and the most specific structural statement there is short of the
@@ -669,6 +762,7 @@ ${slotBriefs
                   ? 'PROPOSAL_PROMPT'
                   : 'CONCEPT_NOTE_PROMPT',
           playbooks: playbooks.map((playbook) => playbook.label),
+          knowledge: knowledge.chars,
           houseRules: guidance.length,
           boilerplate: boilerplate.length,
           exemplars: examples.length,

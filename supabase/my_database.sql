@@ -17,6 +17,7 @@
 --   0017_rfp_claims.sql — lines 60-70
 --   0026_capability_statement_services.sql — lines 1-119
 --   0027_remove_work_we_do_not_do.sql — entire file: deletes rfps rows that no longer qualify
+--   0046_knowledge_base.sql — lines 91-251
 --
 -- Statements that only look like data are KEPT: inserts inside function bodies
 -- (handle_new_user, seed_member_rfps, consume_api_quota, record_change,
@@ -3351,6 +3352,104 @@ create policy proposal_files_update_own on storage.objects
       )
     )
   );
+
+notify pgrst, 'reload schema';
+
+
+-- ===========================================================================
+-- 0046_knowledge_base.sql
+-- ===========================================================================
+
+-- The firm's proposal-writing knowledge base.
+--
+-- THE PROBLEM. Guidance held one private block of house rules per member
+-- (`user_settings.proposal_guidance`), so what one person learned about writing
+-- a winning bid reached their own drafts and nobody else's. The firm's doctrine
+-- lived only in the drafting function's source, readable by whoever could open
+-- the repository and by nobody using the console.
+--
+-- THE CHANGE. One set of articles for the whole firm. Every active member reads
+-- all of them in Guidance; admins and the super user write them, and the super
+-- user alone deletes them. An article
+-- with `for_drafter` set is also handed to the proposal drafter on every draft
+-- (see houseRulesBlock's neighbour, knowledgeBlock, in the concept-note
+-- function), so a lesson written here reaches the next proposal anyone drafts.
+--
+-- THE SEEDED ARTICLES are the built-in doctrine, explained for people. They
+-- are stored with `for_drafter = false` because the drafter is already given
+-- the doctrine itself, word for word; sending it a paraphrase as well would
+-- spend prompt on saying the same thing twice, in two voices that could
+-- disagree. Editing a seeded article changes what people read, not what the
+-- drafter does — the page says so on each one. `seed_key` is what lets this
+-- file run again without duplicating them.
+--
+-- One seeded row is different: `further-instructions` starts blank, is sent to
+-- the drafter, and is where the firm writes its own standing instructions.
+
+create table if not exists public.knowledge_articles (
+  id           uuid primary key default gen_random_uuid(),
+  title        text not null check (length(trim(title)) > 0),
+  category     text not null default 'General',
+  body         text not null default '',
+  -- Whether the drafter is given this article. Off for the seeded doctrine
+  -- summaries; on by default for anything written here.
+  for_drafter  boolean not null default true,
+  -- Reading order within a category, lowest first.
+  position     integer not null default 0,
+  -- Set only on the articles this migration seeds.
+  seed_key     text unique,
+  created_by   uuid references auth.users (id) on delete set null default auth.uid(),
+  updated_by   uuid references auth.users (id) on delete set null default auth.uid(),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists knowledge_articles_order_idx
+  on public.knowledge_articles (category, position, title);
+
+drop trigger if exists knowledge_articles_touch on public.knowledge_articles;
+create trigger knowledge_articles_touch
+  before update on public.knowledge_articles
+  for each row execute function public.touch_updated_at();
+
+alter table public.knowledge_articles enable row level security;
+
+-- Every member reads the whole knowledge base: it is the firm's, not anyone's.
+drop policy if exists knowledge_articles_select on public.knowledge_articles;
+create policy knowledge_articles_select on public.knowledge_articles
+  for select to authenticated
+  using (true);
+
+-- Admins and the super user write it. `is_admin()` covers both roles.
+drop policy if exists knowledge_articles_insert on public.knowledge_articles;
+create policy knowledge_articles_insert on public.knowledge_articles
+  for insert to authenticated
+  with check ((select public.is_admin()));
+
+drop policy if exists knowledge_articles_update on public.knowledge_articles;
+create policy knowledge_articles_update on public.knowledge_articles
+  for update to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+-- Deleting is the super user's alone, as it is everywhere else in the console:
+-- it is the one act with no undo. An admin retires an article by switching it
+-- off from the drafter or rewriting it.
+drop policy if exists knowledge_articles_delete on public.knowledge_articles;
+create policy knowledge_articles_delete on public.knowledge_articles
+  for delete to authenticated
+  using ((select public.is_super_user()));
+
+-- A switched-off account reads nothing here either. Restrictive, so it ANDs
+-- with the policies above — the same guard migration 0032 puts on every table.
+drop policy if exists active_members_only on public.knowledge_articles;
+create policy active_members_only on public.knowledge_articles
+  as restrictive for all to authenticated
+  using ((select public.is_active_user()))
+  with check ((select public.is_active_user()));
+
+grant select, insert, update, delete on public.knowledge_articles to authenticated;
+
 
 notify pgrst, 'reload schema';
 

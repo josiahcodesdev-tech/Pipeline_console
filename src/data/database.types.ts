@@ -171,6 +171,21 @@ export type WeeklyReportRow = {
   updated_at: string
 }
 
+/** The firm's proposal-writing knowledge base; see migration 0046. */
+export type KnowledgeArticleRow = {
+  id: string
+  title: string
+  category: string
+  body: string
+  for_drafter: boolean
+  position: number
+  seed_key: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type ConsultantRow = {
   id: string
   user_id: string
@@ -453,6 +468,22 @@ export type Database = {
           'created_at' | 'updated_at' | 'email' | 'full_name' | 'role' | 'active'
         >
         Update: Partial<ProfileRow>
+        Relationships: []
+      }
+      knowledge_articles: {
+        Row: KnowledgeArticleRow
+        Insert: Insertable<
+          KnowledgeArticleRow,
+          | Generated
+          | 'category'
+          | 'body'
+          | 'for_drafter'
+          | 'position'
+          | 'seed_key'
+          | 'created_by'
+          | 'updated_by'
+        >
+        Update: Partial<KnowledgeArticleRow>
         Relationships: []
       }
       consultants: {

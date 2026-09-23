@@ -203,6 +203,8 @@ export interface PromptPreview {
     doctrine: string
     playbooks: string[]
     /** Character counts — enough to see whether a part arrived at all. */
+    /** The firm's knowledge base. Absent from a function deployed before it. */
+    knowledge?: number
     houseRules: number
     boilerplate: number
     exemplars: number

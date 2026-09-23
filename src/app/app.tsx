@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { MenuIcon } from 'lucide-react'
 import { Toaster } from '@/shared/ui/sonner'
 import { AppSidebar } from '@/app/app-sidebar'
@@ -52,13 +52,28 @@ function readSidebarCollapsed(): boolean {
   }
 }
 
+/**
+ * The tender a `/opportunity/<id>` link asked for, if the console was opened
+ * by one.
+ *
+ * The proposals feed hands every record out as that link, and the console has
+ * no router, so without this each one landed on a 404. Read when the console
+ * mounts after sign-in; the effect in `Console` then puts the address bar back
+ * to `/`, so a reload after closing the tender does not reopen it.
+ */
+const TENDER_PATH = /^\/opportunity\/([0-9a-f-]{36})\/?$/i
+
+function openedTender(): string | null {
+  return TENDER_PATH.exec(window.location.pathname)?.[1] ?? null
+}
+
 function Console() {
   const [requestedView, setView] = useState<ViewId>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   // Which RFP's profile is open, if any. Kept here rather than inside a view
   // so the tracker and the Proposals page can both open one, and switching
   // section closes it.
-  const [profileId, setProfileId] = useState<string | null>(null)
+  const [profileId, setProfileId] = useState<string | null>(openedTender)
   /** Which client's page is open, if any. Same idea, for leads. */
   const [leadId, setLeadId] = useState<string | null>(null)
   // Which pipeline stage the leads register should open filtered to, when it
@@ -66,6 +81,17 @@ function Console() {
   // navigation so the filter never outlives the click that asked for it.
   const [leadStage, setLeadStage] = useState<LeadStatus | undefined>(undefined)
   const { rfps, leads, loading, error } = usePipeline()
+
+  // Done here rather than in `openedTender`, which runs as a state initialiser
+  // and so must not touch the page.
+  useEffect(() => {
+    if (!TENDER_PATH.test(window.location.pathname)) return
+    try {
+      window.history.replaceState(null, '', '/')
+    } catch {
+      // The tender still opened; only the address bar keeps the path.
+    }
+  }, [])
   const { can } = useAuth()
 
   // Derived rather than corrected in an effect: a role can change under a

@@ -116,6 +116,7 @@ export function PromptPreviewDialog({
                 value={preview.sources.playbooks.join(', ') || 'none matched'}
                 muted={preview.sources.playbooks.length === 0}
               />
+              <Row label="Knowledge base" value={short(preview.sources.knowledge ?? 0)} muted={!preview.sources.knowledge} />
               <Row label="House rules" value={short(preview.sources.houseRules)} muted={preview.sources.houseRules === 0} />
               <Row label="Boilerplate" value={short(preview.sources.boilerplate)} muted={preview.sources.boilerplate === 0} />
               <Row label="Exemplars" value={preview.sources.exemplars ? `${preview.sources.exemplars} starred` : 'none'} muted={preview.sources.exemplars === 0} />
