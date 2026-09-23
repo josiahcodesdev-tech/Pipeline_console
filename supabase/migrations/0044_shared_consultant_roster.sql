@@ -41,6 +41,7 @@
 drop policy if exists consultants_select_own on public.consultants;
 drop policy if exists consultants_select on public.consultants;
 
+drop policy if exists consultants_select_firm on public.consultants;
 create policy consultants_select_firm on public.consultants
   for select
   to authenticated
@@ -58,6 +59,7 @@ comment on policy consultants_select_firm on public.consultants is
 -- named for whoever owns the consultant.
 drop policy if exists consultant_files_select_own on storage.objects;
 
+drop policy if exists consultant_files_select_firm on storage.objects;
 create policy consultant_files_select_firm on storage.objects
   for select
   to authenticated

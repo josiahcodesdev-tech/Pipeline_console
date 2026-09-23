@@ -2774,10 +2774,9 @@ comment on table public.rfp_shares is
   'Read access to one tender, granted to one member or one team by its owner or by oversight. Never grants write.';
 
 
-
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 -- 0040_proposal_design.sql
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 
 -- A proposal drafted into the firm's designed template, stored as its words.
 --
@@ -2811,9 +2810,9 @@ comment on column public.proposals.design is
   'Filled slot values for a proposal drafted into a designed template: {template, values, unfilled, failures}. Empty for Markdown drafts and for uploads.';
 
 
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 -- 0041_ai_intelligence.sql
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 
 -- The AI intelligence layer's own tables.
 --
@@ -3096,9 +3095,9 @@ create policy tenders_delete on storage.objects
 notify pgrst, 'reload schema';
 
 
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 -- 0042_prune_expired_rfps.sql
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 
 -- Remove expired tenders nobody touched, on a rule rather than by hand.
 --
@@ -3183,9 +3182,126 @@ grant execute on function public.prune_expired_rfps(integer) to service_role;
 
 notify pgrst, 'reload schema';
 
--- ---------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0043_audit_log_super_user_only.sql
+-- ===========================================================================
+
+-- Narrow the audit trail to the super user.
+--
+-- WHAT CHANGES. `audit_log_select` was `using (public.is_admin())`, and
+-- `is_admin()` is true for the admin role as well as the super user. So every
+-- admin could read the firm-wide record of who changed what, when, and which
+-- fields moved — across every member's leads, tenders, proposals and activity.
+--
+-- WHY IT IS A MIGRATION AND NOT A HIDDEN MENU ITEM. The Records page is being
+-- hidden from admins in the same change, and hiding it is not the protection.
+-- The page is a `select` against `audit_log` and `proposals`; anyone who can
+-- open a browser console can issue that select whether or not a link to it
+-- appears in the sidebar. This console's own rule, written into nav.ts when
+-- Members was narrowed the same way: a hidden button and a refused request are
+-- not the same protection, and only the second one survives.
+--
+-- WHY THE SUPER USER AND NOT OVERSIGHT GENERALLY. The audit trail is the record
+-- that says what an administrator did. An administrator who can read it — and
+-- who is one of a handful of people it is about — is being asked to audit
+-- themselves. That is the one permission in this schema where "oversight" is
+-- the wrong boundary.
+--
+-- WHAT ADMINS KEEP. Everything they had except this page. Migration 0038 gives
+-- them the firm-wide read on records themselves; this removes only the trail of
+-- changes to them.
+
+drop policy if exists audit_log_select on public.audit_log;
+
+create policy audit_log_select on public.audit_log
+  for select
+  to authenticated
+  using (public.is_super_user());
+
+comment on policy audit_log_select on public.audit_log is
+  'Super user only. The audit trail records what administrators do, so an administrator who could read it would be auditing themselves — see migration 0043.';
+
+notify pgrst, 'reload schema';
+
+
+-- ===========================================================================
+-- 0044_shared_consultant_roster.sql
+-- ===========================================================================
+
+-- One consultant roster for the firm, readable by every member.
+--
+-- THE PROBLEM. `consultants` was private per member: `select` was
+-- `auth.uid() = user_id`, so each account had its own roster. In practice the
+-- firm has one. Dr. Benson Kiarie, Edwin Wekesa Wafula and the rest are the
+-- people this business puts forward, named in proposals that have already gone
+-- out — not one member's address book.
+--
+-- What that produced in the live database at the time of this migration:
+--
+--     super_user     5 consultants
+--     admin          1
+--     Josiah         1
+--     Regina         0
+--     Austin         0
+--     Hannah         0
+--
+-- Three of six members had none. The drafter is handed the roster to staff a
+-- bid with, so those three were drafting proposals that could name no team at
+-- all, and nothing said so — an empty roster and a roster nobody has filled in
+-- look identical from inside the prompt.
+--
+-- THE CHANGE IS READ ONLY. Every active member may now read every consultant.
+-- Writes are untouched and were already sensibly scoped: insert and update are
+-- your own rows, delete is the super user alone. Sharing a roster is a
+-- different act from letting six people edit each other's records, and only the
+-- first was asked for.
+--
+-- `active_members_only` still applies over the top. It is RESTRICTIVE, so it
+-- ANDs with everything here: a deactivated account reads nothing, whatever the
+-- policies below say.
+--
+-- WHY NOT COPY THE ROWS TO EACH ACCOUNT INSTEAD. Because then there are six
+-- Dr. Benson Kiaries, five of them going stale the moment the first is
+-- corrected. The roster is one list; it should be stored as one list.
+
+-- Both previous names. The original from 0010 and the widened one a later
+-- migration replaced it with — leaving either in place would OR with the new
+-- policy to the same result while telling the next reader that select is
+-- admin-or-own, which it is not.
+drop policy if exists consultants_select_own on public.consultants;
+drop policy if exists consultants_select on public.consultants;
+
+drop policy if exists consultants_select_firm on public.consultants;
+create policy consultants_select_firm on public.consultants
+  for select
+  to authenticated
+  using (true);
+
+comment on policy consultants_select_firm on public.consultants is
+  'The consultant roster is a firm asset: every member reads all of it, because every member drafts proposals that must name a team. Writes remain owner-scoped — see migration 0044.';
+
+-- The photograph and CV that go with each consultant.
+--
+-- These had to move with the rows. A member who can read a consultant record
+-- but not its photograph gets a broken image and a CV link that 404s, which
+-- reads as data loss rather than as a permission boundary. The write policies
+-- are untouched: a file still lands in, and is still removed from, the folder
+-- named for whoever owns the consultant.
+drop policy if exists consultant_files_select_own on storage.objects;
+
+drop policy if exists consultant_files_select_firm on storage.objects;
+create policy consultant_files_select_firm on storage.objects
+  for select
+  to authenticated
+  using (bucket_id = 'consultants');
+
+notify pgrst, 'reload schema';
+
+
+-- ===========================================================================
 -- 0045_edited_proposal_objects.sql
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 
 -- A freely-edited proposal is stored as an object and re-saved in place.
 --
@@ -3237,3 +3353,4 @@ create policy proposal_files_update_own on storage.objects
   );
 
 notify pgrst, 'reload schema';
+

@@ -263,7 +263,7 @@ export function DashboardView({
 
   const filteredRfps = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return windowRfps.filter((rfp) => {
+    const matching = windowRfps.filter((rfp) => {
       if (status !== 'all' && rfp.status !== status) return false
       if (!needle) return true
       return (
@@ -271,6 +271,13 @@ export function DashboardView({
         rfp.org.toLowerCase().includes(needle)
       )
     })
+    // Still-open tenders first, soonest closing at the top; the overdue ones
+    // after them, most recently passed first. Sorted purely by date, a long
+    // tail of lapsed notices pushed everything that can still be bid on below
+    // the fold.
+    const open = matching.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) >= 0)
+    const overdue = matching.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) < 0).reverse()
+    return [...open, ...overdue]
   }, [windowRfps, search, status])
 
   const filtered = search.trim() !== '' || status !== 'all' || window !== 7
