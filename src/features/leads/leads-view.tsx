@@ -13,6 +13,8 @@ import {
 } from '@/shared/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
+import { Pager } from '@/shared/components/pager'
+import { usePaged } from '@/shared/hooks/use-paged'
 import { LeadStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { useAuth } from '@/shared/hooks/use-auth'
@@ -65,6 +67,7 @@ export function LeadsView({
       return true
     })
   }, [leads, search, segment, status])
+  const paged = usePaged(filtered, 'leads', JSON.stringify([search, segment, status]))
 
   function open(lead: Lead | null) {
     setEditing(lead)
@@ -163,7 +166,7 @@ export function LeadsView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((lead) => (
+            {paged.rows.map((lead) => (
               // The row opens the client's page rather than the edit dialog:
               // the page is where the call report is written, and a dialog
               // cannot hold a form that long beside an activity log.
@@ -229,6 +232,8 @@ export function LeadsView({
             ))}
           </TableBody>
         </Table>
+
+        <Pager {...paged} />
 
         {filtered.length === 0 &&
           (leads.length === 0 ? (

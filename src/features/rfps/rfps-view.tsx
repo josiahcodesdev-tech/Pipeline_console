@@ -24,6 +24,8 @@ import {
 } from '@/shared/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
+import { Pager } from '@/shared/components/pager'
+import { usePaged } from '@/shared/hooks/use-paged'
 import { RfpStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
 import { daysUntil, formatDateWithYear, formatKes, today } from '@/domain/dates'
@@ -290,6 +292,14 @@ export function RfpsView({
       })
   }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, sort])
 
+  // Only the rows on screen are built. Any change to what is being looked at
+  // starts again from page one.
+  const paged = usePaged(
+    filtered,
+    'rfps',
+    JSON.stringify([search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, sort]),
+  )
+
   async function handleImport() {
     setImporting(true)
     try {
@@ -550,7 +560,7 @@ export function RfpsView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((rfp) => (
+            {paged.rows.map((rfp) => (
               <TableRow
                 key={rfp.id}
                 onClick={() => onOpenProfile(rfp.id)}
@@ -686,6 +696,8 @@ export function RfpsView({
             ))}
           </TableBody>
         </Table>
+
+        <Pager {...paged} />
 
         {filtered.length === 0 &&
           (rfps.length === 0 ? (

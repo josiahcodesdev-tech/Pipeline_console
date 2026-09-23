@@ -170,6 +170,9 @@ async function loadTable<Row, T>(
 /** PostgREST stops at 1,000 rows a request, so anything larger is paged. */
 const PAGE = 1000
 
+/** A page read, with the table's total when it was asked for. */
+type PagedResult<Row> = QueryResult<Row> & { count?: number | null }
+
 /**
  * Reads a table in full, a page at a time.
  *
@@ -181,20 +184,17 @@ async function loadEveryPage<Row>(
   table: 'rfps' | 'leads' | 'activities' | 'proposals' | 'tasks',
   order: string,
 ): Promise<Row[]> {
-  const rows: Row[] = []
-  for (let from = 0; ; from += PAGE) {
+  const { data, error } = await pagedQuery<Row>((from, to, counted) => {
     let query = supabase
       .from(table)
-      .select('*')
+      .select('*', counted ? { count: 'exact' } : undefined)
       .order(order, { ascending: false })
-      .range(from, from + PAGE - 1)
+      .range(from, to)
     if (table === 'proposals') query = query.is('archived_at', null)
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
-    const page = (data ?? []) as Row[]
-    rows.push(...page)
-    if (page.length < PAGE) return rows
-  }
+    return query as unknown as PromiseLike<PagedResult<Row>>
+  })
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 /**
@@ -204,13 +204,38 @@ async function loadEveryPage<Row>(
  * runs once, so each page needs its own. Errors are handed back rather than
  * thrown, which is what keeps a failure here costing one table instead of the
  * console.
+ *
+ * The first page asks for the total, and every page after it is requested at
+ * once. Reading them one after another made load time grow with every
+ * thousand tenders — five pages was five round trips end to end — where now it
+ * is two. Rows added between the count and the reads can leave the last page
+ * full; reading carries on one page at a time from there, so nothing is cut.
  */
 async function pagedQuery<Row>(
-  build: (from: number, to: number) => PromiseLike<QueryResult<Row>>,
+  build: (from: number, to: number, counted: boolean) => PromiseLike<PagedResult<Row>>,
 ): Promise<QueryResult<Row>> {
-  const rows: Row[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build(from, from + PAGE - 1)
+  const first = await build(0, PAGE - 1, true)
+  if (first.error) return { data: null, error: first.error }
+  const rows: Row[] = [...(first.data ?? [])]
+  if (rows.length < PAGE) return { data: rows, error: null }
+
+  let from = PAGE
+  const total = first.count ?? 0
+  if (total > PAGE) {
+    const starts: number[] = []
+    for (let start = PAGE; start < total; start += PAGE) starts.push(start)
+    const pages = await Promise.all(starts.map((start) => build(start, start + PAGE - 1, false)))
+    for (const page of pages) {
+      if (page.error) return { data: null, error: page.error }
+      rows.push(...(page.data ?? []))
+    }
+    const last = pages[pages.length - 1]
+    if ((last.data ?? []).length < PAGE) return { data: rows, error: null }
+    from = starts[starts.length - 1] + PAGE
+  }
+
+  for (; ; from += PAGE) {
+    const { data, error } = await build(from, from + PAGE - 1, false)
     if (error) return { data: null, error }
     const page = data ?? []
     rows.push(...page)
@@ -328,7 +353,7 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
       // tender to every member, so a member's own row count tracks the whole
       // pool and rises with it; unpaged, the day it passes a thousand the
       // console would quietly start showing a page of it as the total.
-      pagedQuery<RfpRow>((from, to) =>
+      pagedQuery<RfpRow>((from, to, counted) =>
         supabase
           .from('rfps')
           // The one table here read without `.eq('user_id', mine)`, and the
@@ -343,7 +368,7 @@ export async function fetchAll(seeEveryone = false): Promise<PipelineSnapshot> {
           // are labelled by owner in the register rather than collapsed,
           // because the shared one is the point — it carries the notes, the
           // reading and the draft that made it worth sharing.
-          .select('*')
+          .select('*', counted ? { count: 'exact' } : undefined)
           // Newest first — the views sort too, but this keeps the raw
           // snapshot in the same order they present.
           .order('created_at', { ascending: false })
