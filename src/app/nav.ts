@@ -61,6 +61,17 @@ export type ViewId = (typeof NAV_ITEMS)[number]['id']
 const SUPER_USER_ONLY: readonly ViewId[] = ['members', 'records']
 
 /**
+ * Kept out of the sidebar for everyone but the super user, and nothing more.
+ *
+ * Unlike SUPER_USER_ONLY these stay openable: the dashboard's panels link into
+ * Activity, Tasks and Reports, and a member following one of those links
+ * should land on the page rather than be bounced to the dashboard. This trims
+ * the sidebar to the work members and admins do day to day; it is not a
+ * permission.
+ */
+const SIDEBAR_SUPER_USER_ONLY: readonly ViewId[] = ['activity', 'tasks', 'report']
+
+/**
  * Views for both oversight roles. Empty today.
  *
  * Kept rather than deleted along with its parameter: "admin and super user, but
@@ -95,6 +106,7 @@ export function navItemsFor(canManageMembers: boolean, canSeeEveryone: boolean) 
   return FLAGGED_NAV_ITEMS.filter(
     (item) =>
       (!SUPER_USER_ONLY.includes(item.id) || canManageMembers) &&
+      (!SIDEBAR_SUPER_USER_ONLY.includes(item.id) || canManageMembers) &&
       (!OVERSIGHT_ONLY.includes(item.id) || canSeeEveryone),
   )
 }
