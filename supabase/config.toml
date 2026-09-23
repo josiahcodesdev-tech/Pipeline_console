@@ -385,6 +385,19 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[functions.proposals]
+# The read-only pipeline feed authenticates with a shared secret, not a
+# Supabase JWT. Left on, the platform's gate would try to parse that secret as
+# a JWT and reject every caller before the function ran. The lock is not
+# removed by this, only moved: `authorised()` in the function is what now
+# stands between a caller and the rows, and it fails closed if the secret is
+# unset. The CLI reads this block at deploy time, so `npm run deploy:fn
+# proposals` carries it without needing a flag. If a caller with the right
+# token gets a 401 whose body is not this function's JSON, an older CLI dropped
+# the setting: redeploy with `npx supabase functions deploy proposals
+# --no-verify-jwt`, which says the same thing on the command line.
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

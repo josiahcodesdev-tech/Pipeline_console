@@ -12,6 +12,7 @@
     "templates:build": "node scripts/build-templates.mjs",
     "templates:check": "node scripts/check-templates.mjs",
     "schema:build": "node scripts/build-schema.mjs",
+    "proposals:export": "node scripts/export-proposals.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

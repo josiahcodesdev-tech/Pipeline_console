@@ -51,3 +51,11 @@ __pycache__/
 
 # Snapshots taken before an irreversible delete. Real tender data — never commit.
 .backups/
+
+# Exported pipeline feeds, from `npm run proposals:export`. Every member's
+# tenders in one file, including the ones row-level security keeps private —
+# the same reason .backups/ is here. If you point --out somewhere else, make
+# sure that path is ignored too, and never at public/ or anywhere the frontend
+# imports from: both ship the file to whoever loads the site.
+proposals.json
+*.proposals.json
