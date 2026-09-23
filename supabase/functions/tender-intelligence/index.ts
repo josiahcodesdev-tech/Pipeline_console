@@ -25,6 +25,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.115.0'
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { fetchNotice } from '../concept-note/notice.ts'
+import { providerUnavailable } from '../concept-note/drafters.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -310,6 +311,42 @@ async function claudeDocument(base64: string, mime: string, purpose: string) {
  * start refusing half its own file types because the tender side changed
  * provider. Needs a funded OPENAI_API_KEY like the embeddings do.
  */
+/**
+ * The tender analysis, on GPT, when Anthropic cannot serve it.
+ *
+ * ANALYSIS_SCHEMA is already in OpenAI's `{name, strict, schema}` envelope —
+ * it was written for GPT and kept that shape when Claude took over — so the
+ * same contract binds both providers and the stored analysis has one shape
+ * whichever produced it. The reply is reshaped into Claude's content-block
+ * form so the one caller downstream does not have to know which ran.
+ */
+async function analyseOnOpenAI(system: string, user: string, reason: string) {
+  let result: Record<string, unknown>
+  try {
+    result = await openai('responses', {
+      model: 'gpt-4.1',
+      input: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      text: { format: { type: 'json_schema', ...ANALYSIS_SCHEMA } },
+    })
+  } catch (cause) {
+    // Both providers are down. Name the primary first — it is the one whose
+    // failure started this, and the one that has to be fixed for normal
+    // service to come back. Reporting only OpenAI here is the exact mistake
+    // the concept-note fallback was removed for.
+    throw new ServiceError(
+      `Anthropic is unavailable (${reason}), and the OpenAI fallback also failed: ` +
+        `${(cause as { message?: string })?.message ?? cause}`,
+    )
+  }
+
+  const text = responseText(result)
+  if (!text) throw new ServiceError('The OpenAI fallback returned no analysis.')
+  return { content: [{ type: 'text', text }], stop_reason: 'end_turn' } as Record<string, unknown>
+}
+
 async function openaiDocument(base64: string, fileName: string, mime: string, purpose: string) {
   const result = await openai('responses', {
     model:'gpt-4.1-mini',
@@ -426,7 +463,7 @@ Deno.serve(async (request) => {
       // Note there is deliberately no `temperature`. This asked for 0 under
       // GPT; Opus 5 rejects the sampling parameters outright, and the schema
       // below is what actually constrains the output — not a temperature.
-      const completion = await claude().messages.create({
+      const request = {
         model: CLAUDE_MODEL,
         max_tokens: 16_000,
         output_config: {
@@ -439,7 +476,27 @@ Deno.serve(async (request) => {
         messages:[
           {role:'user',content:`COMPANY KNOWLEDGE\n${knowledge || 'None supplied'}\n\nTENDER\n${source}`}
         ]
-      }) as unknown as Record<string, unknown>
+      }
+
+      // Claude writes the analysis. If the Anthropic account cannot serve —
+      // spent credit, a revoked key, a rate limit — the same schema goes to
+      // GPT rather than the tender going unanalysed. Only unavailability fails
+      // over: a malformed request would fail identically on both, and sending
+      // it twice would just cost twice.
+      let completion: Record<string, unknown>
+      let fellBackFrom: string | null = null
+      try {
+        // `as never` rather than a named parameter type: the request is built
+        // as a plain object so both providers can read it, and `never` is
+        // assignable to whatever overload the SDK picks without naming it.
+        completion = await claude().messages.create(request as never) as unknown as Record<string, unknown>
+      } catch (cause) {
+        const reason = providerUnavailable(cause)
+        if (!reason) throw cause
+        console.error(`[tender-intelligence] Anthropic unavailable (${reason}); analysing on OpenAI`)
+        completion = await analyseOnOpenAI(request.system, String(request.messages[0].content), reason)
+        fellBackFrom = `Anthropic (${reason})`
+      }
 
       const content = claudeText((completion.content ?? []) as Array<Record<string, unknown>>)
       // A schema-constrained response is still capped by max_tokens, and a
@@ -448,8 +505,16 @@ Deno.serve(async (request) => {
       if (completion.stop_reason === 'max_tokens') {
         return json({error:'The tender is too long to analyse in one pass. Split it and try again.'},413)
       }
-      if (!content) throw new ServiceError('Claude returned no analysis.')
-      return json({ analysis:JSON.parse(content), noticeText:fetched.text, noticeProblem:fetched.problem })
+      if (!content) throw new ServiceError('Neither provider returned an analysis.')
+      // `fellBack` is reported, not hidden. A tender analysed by the spare
+      // provider is still worth having, and the person reading it should know
+      // the primary needs attention before the spare runs out too.
+      return json({
+        analysis: JSON.parse(content),
+        noticeText: fetched.text,
+        noticeProblem: fetched.problem,
+        ...(fellBackFrom ? { fellBack: fellBackFrom } : {}),
+      })
     }
 
     if (action === 'enrich') {
@@ -590,6 +655,14 @@ Deno.serve(async (request) => {
         return json({error:'Anthropic rate-limited, or the credit is spent. Check billing and limits on the Claude Console.'},502)
       }
       if (status === 400) {
+        // A spent balance arrives as 400, not 402 or 429, and reading the
+        // status alone files it as "bad request" — which sent a real outage
+        // to be debugged as a bug in this function. The message is the only
+        // thing that tells the two apart, so the message decides.
+        const detail = String((cause as { message?: unknown })?.message ?? '').toLowerCase()
+        if (detail.includes('credit balance is too low') || detail.includes('billing')) {
+          return json({error:'The Anthropic account is out of credit, and the OpenAI fallback did not cover this call. Add credit at console.anthropic.com → Plans & Billing.'},502)
+        }
         return json({error:'Anthropic rejected the shape of the request (400). That is a fault in this function, not in your tender — the function log has the detail.'},502)
       }
       return json({error:`Anthropic returned ${status}. The function log has the detail.`},502)

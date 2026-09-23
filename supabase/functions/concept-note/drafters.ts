@@ -25,7 +25,19 @@ import OpenAI from 'npm:openai@6.45.0'
 export type DraftEvent =
   | { type: 'text'; text: string }
   | { type: 'progress' }
-  | { type: 'end'; truncated: boolean; refused: boolean }
+  /**
+   * `fellBackFrom` and `reason` are set only when the primary provider could
+   * not serve and the secondary wrote this draft instead. Optional so every
+   * existing consumer keeps working without reading them, and present so one
+   * that wants to say "written by GPT because Claude is out of credit" can.
+   */
+  | {
+      type: 'end'
+      truncated: boolean
+      refused: boolean
+      fellBackFrom?: string
+      reason?: string
+    }
 
 export interface DraftJob {
   system: string
@@ -395,20 +407,148 @@ export function describeDraftFailure(cause: unknown): string {
  * Returns null when neither is set, which the handler reports as a 500 — that
  * is a deployment fault, not a bad request.
  */
+/**
+ * Is this failure the provider being unable to serve, rather than the request
+ * being wrong?
+ *
+ * The distinction is the whole basis of failing over. "Your credit balance is
+ * too low", a revoked key and a rate limit all mean *this account cannot serve
+ * anything right now*, and the other provider would do fine. A malformed
+ * request or a refusal means the work itself is the problem, and sending the
+ * same broken job to a second provider just buys a second copy of the error at
+ * twice the latency.
+ *
+ * Billing is the case worth spelling out. Anthropic reports a spent balance as
+ * **400**, not 402 or 429 — so status alone misfiles it as "bad request", which
+ * is exactly how an unpaid account came to look like a bug in this function.
+ * The message is what distinguishes it, so the message is what gets read.
+ */
+export function providerUnavailable(error: unknown): string | null {
+  const status = (error as { status?: unknown } | null)?.status
+  const message = String((error as { message?: unknown } | null)?.message ?? '')
+  const lower = message.toLowerCase()
+
+  // Billing, whatever status it arrives under. Checked before status so a 400
+  // carrying a credit message is read as billing rather than as a bad request.
+  if (
+    lower.includes('credit balance is too low') ||
+    lower.includes('billing') ||
+    lower.includes('insufficient_quota') ||
+    lower.includes('exceeded your current quota')
+  ) {
+    return 'the account is out of credit'
+  }
+
+  if (typeof status === 'number') {
+    if (status === 401 || status === 403) return 'the API key was rejected'
+    if (status === 429) return 'rate-limited'
+    if (status >= 500) return `the provider returned ${status}`
+    return null // 400 and friends: our request, not their availability.
+  }
+
+  // No status at all is a transport failure — DNS, TLS, a dropped socket.
+  // The other provider is on different infrastructure and may well be up.
+  if (lower.includes('fetch failed') || lower.includes('network') || lower.includes('timeout')) {
+    return 'the provider could not be reached'
+  }
+  return null
+}
+
+/**
+ * Two drafters, the second used only when the first cannot serve.
+ *
+ * WHY THIS IS NOT THE FALLBACK THAT WAS REMOVED
+ * The earlier one wrapped *every* primary failure, so "ANTHROPIC_API_KEY is not
+ * configured" came back wearing OpenAI's error message and sent people to check
+ * the wrong key. Two rules keep that from happening again:
+ *
+ *   1. Only `providerUnavailable` failures fail over. A misconfiguration or a
+ *      malformed request is reported by the provider that had it, as itself.
+ *   2. When both fail, the PRIMARY's error is what propagates. The secondary's
+ *      is attached to it, never substituted for it. Whoever reads the message
+ *      is told which provider they actually need to fix.
+ *
+ * A successful failover is not silent either: it logs, and it marks the `end`
+ * event, so a run that quietly cost twice as long has something to show for it.
+ */
+function failoverDrafter(primary: Drafter, secondary: Drafter): Drafter {
+  return {
+    label: `${primary.label} → ${secondary.label}`,
+
+    async *run(job: DraftJob) {
+      let started = false
+      try {
+        for await (const event of primary.run(job)) {
+          // Once text is on the wire the caller has a partial document, and
+          // restarting on the other provider would splice two different voices
+          // into one draft. Past this point the run belongs to the primary.
+          if (event.type === 'text') started = true
+          yield event
+        }
+        return
+      } catch (cause) {
+        const reason = providerUnavailable(cause)
+        if (started || !reason) throw cause
+        console.error(`[drafter] ${primary.label} unavailable (${reason}); trying ${secondary.label}`)
+
+        try {
+          for await (const event of secondary.run(job)) {
+            yield event.type === 'end' ? { ...event, fellBackFrom: primary.label, reason } : event
+          }
+        } catch (secondaryCause) {
+          // The primary's failure is the one that needs fixing. Say so, and
+          // carry the secondary's as context rather than in its place.
+          throw new Error(
+            `${primary.label} unavailable (${reason}), and ${secondary.label} also failed: ` +
+              `${(secondaryCause as { message?: string })?.message ?? secondaryCause}`,
+            { cause },
+          )
+        }
+      }
+    },
+
+    async fillSlots(job: DraftJob, slots: readonly SlotBrief[]) {
+      if (!primary.fillSlots) {
+        if (!secondary.fillSlots) throw new Error('Neither provider can fill template slots.')
+        return secondary.fillSlots(job, slots)
+      }
+      try {
+        return await primary.fillSlots(job, slots)
+      } catch (cause) {
+        const reason = providerUnavailable(cause)
+        if (!reason || !secondary.fillSlots) throw cause
+        console.error(`[drafter] ${primary.label} unavailable (${reason}); trying ${secondary.label}`)
+        try {
+          return await secondary.fillSlots(job, slots)
+        } catch (secondaryCause) {
+          throw new Error(
+            `${primary.label} unavailable (${reason}), and ${secondary.label} also failed: ` +
+              `${(secondaryCause as { message?: string })?.message ?? secondaryCause}`,
+            { cause },
+          )
+        }
+      }
+    },
+  }
+}
+
+/**
+ * The drafter to use, given whichever keys are configured.
+ *
+ * Claude stays first when both are present: the prompts, the doctrine and the
+ * schemas were written against it, and failing over is a degradation accepted
+ * to keep working rather than a free choice between equals. With only one key
+ * set there is nothing to fail over to, and that provider's own errors are
+ * reported as its own — which is the case the old wrapper got wrong.
+ */
 export function selectDrafter(): Drafter | null {
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')?.trim()
-  if (anthropicKey) return anthropicDrafter(anthropicKey)
-
-  // No automatic GPT fallback, and the attempt at one is worth remembering. A
-  // wrapper here caught every primary failure before the first token and tried
-  // the other provider — including "ANTHROPIC_API_KEY is not configured", which
-  // it then reported as whatever OpenAI said. With the GPT account out of
-  // credit, every Claude misconfiguration surfaced as "OpenAI quota spent": a
-  // sentence naming the wrong provider, sending whoever read it to check the
-  // wrong key. Anything reinstating this needs the primary's failure to reach
-  // the caller either way, or the next outage gets diagnosed twice.
   const openaiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
-  if (openaiKey) return openaiDrafter(openaiKey)
 
+  if (anthropicKey && openaiKey) {
+    return failoverDrafter(anthropicDrafter(anthropicKey), openaiDrafter(openaiKey))
+  }
+  if (anthropicKey) return anthropicDrafter(anthropicKey)
+  if (openaiKey) return openaiDrafter(openaiKey)
   return null
 }
