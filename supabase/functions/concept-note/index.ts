@@ -238,9 +238,7 @@ It does not override the tender's own requirements or the evidence discipline â€
 if an article asks you to state something you have not been given as fact,
 insert a placeholder instead.
 
-${parts.join('
-
-')}`,
+${parts.join('\n\n')}`,
   }
 }
 
