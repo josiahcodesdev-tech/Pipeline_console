@@ -24,12 +24,12 @@ import {
 } from '@/shared/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { MonthSelect } from '@/shared/components/month-select'
 import { Pager } from '@/shared/components/pager'
 import { usePaged } from '@/shared/hooks/use-paged'
 import { RfpStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { daysUntil, formatDateWithYear, formatKes, monthLabel, monthOf, today } from '@/domain/dates'
+import { daysUntil, formatDateWithYear, formatKes, monthOf, today } from '@/domain/dates'
 import { obtainedMonths } from '@/domain/metrics'
 import { cn } from '@/shared/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/domain/types'
@@ -485,19 +485,7 @@ export function RfpsView({
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
-        <Select<string> value={month} onValueChange={(next) => setMonth(next ?? 'all')}>
-          <SelectTrigger aria-label="Filter by month obtained" className="min-w-[160px]">
-            <SelectValue>{(value: string) => (value === 'all' ? 'All months' : monthLabel(value))}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All months</SelectItem>
-            {monthOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {monthLabel(option)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MonthSelect value={month} options={monthOptions} onChange={setMonth} />
         {/* Hidden until something is actually tagged, so a fresh tracker does
             not show a filter with nothing but "All" behind it. */}
         {serviceAreaOptions.length > 0 && (

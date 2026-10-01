@@ -19,9 +19,13 @@ import {
   daysUntil,
   formatDateWithYear,
   formatKes,
+  monthOf,
   periodRange,
   today,
 } from '@/domain/dates'
+import { inObtainedMonth, obtainedMonths } from '@/domain/metrics'
+import { useStickyState } from '@/shared/hooks/use-sticky-state'
+import { MonthSelect } from '@/shared/components/month-select'
 import { cn } from '@/shared/utils'
 import type { Rfp, RfpStatus } from '@/domain/types'
 import { safeExternalUrl } from '@/features/rfps/source-site'
@@ -95,7 +99,7 @@ export function PipelineView({
     return 'Another member'
   }
 
-  const inPipeline = useMemo(
+  const allInPipeline = useMemo(
     () =>
       rfps
         .filter((rfp) => rfp.inPipeline)
@@ -103,6 +107,13 @@ export function PipelineView({
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [rfps],
   )
+
+  // The month the tender was brought in, shared with the RFPs page and the
+  // dashboard so "Being bid" there and the total here agree. Every figure on
+  // this page follows it.
+  const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
+  const monthOptions = useMemo(() => obtainedMonths(allInPipeline), [allInPipeline])
+  const inPipeline = useMemo(() => inObtainedMonth(allInPipeline, month), [allInPipeline, month])
 
   /** Most recent logged activity per RFP, so a stalled bid is visible. */
   const lastTouch = useMemo(() => {
@@ -159,10 +170,17 @@ export function PipelineView({
         }
         meta={
           <span className="text-[11px] text-muted-foreground">
-            {open.length} open · {inPipeline.length} total
+            {open.length} open ·{' '}
+            {inPipeline.length === allInPipeline.length
+              ? `${allInPipeline.length} total`
+              : `${inPipeline.length} of ${allInPipeline.length} total`}
           </span>
         }
       />
+
+      <div className="mb-3.5 flex flex-wrap gap-2">
+        <MonthSelect value={month} options={monthOptions} onChange={setMonth} />
+      </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
@@ -200,7 +218,16 @@ export function PipelineView({
         </p>
       )}
 
-      {inPipeline.length === 0 ? (
+      {inPipeline.length === 0 && allInPipeline.length > 0 ? (
+        <Panel>
+          <EmptyState
+            icon={<TargetIcon className="size-5" />}
+            hint="Nothing taken on came from a tender obtained in this month. Pick another month, or All months."
+          >
+            No proposals for this month
+          </EmptyState>
+        </Panel>
+      ) : inPipeline.length === 0 ? (
         <Panel>
           <EmptyState
             icon={<TargetIcon className="size-5" />}
