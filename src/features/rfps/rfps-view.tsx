@@ -29,7 +29,8 @@ import { Pager } from '@/shared/components/pager'
 import { usePaged } from '@/shared/hooks/use-paged'
 import { RfpStatusSelect } from '@/shared/components/status-select'
 import { usePipeline } from '@/shared/hooks/use-pipeline'
-import { daysUntil, formatDateWithYear, formatKes, today } from '@/domain/dates'
+import { daysUntil, formatDateWithYear, formatKes, monthLabel, monthOf, today } from '@/domain/dates'
+import { obtainedMonths } from '@/domain/metrics'
 import { cn } from '@/shared/utils'
 import { RFP_STATUSES, type Rfp, type RfpStatus } from '@/domain/types'
 import { OPPORTUNITY_SYNC } from '@/app/features'
@@ -43,17 +44,6 @@ import { safeExternalUrl } from './source-site'
 const PLACEHOLDER = `[{"title":"...","org":"...","segment":"NGO","deadline":"2026-08-15","value":500000,"link":"https://...","source":"TendersOnTime","notes":"..."}]`
 
 /** Deadline urgency is a warning, not decoration — ≤2 days reads as danger. */
-/** "2026-10-01" → "2026-10". */
-function monthOf(iso: string): string {
-  return iso.slice(0, 7)
-}
-
-/** "2026-10" → "October 2026". */
-function monthLabel(month: string): string {
-  const [year, index] = month.split('-').map(Number)
-  return new Date(year, index - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-}
-
 function deadlineClass(days: number | null): string {
   if (days === null) return ''
   if (days <= 2) return 'font-semibold text-danger'
@@ -267,12 +257,7 @@ export function RfpsView({
     return [...found].sort((a, b) => a.localeCompare(b))
   }, [rfps])
 
-  /** Every month something was brought in, newest first, always with this one. */
-  const monthOptions = useMemo(() => {
-    const found = new Set<string>([monthOf(today())])
-    for (const rfp of rfps) if (rfp.createdOn) found.add(monthOf(rfp.createdOn))
-    return [...found].sort((a, b) => b.localeCompare(a))
-  }, [rfps])
+  const monthOptions = useMemo(() => obtainedMonths(rfps), [rfps])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()

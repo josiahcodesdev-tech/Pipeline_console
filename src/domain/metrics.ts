@@ -1,4 +1,4 @@
-import { addDays, inRange, today, weekEnd } from '@/domain/dates'
+import { addDays, inRange, monthOf, today, weekEnd } from '@/domain/dates'
 import {
   ACTIVE_LEAD_STATUSES,
   ACTIVE_RFP_STATUSES,
@@ -231,4 +231,22 @@ export function periodMetrics(
 /** Convenience wrapper for the Monday-to-Sunday case. */
 export function weekMetrics(start: IsoDate, input: MetricsInput): WeekMetrics {
   return periodMetrics(start, weekEnd(start), input)
+}
+
+/**
+ * Every month a tender was brought in, newest first, always including this one.
+ *
+ * The RFPs page and the dashboard filter on the same months, so both build the
+ * list here.
+ */
+export function obtainedMonths(rfps: Rfp[], asOf: IsoDate = today()): string[] {
+  const found = new Set<string>([monthOf(asOf)])
+  for (const rfp of rfps) if (rfp.createdOn) found.add(monthOf(rfp.createdOn))
+  return [...found].sort((a, b) => b.localeCompare(a))
+}
+
+/** Tenders brought in during `month` (`YYYY-MM`), or all of them for 'all'. */
+export function inObtainedMonth(rfps: Rfp[], month: string): Rfp[] {
+  if (month === 'all') return rfps
+  return rfps.filter((rfp) => rfp.createdOn && monthOf(rfp.createdOn) === month)
 }

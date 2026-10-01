@@ -39,6 +39,8 @@ import {
   formatDateWithYear,
   formatKes,
   formatToday,
+  monthLabel,
+  monthOf,
   today,
   weekEnd,
   weekStart,
@@ -48,9 +50,14 @@ import {
   communicationsInRange,
   dueOrOverdueTasks,
   followUpDiscipline,
+  inObtainedMonth,
+  obtainedMonths,
   qualifiedInWeek,
   upcomingRfpDeadlines,
 } from '@/domain/metrics'
+import { useStickyState } from '@/shared/hooks/use-sticky-state'
+import { usePaged } from '@/shared/hooks/use-paged'
+import { Pager } from '@/shared/components/pager'
 import { cn } from '@/shared/utils'
 import { RFP_STATUSES, type Lead, type LeadStatus, type RfpStatus } from '@/domain/types'
 import type { ViewId } from '@/app/nav'
@@ -159,13 +166,23 @@ export function DashboardView({
     return map
   }, [leads])
 
+  /**
+   * The month the tenders were brought in. Shared with the RFPs page under the
+   * same key, so a month picked on either is the month the other opens on.
+   * Every tender figure below reads `monthRfps`; leads, tasks and activity are
+   * not tenders and keep their own windows.
+   */
+  const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
+  const monthOptions = useMemo(() => obtainedMonths(rfps), [rfps])
+  const monthRfps = useMemo(() => inObtainedMonth(rfps, month), [rfps, month])
+
   const start = weekStart(today())
   const qualified = qualifiedInWeek(leads, start, weekEnd(start))
   const discipline = followUpDiscipline(leads)
-  const activeRfps = activeRfpCount(rfps)
+  const activeRfps = activeRfpCount(monthRfps)
   const dueTasks = dueOrOverdueTasks(tasks)
   const loggedToday = communicationsInRange(activities, today(), today())
-  const soonRfps = upcomingRfpDeadlines(rfps, 7)
+  const soonRfps = upcomingRfpDeadlines(monthRfps, 7)
   const overdueCount = soonRfps.filter((rfp) => {
     const left = daysUntil(rfp.deadline)
     return left !== null && left < 0
@@ -201,8 +218,8 @@ export function DashboardView({
    * and without this their card silently means something else.
    */
   const mine = useMemo(
-    () => (profile ? rfps.filter((rfp) => rfp.ownerId === profile.id) : []),
-    [rfps, profile],
+    () => (profile ? monthRfps.filter((rfp) => rfp.ownerId === profile.id) : []),
+    [monthRfps, profile],
   )
 
   /**
@@ -213,8 +230,8 @@ export function DashboardView({
    * was how the value card came to mean the firm on an admin account.
    */
   const firmBeingBid = useMemo(
-    () => rfps.filter((rfp) => rfp.inPipeline).length,
-    [rfps],
+    () => monthRfps.filter((rfp) => rfp.inPipeline).length,
+    [monthRfps],
   )
 
   /** Money committed to bids this reader is working. */
@@ -256,9 +273,11 @@ export function DashboardView({
   const [status, setStatus] = useState<'all' | RfpStatus>('all')
   const [window, setWindow] = useState(7)
 
+  // 0 is "All RFPs": every tender in the month, whatever its status or
+  // deadline, so the list can be searched and filtered like the tracker.
   const windowRfps = useMemo(
-    () => upcomingRfpDeadlines(rfps, window),
-    [rfps, window],
+    () => (window === 0 ? monthRfps : upcomingRfpDeadlines(monthRfps, window)),
+    [monthRfps, window],
   )
 
   const filteredRfps = useMemo(() => {
@@ -275,12 +294,23 @@ export function DashboardView({
     // after them, most recently passed first. Sorted purely by date, a long
     // tail of lapsed notices pushed everything that can still be bid on below
     // the fold.
-    const open = matching.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) >= 0)
-    const overdue = matching.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) < 0).reverse()
+    // Undated tenders (only reachable under All RFPs) go last: the order here
+    // is about time left, and they have not said.
+    const byDeadline = [...matching].sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999'))
+    const open = byDeadline.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) >= 0)
+    const overdue = byDeadline.filter((rfp) => (daysUntil(rfp.deadline) ?? 0) < 0).reverse()
     return [...open, ...overdue]
   }, [windowRfps, search, status])
 
-  const filtered = search.trim() !== '' || status !== 'all' || window !== 7
+  // All RFPs can be hundreds of rows; only a page of them is built.
+  const pagedRfps = usePaged(
+    filteredRfps,
+    'dashboard:rfps',
+    JSON.stringify([search, status, window, month]),
+  )
+
+  const filtered =
+    search.trim() !== '' || status !== 'all' || window !== 7 || month !== monthOf(today())
 
   return (
     <>
@@ -367,7 +397,22 @@ export function DashboardView({
         the page implying it governs everything under it.
       */}
       <div className="mb-5 rounded-lg border border-border bg-card px-4 py-3.5 shadow-brand-sm">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11.5px] text-muted-foreground">Month obtained</span>
+            <select
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+              className="h-9 w-full cursor-pointer rounded-md border border-input bg-card px-3 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="all">All months</option>
+              {monthOptions.map((option) => (
+                <option key={option} value={option}>
+                  {monthLabel(option)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-[11.5px] text-muted-foreground">Search deadlines</span>
             <Input
@@ -403,6 +448,7 @@ export function DashboardView({
               <option value={14}>14 days</option>
               <option value={30}>30 days</option>
               <option value={90}>90 days</option>
+              <option value={0}>All RFPs</option>
             </select>
           </label>
           <div className="flex items-end">
@@ -412,6 +458,7 @@ export function DashboardView({
                 setSearch('')
                 setStatus('all')
                 setWindow(7)
+                setMonth(monthOf(today()))
               }}
               disabled={!filtered}
               className="w-full md:w-auto"
@@ -462,7 +509,7 @@ export function DashboardView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRfps.map((rfp) => (
+              {pagedRfps.rows.map((rfp) => (
                 <TableRow key={rfp.id}>
                   <TableCell className="max-w-[380px] font-medium">
                     {rfp.link ? (
@@ -508,6 +555,7 @@ export function DashboardView({
             </TableBody>
           </Table>
         )}
+        <Pager {...pagedRfps} />
       </Panel>
 
       {/* Two columns from xl: the working page, and a summary rail that answers

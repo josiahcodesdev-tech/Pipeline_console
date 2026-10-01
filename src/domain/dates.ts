@@ -196,3 +196,14 @@ export function formatKes(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return value.toLocaleString('en-KE', { maximumFractionDigits: 0 })
 }
+
+/** The `YYYY-MM` a date falls in. */
+export function monthOf(iso: IsoDate): string {
+  return iso.slice(0, 7)
+}
+
+/** `2026-10` → "October 2026". */
+export function monthLabel(month: string): string {
+  const [year, index] = month.split('-').map(Number)
+  return new Date(year, index - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
