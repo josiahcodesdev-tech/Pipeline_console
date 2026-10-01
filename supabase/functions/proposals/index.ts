@@ -373,11 +373,64 @@ async function fill(admin: SupabaseClient): Promise<Stored> {
     readPeople(admin),
     readClaims(admin),
   ])
+  const kept = dashboardRows(rows)
+  const asOf = nairobiToday()
   stored = {
     at: Date.now(),
-    body: JSON.stringify({ proposals: rows.map((row) => present(row, people, claims)) }),
+    body: JSON.stringify({
+      proposals: rows.map((row) => ({
+        ...present(row, people, claims),
+        ...dashboardVerdict(row, kept, asOf),
+      })),
+    }),
   }
   return stored
+}
+
+// ------------------------------------------------- the dashboard's verdict ---
+// The same rules as api/_feed.js, repeated because Deno bundles this directory
+// alone. See dashboardRows and dashboardVerdict there for what each field
+// means; change both, and onePerTender in src/data/snapshot.ts, together.
+
+const ACTIVE_STATUSES = ['Watching', 'Preparing', 'Submitted']
+
+function dashboardRows(rows: Row[]): Set<string> {
+  const priority = (row: Row) =>
+    Number(row.in_pipeline === true) * 2 + Number(ACTIVE_STATUSES.includes(row.status ?? ''))
+  const byTender = new Map<string, Row>()
+  for (const row of rows) {
+    const key = row.external_id ?? `own:${row.id}`
+    const held = byTender.get(key)
+    if (
+      !held ||
+      priority(row) > priority(held) ||
+      (priority(row) === priority(held) &&
+        ((row.created_at ?? '') > (held.created_at ?? '') ||
+          (row.created_at === held.created_at && row.id < held.id)))
+    ) {
+      byTender.set(key, row)
+    }
+  }
+  return new Set([...byTender.values()].map((row) => row.id))
+}
+
+function nairobiToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(new Date())
+}
+
+function dashboardVerdict(row: Row, kept: Set<string>, asOf: string): Record<string, unknown> {
+  const deadline = asDate(row.deadline)
+  return {
+    dashboard_row: kept.has(row.id),
+    is_active: ACTIVE_STATUSES.includes(row.status ?? ''),
+    is_overdue:
+      (row.status === 'Watching' || row.status === 'Preparing') &&
+      deadline !== null &&
+      deadline < asOf,
+    being_bid: row.in_pipeline === true,
+    submitted: row.status === 'Submitted',
+    as_of: asOf,
+  }
 }
 
 type Served = { entry: Stored; state: 'stored' | 'fetched' | 'stale' }

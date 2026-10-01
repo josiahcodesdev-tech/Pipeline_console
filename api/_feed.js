@@ -114,7 +114,83 @@ export async function readFeed(admin, consoleOrigin) {
     readPeople(admin),
     readClaims(admin),
   ])
-  return rows.map((row) => present(row, consoleOrigin, people, claims))
+  const kept = dashboardRows(rows)
+  const asOf = nairobiToday()
+  return rows.map((row) => ({
+    ...present(row, consoleOrigin, people, claims),
+    ...dashboardVerdict(row, kept, asOf),
+  }))
+}
+
+/** Statuses the dashboard counts as Active RFPs. src/domain/types.ts. */
+const ACTIVE_STATUSES = ['Watching', 'Preparing', 'Submitted']
+
+/**
+ * The ids of the rows the Performance Dashboard keeps, one per tender.
+ *
+ * Every member holds a copy of each synced tender, and the copies can carry
+ * different deadlines. The dashboard collapses them by `external_id` (a
+ * hand-added row stands alone): a copy in someone's pipeline wins, then an
+ * active one, then the newest, then the lowest id. This is that rule, from
+ * `onePerTender` in src/data/snapshot.ts — change both together.
+ */
+export function dashboardRows(rows) {
+  const priority = (row) =>
+    Number(row.in_pipeline === true) * 2 + Number(ACTIVE_STATUSES.includes(row.status))
+  const byTender = new Map()
+  for (const row of rows) {
+    const key = row.external_id ?? `own:${row.id}`
+    const held = byTender.get(key)
+    if (
+      !held ||
+      priority(row) > priority(held) ||
+      (priority(row) === priority(held) &&
+        (row.created_at > held.created_at ||
+          (row.created_at === held.created_at && row.id < held.id)))
+    ) {
+      byTender.set(key, row)
+    }
+  }
+  return new Set([...byTender.values()].map((row) => row.id))
+}
+
+/**
+ * Today in Nairobi, as YYYY-MM-DD.
+ *
+ * The dashboard decides "overdue" against the reader's own calendar day, and
+ * the firm reads it in Nairobi. The server runs in UTC, which is still
+ * yesterday for the first three hours of every Nairobi morning.
+ */
+export function nairobiToday() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(new Date())
+}
+
+/**
+ * What the Performance Dashboard decides about this row, so a caller can count
+ * exactly what it counts instead of re-deriving it.
+ *
+ * Count only `dashboard_row` rows: the others are members' duplicate copies,
+ * which the dashboard never sees. These are the dashboard's figures with the
+ * month filter on All months.
+ *
+ *   is_active   Active RFPs      status is Watching, Preparing or Submitted
+ *   is_overdue  Overdue tenders  Watching or Preparing, deadline before today
+ *   being_bid   Being bid        in someone's pipeline
+ *   submitted                    status is Submitted
+ */
+export function dashboardVerdict(row, kept, asOf) {
+  const deadline = asDate(row.deadline)
+  return {
+    dashboard_row: kept.has(row.id),
+    is_active: ACTIVE_STATUSES.includes(row.status),
+    is_overdue:
+      (row.status === 'Watching' || row.status === 'Preparing') &&
+      deadline !== null &&
+      deadline < asOf,
+    being_bid: row.in_pipeline === true,
+    submitted: row.status === 'Submitted',
+    as_of: asOf,
+  }
 }
 
 /**

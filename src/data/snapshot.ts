@@ -256,17 +256,28 @@ async function pagedQuery<Row>(
  * oversight dashboard and made its RFP total disagree with member dashboards.
  * Hand-added RFPs are keyed by their own id: two members each entering one by
  * hand really are two records, not a duplicate.
+ *
+ * Ties go to the newest copy, then the lowest id. They used to go to whichever
+ * copy the read returned first, which is not a fixed order when copies share a
+ * `created_at` — and copies can carry different deadlines, so the dashboard's
+ * overdue count could not be reproduced anywhere else. The proposals feed
+ * (api/_feed.js, supabase/functions/proposals/) applies this same rule to
+ * publish `dashboard_row`; change all three together.
  */
 function onePerTender(rfps: Rfp[]): Rfp[] {
   const byTender = new Map<string, Rfp>()
+  const priority = (rfp: Rfp) => Number(rfp.inPipeline) * 2 + Number(isActiveRfp(rfp.status))
   for (const rfp of rfps) {
     const key = rfp.externalId ?? `own:${rfp.id}`
     const held = byTender.get(key)
-    const priority = Number(rfp.inPipeline) * 2 + Number(isActiveRfp(rfp.status))
-    const heldPriority = held
-      ? Number(held.inPipeline) * 2 + Number(isActiveRfp(held.status))
-      : -1
-    if (!held || priority > heldPriority) byTender.set(key, rfp)
+    if (
+      !held ||
+      priority(rfp) > priority(held) ||
+      (priority(rfp) === priority(held) &&
+        (rfp.createdAt > held.createdAt || (rfp.createdAt === held.createdAt && rfp.id < held.id)))
+    ) {
+      byTender.set(key, rfp)
+    }
   }
   return [...byTender.values()]
 }
