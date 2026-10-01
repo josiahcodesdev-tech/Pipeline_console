@@ -24,6 +24,7 @@ import {
 } from '@/shared/ui/table'
 import { EmptyState, Panel, ViewHeader } from '@/shared/components/panel'
 import { FilterSelect } from '@/shared/components/field'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Pager } from '@/shared/components/pager'
 import { usePaged } from '@/shared/hooks/use-paged'
 import { RfpStatusSelect } from '@/shared/components/status-select'
@@ -42,6 +43,17 @@ import { safeExternalUrl } from './source-site'
 const PLACEHOLDER = `[{"title":"...","org":"...","segment":"NGO","deadline":"2026-08-15","value":500000,"link":"https://...","source":"TendersOnTime","notes":"..."}]`
 
 /** Deadline urgency is a warning, not decoration — ≤2 days reads as danger. */
+/** "2026-10-01" → "2026-10". */
+function monthOf(iso: string): string {
+  return iso.slice(0, 7)
+}
+
+/** "2026-10" → "October 2026". */
+function monthLabel(month: string): string {
+  const [year, index] = month.split('-').map(Number)
+  return new Date(year, index - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
 function deadlineClass(days: number | null): string {
   if (days === null) return ''
   if (days <= 2) return 'font-semibold text-danger'
@@ -184,6 +196,9 @@ export function RfpsView({
   // Which of the six services from the capability statement it touches.
   const [areaFilter, setAreaFilter] = useStickyState<string>('rfps:area', 'all')
   const [obtainedToday, setObtainedToday] = useStickyState('rfps:obtainedToday', false)
+  // The month a tender was brought in. This month by default, so the page
+  // opens on what is current; a new session starts there again.
+  const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
   // Newest first. Best fit sorts the whole tracker the same way every day, so
   // the notices that arrived overnight land wherever their score puts them —
   // often pages down, among rows already read and passed over. What someone
@@ -252,6 +267,13 @@ export function RfpsView({
     return [...found].sort((a, b) => a.localeCompare(b))
   }, [rfps])
 
+  /** Every month something was brought in, newest first, always with this one. */
+  const monthOptions = useMemo(() => {
+    const found = new Set<string>([monthOf(today())])
+    for (const rfp of rfps) if (rfp.createdOn) found.add(monthOf(rfp.createdOn))
+    return [...found].sort((a, b) => b.localeCompare(a))
+  }, [rfps])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rfps
@@ -262,6 +284,7 @@ export function RfpsView({
         if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
         if (areaFilter !== 'all' && !areasOf(rfp).includes(areaFilter)) return false
         if (obtainedToday && rfp.createdOn !== today()) return false
+        if (month !== 'all' && monthOf(rfp.createdOn ?? '') !== month) return false
         if (
           term &&
           !rfp.title.toLowerCase().includes(term) &&
@@ -290,14 +313,14 @@ export function RfpsView({
         }
         return b.createdAt.localeCompare(a.createdAt)
       })
-  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, sort])
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, month, sort])
 
   // Only the rows on screen are built. Any change to what is being looked at
   // starts again from page one.
   const paged = usePaged(
     filtered,
     'rfps',
-    JSON.stringify([search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, sort]),
+    JSON.stringify([search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, month, sort]),
   )
 
   async function handleImport() {
@@ -473,6 +496,19 @@ export function RfpsView({
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
+        <Select<string> value={month} onValueChange={(next) => setMonth(next ?? 'all')}>
+          <SelectTrigger aria-label="Filter by month obtained" className="min-w-[160px]">
+            <SelectValue>{(value: string) => (value === 'all' ? 'All months' : monthLabel(value))}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All months</SelectItem>
+            {monthOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {monthLabel(option)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {/* Hidden until something is actually tagged, so a fresh tracker does
             not show a filter with nothing but "All" behind it. */}
         {serviceAreaOptions.length > 0 && (
@@ -710,7 +746,7 @@ export function RfpsView({
           ) : (
             <EmptyState
               icon={<SearchXIcon className="size-5" />}
-              hint="Try a broader search, or set the status filter back to all."
+              hint="Try a broader search, an earlier month, or set the status filter back to all."
             >
               No RFPs match these filters
             </EmptyState>
