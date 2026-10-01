@@ -402,7 +402,11 @@ export function RfpsView({
         }
         meta={
           <span className="text-[11px] text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? 'opportunity' : 'opportunities'}
+            {/* The total stays in view under any filter, so a narrow month or
+                search never reads as the size of the whole tracker. */}
+            {filtered.length === rfps.length
+              ? `${rfps.length} ${rfps.length === 1 ? 'opportunity' : 'opportunities'}`
+              : `${filtered.length} of ${rfps.length} opportunities`}
             {hideExpired && closedCount > 0 ? ` · ${closedCount} closed` : ''}
           </span>
         }
