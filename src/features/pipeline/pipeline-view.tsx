@@ -111,8 +111,7 @@ export function PipelineView({
 
   // The month the tender was brought in, shared with the RFPs page and the
   // dashboard so "Being bid" there and the total here agree. Every figure on
-  // this page follows it — except that submitted bids stay in every month,
-  // since they are still waiting on a buyer.
+  // this page follows it.
   const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
   const monthOptions = useMemo(() => obtainedMonths(allInPipeline), [allInPipeline])
   const inPipeline = useMemo(() => pipelineInMonth(allInPipeline, month), [allInPipeline, month])
@@ -136,7 +135,6 @@ export function PipelineView({
   const open = inPipeline.filter(
     (rfp) => rfp.status === 'Preparing' || rfp.status === 'Submitted',
   )
-  const submitted = inPipeline.filter((rfp) => rfp.status === 'Submitted').length
 
   const closingSoon = open.filter((rfp) => {
     const left = daysUntil(rfp.deadline)
@@ -161,6 +159,9 @@ export function PipelineView({
     }))
     .filter((section) => section.rows.length > 0)
   const shown = grouped.reduce((sum, section) => sum + section.rows.length, 0)
+  // What the Submitted section below holds, so the card answers to the month
+  // and status filters alike — filtered to Preparing, it reads 0.
+  const submitted = grouped.find((section) => section.status === 'Submitted')?.rows.length ?? 0
 
   return (
     <>
