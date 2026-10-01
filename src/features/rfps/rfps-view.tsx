@@ -185,7 +185,10 @@ export function RfpsView({
   const [typeFilter, setTypeFilter] = useStickyState<'all' | 'rfp' | 'job'>('rfps:type', 'all')
   // Which of the six services from the capability statement it touches.
   const [areaFilter, setAreaFilter] = useStickyState<string>('rfps:area', 'all')
-  const [obtainedToday, setObtainedToday] = useStickyState('rfps:obtainedToday', false)
+  // One day obtained, or '' for any. Kept inside the month filter: picking a
+  // day moves the month to it, and picking another month lets the day go, so
+  // the two never contradict each other into an empty list.
+  const [obtainedOn, setObtainedOn] = useStickyState('rfps:obtainedOn', '')
   // The month a tender was brought in. This month by default, so the page
   // opens on what is current; a new session starts there again.
   const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
@@ -259,6 +262,11 @@ export function RfpsView({
 
   const monthOptions = useMemo(() => obtainedMonths(rfps), [rfps])
 
+  function pickObtainedOn(day: string) {
+    setObtainedOn(day)
+    if (day) setMonth(monthOf(day))
+  }
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rfps
@@ -268,7 +276,7 @@ export function RfpsView({
         if (hideExpired && isClosed(rfp)) return false
         if (typeFilter !== 'all' && rfp.opportunityType !== typeFilter) return false
         if (areaFilter !== 'all' && !areasOf(rfp).includes(areaFilter)) return false
-        if (obtainedToday && rfp.createdOn !== today()) return false
+        if (obtainedOn && rfp.createdOn !== obtainedOn) return false
         if (month !== 'all' && monthOf(rfp.createdOn ?? '') !== month) return false
         if (
           term &&
@@ -298,14 +306,14 @@ export function RfpsView({
         }
         return b.createdAt.localeCompare(a.createdAt)
       })
-  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, month, sort])
+  }, [rfps, search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedOn, month, sort])
 
   // Only the rows on screen are built. Any change to what is being looked at
   // starts again from page one.
   const paged = usePaged(
     filtered,
     'rfps',
-    JSON.stringify([search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedToday, month, sort]),
+    JSON.stringify([search, status, hideInPipeline, hideExpired, typeFilter, areaFilter, obtainedOn, month, sort]),
   )
 
   async function handleImport() {
@@ -485,7 +493,23 @@ export function RfpsView({
           allLabel="All statuses"
           ariaLabel="Filter by status"
         />
-        <MonthSelect value={month} options={monthOptions} onChange={setMonth} />
+        <MonthSelect
+          value={month}
+          options={monthOptions}
+          onChange={(next) => {
+            setMonth(next)
+            if (obtainedOn && next !== 'all' && monthOf(obtainedOn) !== next) setObtainedOn('')
+          }}
+        />
+        <Input
+          type="date"
+          value={obtainedOn}
+          max={today()}
+          onChange={(event) => pickObtainedOn(event.target.value)}
+          aria-label="Filter by date obtained"
+          title="Date obtained"
+          className="w-[150px]"
+        />
         {/* Hidden until something is actually tagged, so a fresh tracker does
             not show a filter with nothing but "All" behind it. */}
         {serviceAreaOptions.length > 0 && (
@@ -519,14 +543,14 @@ export function RfpsView({
         <SortToggle value={sort} onChange={setSort} />
         <button
           type="button"
-          onClick={() => setObtainedToday((current) => !current)}
+          onClick={() => pickObtainedOn(obtainedOn === today() ? '' : today())}
           className={cn(
             'cursor-pointer rounded-lg border px-3 py-1 text-[11.5px] font-medium transition-colors',
-            obtainedToday
+            obtainedOn === today()
               ? 'border-primary bg-brand-soft text-primary'
               : 'border-border bg-card text-muted-foreground hover:text-foreground',
           )}
-          aria-pressed={obtainedToday}
+          aria-pressed={obtainedOn === today()}
         >
           Obtained today
         </button>
