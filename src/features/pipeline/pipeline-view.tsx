@@ -116,8 +116,8 @@ export function PipelineView({
   const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
   const monthOptions = useMemo(() => obtainedMonths(allInPipeline), [allInPipeline])
   const inPipeline = useMemo(() => pipelineInMonth(allInPipeline, month), [allInPipeline, month])
-  // Narrows the sections shown, not the figures: a win rate over one status
-  // would be 0% or 100% and mean nothing.
+  // Narrows the sections shown, not the figures: the cards compare statuses,
+  // and filtered to one they would only repeat it.
   const [status, setStatus] = useStickyState<RfpStatus | 'all'>('pipeline:status', 'all')
 
   /** Most recent logged activity per RFP, so a stalled bid is visible. */
@@ -136,8 +136,7 @@ export function PipelineView({
   const open = inPipeline.filter(
     (rfp) => rfp.status === 'Preparing' || rfp.status === 'Submitted',
   )
-  const won = inPipeline.filter((rfp) => rfp.status === 'Won')
-  const lost = inPipeline.filter((rfp) => rfp.status === 'Lost')
+  const submitted = inPipeline.filter((rfp) => rfp.status === 'Submitted').length
 
   const closingSoon = open.filter((rfp) => {
     const left = daysUntil(rfp.deadline)
@@ -146,9 +145,6 @@ export function PipelineView({
 
   /** Only open bids — counting won/lost value would overstate what is live. */
   const valueAtStake = open.reduce((sum, rfp) => sum + (rfp.value ?? 0), 0)
-
-  const decided = won.length + lost.length
-  const winRate = decided > 0 ? Math.round((won.length / decided) * 100) : null
 
   const quarter = periodRange('quarter', today(), 0)
   const submittedThisQuarter = inPipeline.filter(
@@ -215,14 +211,9 @@ export function PipelineView({
           hint="Estimated value of open bids"
         />
         <KpiCard
-          label="Win rate"
-          value={winRate === null ? '—' : `${winRate}%`}
-          hint={
-            winRate === null
-              ? 'No decided bids yet'
-              : `${won.length} won of ${decided} decided`
-          }
-          tone={winRate === null ? 'neutral' : winRate >= 50 ? 'good' : 'warn'}
+          label="Submitted proposals"
+          value={submitted}
+          hint="With the buyer, awaiting outcome"
         />
       </div>
 
