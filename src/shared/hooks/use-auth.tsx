@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -143,8 +144,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // its unconfigured state and nothing should be waiting on a read that will
   // never run.
   const [profileLoaded, setProfileLoaded] = useState(!isSupabaseConfigured)
+  // Whose profile is held, so a session for someone else can unsettle it.
+  const profileFor = useRef<string | undefined>(undefined)
 
   const loadProfile = useCallback(async (userId: string | undefined) => {
+    profileFor.current = userId
     if (!userId) {
       setProfile(null)
       setProfileLoaded(true)
@@ -186,6 +190,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (_event, next) => {
+        // A different person — signing in from the signed-out screen, above
+        // all — makes the held profile wrong, and "loaded" with it. Left
+        // settled, the session arrived before the role: the pipeline read an
+        // admin's tenders with the member query, PostgREST stopped at its
+        // first thousand, and the dashboard said "Active RFPs: 1000" until the
+        // role landed and the right read replaced it. Set in the same tick as
+        // the session so nothing renders between the two.
+        if (next?.user?.id !== profileFor.current) {
+          setProfile(null)
+          setProfileLoaded(false)
+        }
         setSession(next)
         // Not awaited: the listener is synchronous and the profile arriving a
         // moment later is fine, because the default until it does is no access.
