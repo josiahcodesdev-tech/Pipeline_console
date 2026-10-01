@@ -52,6 +52,7 @@ import {
   followUpDiscipline,
   inObtainedMonth,
   obtainedMonths,
+  pipelineInMonth,
   qualifiedInWeek,
   upcomingRfpDeadlines,
 } from '@/domain/metrics'
@@ -230,8 +231,8 @@ export function DashboardView({
    * was how the value card came to mean the firm on an admin account.
    */
   const firmBeingBid = useMemo(
-    () => monthRfps.filter((rfp) => rfp.inPipeline).length,
-    [monthRfps],
+    () => pipelineInMonth(rfps, month).length,
+    [rfps, month],
   )
 
   /** Money committed to bids this reader is working. */

@@ -23,7 +23,8 @@ import {
   periodRange,
   today,
 } from '@/domain/dates'
-import { inObtainedMonth, obtainedMonths } from '@/domain/metrics'
+import { obtainedMonths, pipelineInMonth } from '@/domain/metrics'
+import { FilterSelect } from '@/shared/components/field'
 import { useStickyState } from '@/shared/hooks/use-sticky-state'
 import { MonthSelect } from '@/shared/components/month-select'
 import { cn } from '@/shared/utils'
@@ -110,10 +111,14 @@ export function PipelineView({
 
   // The month the tender was brought in, shared with the RFPs page and the
   // dashboard so "Being bid" there and the total here agree. Every figure on
-  // this page follows it.
+  // this page follows it — except that submitted bids stay in every month,
+  // since they are still waiting on a buyer.
   const [month, setMonth] = useStickyState<string>('rfps:month', monthOf(today()))
   const monthOptions = useMemo(() => obtainedMonths(allInPipeline), [allInPipeline])
-  const inPipeline = useMemo(() => inObtainedMonth(allInPipeline, month), [allInPipeline, month])
+  const inPipeline = useMemo(() => pipelineInMonth(allInPipeline, month), [allInPipeline, month])
+  // Narrows the sections shown, not the figures: a win rate over one status
+  // would be 0% or 100% and mean nothing.
+  const [status, setStatus] = useStickyState<RfpStatus | 'all'>('pipeline:status', 'all')
 
   /** Most recent logged activity per RFP, so a stalled bid is visible. */
   const lastTouch = useMemo(() => {
@@ -153,10 +158,13 @@ export function PipelineView({
       rfp.statusUpdatedOn <= quarter.end,
   ).length
 
-  const grouped = SECTIONS.map((section) => ({
-    ...section,
-    rows: inPipeline.filter((rfp) => rfp.status === section.status),
-  })).filter((section) => section.rows.length > 0)
+  const grouped = SECTIONS.filter((section) => status === 'all' || section.status === status)
+    .map((section) => ({
+      ...section,
+      rows: inPipeline.filter((rfp) => rfp.status === section.status),
+    }))
+    .filter((section) => section.rows.length > 0)
+  const shown = grouped.reduce((sum, section) => sum + section.rows.length, 0)
 
   return (
     <>
@@ -171,15 +179,22 @@ export function PipelineView({
         meta={
           <span className="text-[11px] text-muted-foreground">
             {open.length} open ·{' '}
-            {inPipeline.length === allInPipeline.length
+            {shown === allInPipeline.length
               ? `${allInPipeline.length} total`
-              : `${inPipeline.length} of ${allInPipeline.length} total`}
+              : `${shown} of ${allInPipeline.length} total`}
           </span>
         }
       />
 
       <div className="mb-3.5 flex flex-wrap gap-2">
         <MonthSelect value={month} options={monthOptions} onChange={setMonth} />
+        <FilterSelect
+          value={status}
+          options={SECTIONS.map((section) => section.status)}
+          onChange={setStatus}
+          allLabel="All statuses"
+          ariaLabel="Filter by status"
+        />
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -218,13 +233,17 @@ export function PipelineView({
         </p>
       )}
 
-      {inPipeline.length === 0 && allInPipeline.length > 0 ? (
+      {shown === 0 && allInPipeline.length > 0 ? (
         <Panel>
           <EmptyState
             icon={<TargetIcon className="size-5" />}
-            hint="Nothing taken on came from a tender obtained in this month. Pick another month, or All months."
+            hint={
+              status === 'all'
+                ? 'Nothing taken on came from a tender obtained in this month. Pick another month, or All months.'
+                : `No ${status.toLowerCase()} proposals for this month. Pick another month or status.`
+            }
           >
-            No proposals for this month
+            Nothing matches these filters
           </EmptyState>
         </Panel>
       ) : inPipeline.length === 0 ? (

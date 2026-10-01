@@ -250,3 +250,21 @@ export function inObtainedMonth(rfps: Rfp[], month: string): Rfp[] {
   if (month === 'all') return rfps
   return rfps.filter((rfp) => rfp.createdOn && monthOf(rfp.createdOn) === month)
 }
+
+/**
+ * Bids taken on whose tender came in during `month`, plus every submitted bid
+ * whatever month it came from.
+ *
+ * A submitted proposal is still live work waiting on a buyer, and it should not
+ * drop out of view because the calendar turned over. The pipeline page and the
+ * dashboard's Being bid both read it, so their counts agree.
+ */
+export function pipelineInMonth(rfps: Rfp[], month: string): Rfp[] {
+  const taken = rfps.filter((rfp) => rfp.inPipeline)
+  if (month === 'all') return taken
+  return taken.filter(
+    (rfp) =>
+      rfp.status === 'Submitted' ||
+      (rfp.createdOn && monthOf(rfp.createdOn) === month),
+  )
+}
