@@ -90,6 +90,13 @@ for (const file of templates) {
     }
   }
 
+  // Retired designs are kept only so old proposals open; nothing new is
+  // drafted into them, so there is nothing left to decide about them.
+  if (config.retired === true) {
+    console.log(`\n${file}\n  retired — kept for proposals already written into it`)
+    continue
+  }
+
   const html = readFileSync(join(DIR, file), 'utf8')
   const slots = slotsModule.extractSlots(html, config)
   const images = slotsModule.classifyImages(html, config)

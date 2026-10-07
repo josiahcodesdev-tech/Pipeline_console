@@ -1,0 +1,79 @@
+{
+  "_comment": "Vantage Africa house design for M&E capacity building, M&E systems and skills transfer (rebuilt from the CIC Eswatini proposal, October 2026). Named master: it is the fallback when a tender matches nothing more specific.",
+  "sectionSelector": "section.page",
+  "contentSelector": ".page-inner",
+  "_images": "Classified by alt text. The client logo, case-study logos and photos, and consultant photos other than Dr Kiarie belong to the assignment the design was written for and are removed with their frames. The firm logo, watermark, Dr Kiarie portrait, gallery, country map and signature are the firm's own and stay.",
+  "assignmentSpecificImages": [
+    "^client logo",
+    "^case study",
+    "^consultant photo"
+  ],
+  "rebuildAsTextImages": [],
+  "_furniture": "The running header label (.run-label) is outside .page-inner on every page; the filler writes the proposal title and client into it. There is no sidebar, masthead or contents list.",
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": "",
+    "brandClient": "",
+    "footerClient": ".run-label",
+    "navLinks": "",
+    "remove": []
+  },
+  "match": {
+    "sectors": [
+      "government",
+      "public sector",
+      "regulator",
+      "parastatal",
+      "state corporation",
+      "county government",
+      "public institution",
+      "construction",
+      "infrastructure"
+    ],
+    "services": [
+      "monitoring and evaluation",
+      "M&E",
+      "MEAL",
+      "MEL",
+      "capacity building",
+      "capacity strengthening",
+      "skills transfer",
+      "training",
+      "coaching",
+      "mentoring",
+      "M&E framework",
+      "M&E system",
+      "results framework",
+      "performance management",
+      "KPI",
+      "indicators",
+      "data management",
+      "dashboard",
+      "M&E tools",
+      "M&E manual"
+    ],
+    "keywords": [
+      "monitoring",
+      "M&E",
+      "KPIs",
+      "key performance indicators",
+      "performance measures",
+      "data quality",
+      "data collection tools",
+      "reporting templates",
+      "tracking",
+      "quarterly reporting",
+      "training needs assessment",
+      "pre-test",
+      "post-test",
+      "Kirkpatrick",
+      "on-the-job",
+      "staff training",
+      "M&E staff",
+      "corporate strategy",
+      "strategy implementation",
+      "institutionalisation"
+    ]
+  }
+}

@@ -1,9 +1,9 @@
 {
+  "_retired": "Replaced by the Vantage Africa house designs (October 2026). Kept so proposals already drafted into this template still open; it is never chosen for a new draft.",
+  "retired": true,
   "_comment": "How to read this template. See proposal-templates/README.md. Written per template because the parser cannot tell a reusable photograph from a diagram captioned with the previous client's name — both are a JPEG with an alt attribute.",
-
   "sectionSelector": "section.page",
   "contentSelector": ".page-inner",
-
   "_match": "Which tenders this design is for. These words are used to choose between templates and are never copied into a proposal. Kept deliberately broad on the service side and specific on the subject side: the design suits any online or facilitated training assignment, and the child-protection terms are what distinguish it from the transport MEAL template next to it.",
   "match": {
     "sectors": [
@@ -40,11 +40,9 @@
       "workshop"
     ]
   },
-
   "_images": "None yet. This template was authored from a PDF and carries no photographs, logos or accreditation marks — every image in the source was a raster the conversion could not keep. Both lists stay empty and templates:check reports nothing to review. Add images and you must classify them here: nothing in the HTML separates a reusable team photograph from a diagram captioned with the last client's name.",
   "assignmentSpecificImages": [],
   "rebuildAsTextImages": [],
-
   "furniture": {
     "title": true,
     "description": true,
@@ -52,6 +50,8 @@
     "brandClient": ".brand small",
     "footerClient": ".footer span:nth-of-type(2)",
     "navLinks": "nav a",
-    "remove": [".edit-note"]
+    "remove": [
+      ".edit-note"
+    ]
   }
 }

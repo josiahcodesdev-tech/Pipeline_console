@@ -40,6 +40,21 @@ interface TemplateEntry {
    * does not, so nothing already saved stops rendering.
    */
   fillable: boolean
+  /**
+   * Replaced by a newer design: never chosen for a new draft, still served so
+   * proposals already written into it open. Set by `"retired": true` in the
+   * template's config.
+   */
+  retired: boolean
+}
+
+function isRetired(configPath: string): boolean {
+  if (!fs.existsSync(configPath)) return false
+  try {
+    return (JSON.parse(fs.readFileSync(configPath, 'utf8')) as { retired?: unknown }).retired === true
+  } catch {
+    return false
+  }
 }
 
 function decodeEntities(value: string): string {
@@ -115,6 +130,7 @@ function manifest(root: string): TemplateEntry[] {
         config: fs.existsSync(configPath) ? config : null,
         matchText: selectionText(source, configPath),
         fillable: hasFillableText(source),
+        retired: isRetired(configPath),
       }
     })
 }

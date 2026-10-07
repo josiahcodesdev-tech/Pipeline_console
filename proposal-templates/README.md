@@ -113,6 +113,21 @@ knowing: correcting the template improves every proposal already written from
 it, and **renaming or deleting a template breaks the proposals written into
 it** — they will refuse to open rather than render in some other design.
 
+To replace a design, **retire** the old one instead of deleting it: add
+`"retired": true` to its config. It is then never chosen for a new draft (and
+no longer compiled for the quick draft), but proposals already written into it
+keep opening.
+
+Inside `.page-inner`, anything under an element with the `data-fixed`
+attribute is never rewritten: the firm's address and contacts, the captions on
+its photographs, the name under a signature. Everything else in `.page-inner`
+is a slot.
+
+One rule the markup must follow: an element's direct text is replaced as one
+string, so never mix text with inline elements in the same element —
+`<p>The <b>Council</b> is …</p>` comes out scrambled. Bold a whole element, or
+split it.
+
 That path needs to know two things about your file that no parser can work out
 on its own.
 

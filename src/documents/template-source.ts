@@ -35,6 +35,8 @@ export interface TemplateEntry {
    * than leaving nothing selectable at all.
    */
   fillable?: boolean
+  /** Superseded: kept for proposals already written into it, never chosen anew. */
+  retired?: boolean
 }
 
 /** A template with its markup and its reading rules, ready to fill. */
@@ -85,6 +87,9 @@ export async function listProposalTemplates(): Promise<TemplateEntry[]> {
 const NOISE = new Set([
   'and', 'for', 'the', 'proposal', 'template', 'technical', 'draft', 'final',
   'with', 'from', 'this', 'that', 'ministry', 'of',
+  // Words every tender uses, which would otherwise favour whichever design
+  // happens to say "proposals" or "services" in a heading.
+  'proposals', 'request', 'consultancy', 'consultant', 'services', 'terms', 'reference',
 ])
 
 function tokens(text: string): string[] {
@@ -172,8 +177,18 @@ export async function recommendProposalTemplate(
   //
   // `!== false` rather than `=== true`, so a manifest built before the flag
   // existed leaves every template in the running rather than none.
-  const usable = entries.filter((entry) => entry.fillable !== false)
-  const candidates = usable.length > 0 ? usable : entries
+  //
+  // Retired designs go too, and unconditionally: they were replaced on purpose,
+  // and falling back to one would draft a new bid in the design the firm moved
+  // away from. Proposals already written into them still open, by name.
+  const current = entries.filter((entry) => !entry.retired)
+  if (current.length === 0) {
+    throw new Error(
+      'Every proposal template is retired. Add a current one to proposal-templates/ and rebuild.',
+    )
+  }
+  const usable = current.filter((entry) => entry.fillable !== false)
+  const candidates = usable.length > 0 ? usable : current
 
   const wanted = new Set(tokens(assignment))
   const ranked =

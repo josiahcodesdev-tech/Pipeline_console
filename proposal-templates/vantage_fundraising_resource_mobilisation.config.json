@@ -1,0 +1,74 @@
+{
+  "_comment": "Vantage Africa house design for a short practical training programme in resource mobilisation and proposal development (rebuilt from the Resource Mobilisation programme proposal, October 2026).",
+  "sectionSelector": "section.page",
+  "contentSelector": ".page-inner",
+  "_images": "Classified by alt text. The client logo, case-study logos and photos, and consultant photos other than Dr Kiarie belong to the assignment the design was written for and are removed with their frames. The firm logo, watermark, Dr Kiarie portrait, gallery, country map and signature are the firm's own and stay.",
+  "assignmentSpecificImages": [
+    "^client logo",
+    "^case study",
+    "^consultant photo"
+  ],
+  "rebuildAsTextImages": [],
+  "_furniture": "The running header label (.run-label) is outside .page-inner on every page; the filler writes the proposal title and client into it. There is no sidebar, masthead or contents list.",
+  "furniture": {
+    "title": true,
+    "description": true,
+    "brandName": "",
+    "brandClient": "",
+    "footerClient": ".run-label",
+    "navLinks": "",
+    "remove": []
+  },
+  "match": {
+    "sectors": [
+      "NGO",
+      "INGO",
+      "civil society",
+      "CSO",
+      "community-based organisation",
+      "faith-based",
+      "foundation",
+      "social enterprise",
+      "university",
+      "research institution"
+    ],
+    "services": [
+      "resource mobilisation",
+      "resource mobilization",
+      "fundraising",
+      "fund raising",
+      "proposal writing",
+      "proposal development",
+      "grant writing",
+      "grants management",
+      "donor engagement",
+      "partnership development",
+      "sustainability planning",
+      "training",
+      "workshop"
+    ],
+    "keywords": [
+      "mobilisation",
+      "mobilization",
+      "donor",
+      "donors",
+      "donor mapping",
+      "funding",
+      "funders",
+      "grant",
+      "grants",
+      "concept note",
+      "proposal",
+      "budget narrative",
+      "budgeting",
+      "logframe",
+      "logical framework",
+      "theory of change",
+      "resource mobilisation strategy",
+      "fundraising strategy",
+      "diversify funding",
+      "income diversification",
+      "local resource mobilisation"
+    ]
+  }
+}

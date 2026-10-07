@@ -152,12 +152,25 @@ function readTemplate(path) {
 
 const READABLE = new Set(['.md', '.txt', '.html', '.htm', '.docx'])
 
+/** Whether a template's sidecar config marks it `"retired": true`. */
+function retired(configPath) {
+  if (!existsSync(configPath)) return false
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf8')).retired === true
+  } catch {
+    return false
+  }
+}
+
 function main() {
   if (!existsSync(SOURCE_DIR)) mkdirSync(SOURCE_DIR, { recursive: true })
 
   const files = readdirSync(SOURCE_DIR)
     .filter((name) => READABLE.has(extname(name).toLowerCase()))
     .filter((name) => name.toLowerCase() !== 'readme.md')
+    // A retired design is kept on disk only so proposals written into it still
+    // open; the drafter should no longer imitate it.
+    .filter((name) => !retired(join(SOURCE_DIR, `${basename(name, extname(name))}.config.json`)))
     .sort()
 
   const templates = []

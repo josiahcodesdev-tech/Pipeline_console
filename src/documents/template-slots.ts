@@ -72,6 +72,11 @@ export interface Slot {
  */
 export interface TemplateConfig {
   /**
+   * No longer offered for new drafts, but kept so proposals already written
+   * into it still open. Deleting the file instead would break every one of them.
+   */
+  retired?: boolean
+  /**
    * Words that describe assignments this design is suitable for. These are
    * used only to choose between templates; they are never written into a bid.
    */
@@ -249,9 +254,20 @@ export function ownText(element: Element): string {
     .trim()
 }
 
-/** Whether this element is a slot — used identically by extractor and filler. */
+/**
+ * Whether this element is a slot — used identically by extractor and filler.
+ *
+ * Anything under `[data-fixed]` is the firm's own and stays as written: its
+ * address and contacts, the captions on its photographs, the name under a
+ * signature. Inside the content area, because that is where the design puts
+ * them, but no more the assignment's to rewrite than the logo is.
+ */
 export function isSlot(element: Element): boolean {
-  return !SKIP.has(element.tagName) && ownText(element).length >= 2
+  return (
+    !SKIP.has(element.tagName) &&
+    ownText(element).length >= 2 &&
+    !element.closest('[data-fixed]')
+  )
 }
 
 /**
