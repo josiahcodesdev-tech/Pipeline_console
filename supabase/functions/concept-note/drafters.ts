@@ -327,6 +327,50 @@ function openaiDrafter(apiKey: string): Drafter {
         refused: finishReason === 'content_filter',
       }
     },
+
+    // The template drafter's half. Without it OpenAI could stand in for a
+    // whole-document draft but not for a section, so when Anthropic could not
+    // serve, every section of a house-template proposal failed and the author
+    // got the template back with its old wording — the failover existed and
+    // never ran.
+    async fillSlots(job: DraftJob, slots: readonly SlotBrief[]) {
+      const response = await client.responses.create({
+        model: OPENAI_PROPOSAL_MODEL,
+        instructions: job.system,
+        input: job.task,
+        reasoning: { effort: 'low' },
+        // Same sizing as the Claude path, with headroom for reasoning tokens,
+        // which count against this ceiling too.
+        max_output_tokens: Math.min(
+          32_000,
+          Math.max(4_000, slots.reduce((total, slot) => total + slot.budget, 0) * 3),
+        ),
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'section_slots',
+            strict: true,
+            schema: structuredClone(SLOT_SCHEMA) as unknown as Record<string, unknown>,
+          },
+        },
+        store: false,
+      })
+
+      if (response.status === 'incomplete') {
+        throw new Error(
+          response.incomplete_details?.reason === 'max_output_tokens'
+            ? 'This section is longer than one pass allows. Split it.'
+            : `OpenAI stopped early: ${response.incomplete_details?.reason ?? 'unknown reason'}.`,
+        )
+      }
+      const refused = response.output.some(
+        (item) => item.type === 'message' && item.content.some((part) => part.type === 'refusal'),
+      )
+      if (refused) throw new Error('The model declined to write this section.')
+
+      const parsed = JSON.parse(response.output_text) as { values?: Array<{ id: string; text: string }> }
+      return parsed.values ?? []
+    },
   }
 }
 
@@ -455,21 +499,35 @@ export function providerUnavailable(error: unknown): string | null {
 }
 
 /**
- * Two drafters, the second used only when the first cannot serve.
+ * Why the primary is being passed over, in a few words for the log and the
+ * `end` event. Any failure qualifies: the firm would rather have a GPT draft
+ * than none, so a bad request or a refusal from Anthropic goes to OpenAI too.
+ */
+function failoverReason(cause: unknown): string {
+  const known = providerUnavailable(cause)
+  if (known) return known
+  const message = cause instanceof Error ? cause.message : String(cause)
+  return message.length > 160 ? `${message.slice(0, 157)}...` : message
+}
+
+/**
+ * Two drafters, the second used whenever the first fails.
  *
  * WHY THIS IS NOT THE FALLBACK THAT WAS REMOVED
- * The earlier one wrapped *every* primary failure, so "ANTHROPIC_API_KEY is not
- * configured" came back wearing OpenAI's error message and sent people to check
- * the wrong key. Two rules keep that from happening again:
+ * The earlier one wrapped every primary failure too, but reported OpenAI's
+ * error in its place, so "ANTHROPIC_API_KEY is not configured" came back
+ * wearing OpenAI's message and sent people to check the wrong key. The rule
+ * that keeps that from happening again:
  *
- *   1. Only `providerUnavailable` failures fail over. A misconfiguration or a
- *      malformed request is reported by the provider that had it, as itself.
- *   2. When both fail, the PRIMARY's error is what propagates. The secondary's
- *      is attached to it, never substituted for it. Whoever reads the message
- *      is told which provider they actually need to fix.
+ *   When both fail, the PRIMARY's error is what propagates. The secondary's is
+ *   attached to it, never substituted for it. Whoever reads the message is told
+ *   which provider they actually need to fix.
  *
- * A successful failover is not silent either: it logs, and it marks the `end`
- * event, so a run that quietly cost twice as long has something to show for it.
+ * Failing over on every error, not only on unavailability, was asked for: a
+ * draft from the second provider beats a template with the last client's
+ * wording in it. A successful failover is not silent either: it logs, and it
+ * marks the `end` event, so a run that quietly cost twice as long has something
+ * to show for it.
  */
 function failoverDrafter(primary: Drafter, secondary: Drafter): Drafter {
   return {
@@ -487,8 +545,8 @@ function failoverDrafter(primary: Drafter, secondary: Drafter): Drafter {
         }
         return
       } catch (cause) {
-        const reason = providerUnavailable(cause)
-        if (started || !reason) throw cause
+        const reason = failoverReason(cause)
+        if (started) throw cause
         console.error(`[drafter] ${primary.label} unavailable (${reason}); trying ${secondary.label}`)
 
         try {
@@ -515,8 +573,8 @@ function failoverDrafter(primary: Drafter, secondary: Drafter): Drafter {
       try {
         return await primary.fillSlots(job, slots)
       } catch (cause) {
-        const reason = providerUnavailable(cause)
-        if (!reason || !secondary.fillSlots) throw cause
+        const reason = failoverReason(cause)
+        if (!secondary.fillSlots) throw cause
         console.error(`[drafter] ${primary.label} unavailable (${reason}); trying ${secondary.label}`)
         try {
           return await secondary.fillSlots(job, slots)
