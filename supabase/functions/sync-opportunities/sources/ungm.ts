@@ -8,11 +8,10 @@
  * There is no public API. The listing page renders its results by POSTing to
  * an internal endpoint that answers with an HTML fragment of table rows, and
  * that is what this reads. Being undocumented, it can change without notice —
- * if this source starts returning zero, compare a browser's network tab for
- * /Public/Notice/Search against the request below before assuming the parser
- * is at fault. The request must look like the page's own: the endpoint needs
- * form encoding and the XMLHttpRequest header, and returns an error page
- * without them.
+ * and did, in October 2026, when it started requiring a JSON body and an
+ * anti-forgery token (see openSession). If this source starts failing, compare
+ * a browser's network tab for /Public/Notice/Search against the request below
+ * before assuming the parser is at fault.
  *
  * Notices are filtered on UNGM's own type label rather than keywords where
  * possible — "Request for proposal" and "Expression of interest" are the
@@ -126,26 +125,63 @@ export function parseUngm(html: string, now = new Date()): {
   return { notices, rows, exhausted: rows > 0 && !sawRecent }
 }
 
-async function page(index: number): Promise<string> {
+const AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+
+/** What the listing page hands out, and every search has to send back. */
+interface Session {
+  cookie: string
+  token: string
+}
+
+/**
+ * Opens the listing page for its anti-forgery pair.
+ *
+ * Since October 2026 the search refuses (400) any request without the
+ * `RequestVerificationToken` header from the page's hidden field *and* the
+ * cookie the same response set. The two are issued together and only valid
+ * together, so they are fetched once per run and reused for every page.
+ */
+async function openSession(): Promise<Session> {
+  const res = await fetch(`${ORIGIN}/Public/Notice`, {
+    headers: { Accept: "text/html", "User-Agent": AGENT },
+  })
+  if (!res.ok) throw new Error(`UNGM returned ${res.status} for the listing page`)
+  const html = await res.text()
+  const token = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/)?.[1]
+  if (!token) throw new Error("UNGM listing page carried no verification token")
+  const cookie = res.headers
+    .getSetCookie()
+    .map((line) => line.split(";")[0])
+    .join("; ")
+  return { cookie, token }
+}
+
+async function page(session: Session, index: number): Promise<string> {
   const res = await fetch(SEARCH, {
     method: "POST",
     headers: {
-      // Both of these are load-bearing — without them the endpoint answers
-      // with a generic error page rather than the results fragment.
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
+      RequestVerificationToken: session.token,
+      Cookie: session.cookie,
       Referer: `${ORIGIN}/Public/Notice`,
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+      "User-Agent": AGENT,
     },
-    // PageSize is required even though it is capped — omitting it returns an
-    // error page rather than defaulting.
-    body: new URLSearchParams({
-      PageIndex: String(index),
-      PageSize: String(PAGE_SIZE),
+    // The page's own search body. PageSize is required even though the
+    // endpoint caps it at fifteen.
+    body: JSON.stringify({
+      PageIndex: index,
+      PageSize: PAGE_SIZE,
       SortField: "DatePublished",
-      SortAscending: "false",
-    }).toString(),
+      SortAscending: false,
+      IsActive: true,
+      Countries: [],
+      Agencies: [],
+      UNSPSCs: [],
+      NoticeTypes: [],
+      TypeOfCompetitions: [],
+    }),
   })
   if (!res.ok) throw new Error(`UNGM returned ${res.status}`)
   return res.text()
@@ -154,11 +190,12 @@ async function page(index: number): Promise<string> {
 export async function fetchUngm(now = new Date()): Promise<Notice[]> {
   const all: Notice[] = []
   const seen = new Set<string>()
+  const session = await openSession()
 
   for (let index = 0; index < MAX_PAGES; index += 1) {
     let html: string
     try {
-      html = await page(index)
+      html = await page(session, index)
     } catch (cause) {
       // Losing a later page should not throw away the ones already read.
       if (index === 0) throw cause

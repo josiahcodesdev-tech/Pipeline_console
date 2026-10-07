@@ -1,97 +1,85 @@
 /**
- * IUCN — legacy "Currently running tenders" page.
+ * IUCN — the procurement portal at procurement.iucn.org.
  *
- * The weakest source here, deliberately kept anyway. IUCN has moved to a
- * JavaScript portal at procurement.iucn.org with no API, no RSS and its scopes
- * of work as PDF attachments; the page scraped below is the old static table
- * they have said will be retired once its listed tenders close.
+ * IUCN retired its old "Currently running tenders" page (it now answers every
+ * automated request with "Access denied") and moved tendering to a portal. The
+ * portal is a JavaScript app, but the list behind its public overview is a plain
+ * JSON endpoint that needs no login: `GET /api/procurement/public-list/`. It
+ * returns every procurement on the portal, open or closed — about 250 — so this
+ * keeps the ones still taking proposals and lets the shared filters decide
+ * relevance.
  *
- * As of writing every deadline in its "Open tenders" table has already passed,
- * so this connector legitimately returns close to nothing. That is the source
- * being stale rather than the parser being broken — do not "fix" it by
- * loosening stillOpen(). If IUCN coverage starts mattering, the real work is
- * reaching procurement.iucn.org, which needs a rendering step an Edge Function
- * cannot provide.
- *
- * Structure: a plain <table> under an "Open tenders" heading, columns
- *   Submission Deadline | RfP Title and Link | IUCN Office | Country | ...
- * A second table of tenders under evaluation follows it, which is why this
- * slices the document at the heading rather than reading every table.
+ * Undocumented, like UNGM's. If this source starts failing, open the portal's
+ * overview page with the browser's network tab and compare the request.
  */
 
 import {
   type Notice,
-  decodeEntities,
   isRelevant,
   parseDate,
   scoreFit,
   serviceAreasFor,
   stillOpen,
-  stripTags,
+  text,
 } from "../normalize.ts"
 
-const PAGE = "https://iucn.org/procurement/currently-running-tenders"
-const ORIGIN = "https://iucn.org"
+const ORIGIN = "https://procurement.iucn.org"
+const LIST = `${ORIGIN}/api/procurement/public-list/`
 
-/** Turns a title into a stable id — IUCN publishes no notice reference. */
-function slug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
+/**
+ * IUCN's own category labels for advisory work. Everything else on the portal
+ * is goods and works — equipment, construction materials, printing, travel.
+ */
+const ADVISORY_TYPE = /consult|professional fees/i
+
+/** Stages in which the portal is still accepting responses. */
+const OPEN_STAGE = /awaiting_proposals|pre_qualification(?!_evaluation)/i
+
+interface Procurement {
+  id?: unknown
+  short_title?: unknown
+  name?: unknown
+  type?: unknown
+  stage?: unknown
+  nav_company?: unknown
+  requisitioning_unit?: unknown
+  country_of_performance?: unknown
+  pre_qualification_response_deadline?: unknown
+  tech_financial_response_deadline?: unknown
+  requires_pre_qualification?: unknown
 }
 
-export function parseIucn(html: string, now = new Date()): Notice[] {
-  // Everything from the "Open tenders" heading to the next heading. Without
-  // this the "under evaluation" table below it would be scraped as live work.
-  const start = html.search(/<h2[^>]*>\s*(?:<strong>)?\s*Open tenders/i)
-  if (start === -1) return []
-  const rest = html.slice(start + 1)
-  const end = rest.search(/<h2[^>]*>/i)
-  const section = end === -1 ? rest : rest.slice(0, end)
-
+export function parseIucn(rows: unknown, now = new Date()): Notice[] {
+  if (!Array.isArray(rows)) return []
   const notices: Notice[] = []
   const seen = new Set<string>()
 
-  for (const row of section.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) ?? []) {
-    const cells = row.match(/<td[^>]*>[\s\S]*?<\/td>/gi) ?? []
-    const [deadlineCell = "", titleCell = "", officeCell = "", countryCell = ""] = cells
-    if (!deadlineCell || !titleCell) continue
+  for (const row of rows as Procurement[]) {
+    const id = text(row.id)
+    const title = text(row.short_title) || text(row.name)
+    const type = text(row.type)
+    if (!id || !title || seen.has(id)) continue
+    if (!ADVISORY_TYPE.test(type)) continue
+    if (row.stage && !OPEN_STAGE.test(text(row.stage))) continue
 
-    // The header row repeats the column names.
-    if (/submission deadline/i.test(stripTags(deadlineCell))) continue
-
-    // The title is bolded ahead of the attachment links; falling back to the
-    // whole cell would drag in every "download" label with it.
-    const bold = titleCell.match(/<strong[^>]*>([\s\S]*?)<\/strong>/i)
-    const title = stripTags(bold?.[1] ?? titleCell).slice(0, 300)
-    if (!title) continue
-
-    const deadline = parseDate(stripTags(deadlineCell))
+    // Pre-qualification, when a tender has it, closes first and is the
+    // deadline a bidder has to meet next.
+    const deadline = parseDate(
+      row.requires_pre_qualification === true
+        ? row.pre_qualification_response_deadline ?? row.tech_financial_response_deadline
+        : row.tech_financial_response_deadline ?? row.pre_qualification_response_deadline,
+    )
     if (!stillOpen(deadline, now)) continue
-
-    const office = stripTags(officeCell)
-    const country = stripTags(countryCell)
     if (!isRelevant(title)) continue
 
-    const id = slug(title)
-    if (!id || seen.has(id)) continue
     seen.add(id)
-
-    // First attachment is the RfP itself; the rest are declaration templates.
-    const href = titleCell.match(/href="([^"]+)"/i)?.[1] ?? ""
-    const link = href
-      ? decodeEntities(href.startsWith("http") ? href : `${ORIGIN}${href}`)
-      : PAGE
-
     notices.push({
       externalId: `iucn:${id}`,
       title,
-      org: office && !/^tbd$/i.test(office) ? `IUCN — ${office}` : "IUCN",
+      org: text(row.nav_company) || "IUCN",
       deadline,
-      link,
-      location: /^tbd$/i.test(country) ? "" : country,
+      link: `${ORIGIN}/procurement/bidder/detail?id=${encodeURIComponent(id)}`,
+      location: text(row.country_of_performance),
       source: "IUCN",
       opportunityType: "rfp",
       serviceAreas: serviceAreasFor(title),
@@ -103,13 +91,13 @@ export function parseIucn(html: string, now = new Date()): Notice[] {
 }
 
 export async function fetchIucn(now = new Date()): Promise<Notice[]> {
-  const res = await fetch(PAGE, {
+  const res = await fetch(LIST, {
     headers: {
-      Accept: "text/html",
-      // Drupal behind a WAF; the default Deno agent gets a 403.
-      "User-Agent": "Mozilla/5.0 (compatible; VantagePipeline/1.0)",
+      Accept: "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
     },
   })
   if (!res.ok) throw new Error(`IUCN returned ${res.status}`)
-  return parseIucn(await res.text(), now)
+  return parseIucn(await res.json(), now)
 }
