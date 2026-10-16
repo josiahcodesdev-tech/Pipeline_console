@@ -1547,9 +1547,13 @@ export function RfpProfile({ rfp, onBack }: { rfp: Rfp; onBack: () => void }) {
           rfp={rfp}
           currentOwner={
             heldByOther ??
-            (rfp.ownerId === profile?.id
-              ? 'you'
-              : (memberNames.get(rfp.ownerId) ?? 'another member'))
+            // An untaken synced tender is nobody's yet: whose copy is on
+            // screen says nothing about who is working on it.
+            (rfp.externalId && !rfp.inPipeline
+              ? 'nobody yet'
+              : rfp.ownerId === profile?.id
+                ? 'you'
+                : (memberNames.get(rfp.ownerId) ?? 'another member'))
           }
           open={reassigning}
           onOpenChange={setReassigning}

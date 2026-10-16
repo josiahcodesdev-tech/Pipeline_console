@@ -246,7 +246,10 @@ export function present(row, consoleOrigin, people = new Map(), claims = new Map
     // notice firm-wide. They are usually the same person and occasionally not,
     // which is the case worth being able to see.
     user_id: row.user_id ?? null,
-    owner_name: (row.user_id ? people.get(row.user_id) : null) ?? null,
+    // Named only for a tender someone has taken on. Every member holds a copy of
+    // each synced tender, so on one nobody is bidding, `user_id` is just whose
+    // copy this is, and naming them read as if they had picked it.
+    owner_name: (row.in_pipeline === true && row.user_id ? people.get(row.user_id) : null) ?? null,
     claimed_by: claim?.claimed_by ?? null,
     claimed_by_name: (claim?.claimed_by ? people.get(claim.claimed_by) : null) ?? null,
     claimed_at: claim?.claimed_at ?? null,
